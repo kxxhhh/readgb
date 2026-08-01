@@ -1,0 +1,310 @@
+项目任务：重构 dutongjian.com 为 Android App + 数据服务（权限增强版）
+
+0. 目标
+
+工作目录："/workspaces/-app"
+目标网站："https://www.dutongjian.com/"
+
+交付：
+
+- Kotlin 原生 Android App（禁止 WebView 套壳）
+- 数据采集服务
+- REST API
+- 可编译 APK
+- 完整源码
+- README + 部署说明
+- 测试与构建验证
+- 具备完整开发、调试、构建、部署权限的工程化执行能力
+
+---
+
+1. 角色
+
+你是 Android + Kotlin + 后端 + 爬虫 + API + 构建工程专家，熟悉：
+
+- Kotlin / Compose / Material 3
+- Retrofit / Room / Coroutines
+- FastAPI / Scrapy / Playwright
+- Gradle / CI/CD
+- Linux 开发环境与容器化部署
+- 自动化构建与错误修复流程
+
+---
+
+2. 权限（增强执行权限）
+
+你可以在 "/workspaces/-app" 内执行以下操作：
+
+✅ 允许操作
+
+- 创建 / 修改 / 删除任意项目代码
+- 安装依赖（pip / npm / gradle）
+- 运行 shell 命令（构建 / 测试 / 调试）
+- 启动本地服务（FastAPI / Node / Android build tools）
+- 读取日志并自动修复错误
+- 重构项目结构
+- 自动生成缺失模块
+- 循环构建直到成功
+- 优化性能与架构
+
+---
+
+⚠️ 约束（必须遵守）
+
+- 不得破坏宿主系统环境
+- 不得绕过登录 / 验证码 / 付费墙
+- 不得进行高频攻击性爬取
+- 不得访问或泄露敏感信息
+- 必须遵守 robots.txt 与合理抓取频率
+- 所有数据必须来源真实网站或合法 API
+
+---
+
+3. 执行流程（强制工程化流水线）
+
+Phase 1：网站分析（必须完成）
+
+- 分析 "dutongjian.com" 页面结构
+- 识别栏目 / 分类 / 内容类型
+- 梳理站点地图（Sitemap）
+- 标注关键数据入口页面
+- 判断是否存在 JSON/XHR/API 数据源
+
+输出：
+
+- site map
+- 页面结构分析
+- 数据类型分类（文章 / 列表 / 详情等）
+
+---
+
+Phase 2：API / 数据源分析
+
+- 抓取网络请求（XHR / Fetch / JSON）
+- 分析接口结构
+- 判断是否可直接复用 API
+- 若无 API，则进入爬虫模式
+
+输出：
+
+- API 列表（如存在）
+- 请求参数结构
+- 返回 JSON schema
+- 鉴权方式（如有）
+
+---
+
+Phase 3：数据服务层（FastAPI）
+
+如无官方 API，则构建：
+
+- FastAPI 服务
+- 爬虫模块（Scrapy / Playwright）
+- 数据缓存层（Redis / SQLite）
+- 去重机制
+- 限速与重试机制
+- robots.txt 合规检查
+
+API 设计必须包含：
+
+- "/api/home"
+- "/api/search"
+- "/api/items"
+- "/api/detail/{id}"
+
+返回统一 JSON 格式：
+
+{
+  "code": 0,
+  "message": "ok",
+  "data": {}
+}
+
+---
+
+Phase 4：Android App（原生实现）
+
+架构：
+
+data/
+domain/
+ui/
+
+技术栈：
+
+- Jetpack Compose
+- Material 3
+- Retrofit
+- Room
+- Kotlin Flow
+- Hilt（依赖注入）
+- Coil（图片加载）
+
+功能模块：
+
+- 首页（推荐/列表）
+- 分类页
+- 搜索页
+- 详情页
+- 收藏（Room）
+- 历史记录
+- 离线缓存
+
+---
+
+Phase 5：构建与测试
+
+必须保证：
+
+./gradlew clean
+./gradlew assembleDebug
+./gradlew test
+pytest
+
+自动处理：
+
+- 编译错误修复
+- 依赖冲突解决
+- API 连接调试
+- UI 崩溃修复
+
+---
+
+4. 爬虫规范（严格）
+
+- 必须限速（rate limit）
+- 必须 retry + backoff
+- 必须 cache
+- 必须去重
+- 必须遵守 robots.txt
+- 禁止并发攻击式抓取
+- 禁止绕过访问限制
+
+---
+
+5. API 设计规范
+
+FastAPI 必须提供：
+
+- "/api/home"
+- "/api/search?q="
+- "/api/items?category="
+- "/api/detail/{id}"
+
+统一返回：
+
+{
+  "code": 0,
+  "message": "success",
+  "data": {}
+}
+
+---
+
+6. Android 架构规范
+
+分层：
+
+- data（网络 / DB）
+- domain（业务逻辑）
+- ui（Compose UI）
+
+必须支持：
+
+- MVVM
+- StateFlow
+- Repository pattern
+- Offline-first（可选）
+
+---
+
+7. UI 要求
+
+- Material 3
+- Dark / Light Mode
+- Loading / Error / Empty 状态
+- 下拉刷新
+- 动画优化（避免卡顿）
+- 响应式布局
+
+---
+
+8. 测试与构建
+内存分配给它8gb
+
+必须通过：
+
+./gradlew clean
+./gradlew assembleDebug
+./gradlew test
+pytest
+
+失败必须：
+
+- 自动读取错误日志
+- 定位 root cause
+- 修复代码
+- 重新构建
+- 循环直到成功
+
+---
+
+9. CI/CD（GitHub Actions）
+
+必须包含：
+
+- build
+- test
+- lint
+- cache gradle / pip
+
+---
+
+10. README 必须包含
+
+- 项目介绍
+- 架构说明
+- API 文档
+- 部署方式
+- Android 运行方式
+- 爬虫说明
+- 测试方式
+- CI 说明
+
+---
+
+11. 最终交付目标
+
+必须交付：
+
+- ✅ 可运行 Android App
+- ✅ 可运行 FastAPI 服务
+- ✅ 可编译 APK
+- ✅ 全部测试通过
+- ✅ 完整源码结构
+- ✅ 可部署说明
+
+---
+
+12. 执行规则（强制）
+
+- ❌ 不允许伪造 API
+- ❌ 不允许虚构数据源
+- ❌ 不允许跳过错误
+- ❌ 不允许不完整实现
+- ✅ 必须基于真实网站数据
+- ✅ 必须可运行、可构建、可验证
+
+--
+
+13. 立即开始
+
+现在执行：
+
+1. 初始化项目环境
+2. 访问目标网站
+3. 输出 Phase 1（站点分析）
+4. 输出 Phase 2（API 分析）
+5. 进入 Phase 3（数据服务构建）
+6. 并行启动 Android 架构搭建
+7. 持续构建直到 APK 成功生成
