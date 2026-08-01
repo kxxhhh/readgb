@@ -22,12 +22,12 @@
 
 ## 当前阶段
 
-当前处于后端数据服务实现阶段，Android 工程尚未创建。
+当前处于 Android 客户端基础架构阶段，后端 API 基线已通过，Compose UI 和最终构建待完成。
 
 - 站点分析：已完成基础分析。
 - API/数据源分析：未发现可确认的官方 JSON API；待在具备站点 DNS 的环境中进一步抓取 XHR/API。
-- FastAPI 服务：骨架和主要接口已创建，测试正在修正适配层。
-- Android App：待实现。
+- FastAPI 服务：骨架和主要接口已创建，API/采集器测试均已通过，待完成覆盖率确认。
+- Android App：Gradle 单模块工程、data/domain/ui 基础代码已创建，Compose UI 待实现。
 - 文档和部署说明：待补齐；本状态文件已创建。
 - 最终构建：尚未完成，当前没有 APK。
 
@@ -43,11 +43,13 @@
 - 安装了 `service/requirements.txt` 中声明的 Python 依赖。
 - 抓取器测试已通过；Python 模块编译检查已通过。
 - 创建 `.gitignore`，排除 Python 字节码、测试缓存、SQLite 运行库、Gradle 构建产物和本地环境文件。
+- 创建 Android 单模块工程，包含 Compose、Retrofit、Room、Hilt、Coil、Coroutines 配置。
+- 创建 Android domain 模型/Repository 接口、Retrofit API、Room DAO/数据库、Repository 实现和 StateFlow ViewModel。
 
 ## 当前架构
 
 ```text
-android/                         # 待创建：原生 Android 客户端
+android/                         # 原生 Android 客户端
   app/src/main/java/.../
     data/                         # Retrofit、Room、Repository 实现
     domain/                       # 领域模型、UseCase、Repository 接口
@@ -76,7 +78,7 @@ service/
 - Coil，用于可选的封面/图片资源加载。
 - Coroutines。
 
-Android 工程尚未创建，具体版本需以本机 Android Gradle Plugin、SDK 和本地依赖缓存可用性为准，并在创建后锁定。
+Android 工程已创建；当前锁定 AGP 9.0.0、Kotlin 2.4.10、Compose BOM 2026.07.00、compileSdk/targetSdk 35、minSdk 26。实际构建仍需下载依赖并验证版本兼容性。
 
 ## Backend 技术栈
 
@@ -144,20 +146,43 @@ Android 工程尚未创建，具体版本需以本机 Android Gradle Plugin、SD
 - `PROJECT_STATE.md`：本文件。
 - `.gitignore`：项目运行生成物和本地构建文件忽略规则。
 
+### Android 客户端
+
+- `android/settings.gradle.kts`
+- `android/build.gradle.kts`
+- `android/gradle.properties`
+- `android/app/build.gradle.kts`
+- `android/app/proguard-rules.pro`
+- `android/app/src/main/AndroidManifest.xml`
+- `android/app/src/main/res/values/strings.xml`
+- `android/app/src/main/res/values/themes.xml`
+- `android/app/src/main/res/xml/backup_rules.xml`
+- `android/app/src/main/java/com/dutongjian/app/DutongjianApplication.kt`
+- `android/app/src/main/java/com/dutongjian/app/domain/model/ReadingItem.kt`
+- `android/app/src/main/java/com/dutongjian/app/domain/repository/ReadingRepository.kt`
+- `android/app/src/main/java/com/dutongjian/app/data/network/ApiModels.kt`
+- `android/app/src/main/java/com/dutongjian/app/data/network/DutongjianApi.kt`
+- `android/app/src/main/java/com/dutongjian/app/data/local/ItemEntity.kt`
+- `android/app/src/main/java/com/dutongjian/app/data/local/ItemDao.kt`
+- `android/app/src/main/java/com/dutongjian/app/data/local/AppDatabase.kt`
+- `android/app/src/main/java/com/dutongjian/app/data/ReadingRepositoryImpl.kt`
+- `android/app/src/main/java/com/dutongjian/app/di/AppModule.kt`
+- `android/app/src/main/java/com/dutongjian/app/ui/ReadingViewModel.kt`
+
 ## 当前编译状态
 
-- Android：未开始；没有 `android/` 工程、Gradle wrapper 或 APK。
+- Android：工程骨架和 Kotlin 分层代码已创建；尚未运行 Gradle 编译，没有 APK。
 - Backend Python：`python3 -m compileall -q service/app` 已通过。
 - Backend crawler tests：2 项已通过。
-- Backend API tests：已改为 `httpx.AsyncClient + ASGITransport`，上次测试运行被会话中断，需在当前会话重新执行并记录明确结果。
+- Backend API tests：`test_api.py` 4 项通过；采集器测试 2 项通过；Python 编译检查通过。完整覆盖率命令仍待执行。
 - 依赖安装：`python3 -m pip install -r service/requirements.txt` 已成功；由于沙箱 DNS 限制使用了受控安装权限。
-- Gradle 环境：系统 Gradle 可执行，但此前启动时报 `Failed to load native library 'libnative-platform.so'`；Android 构建尚未开始，需先验证 wrapper/Gradle 版本和本地缓存。
+- Gradle 环境：系统 Gradle 9.4.0 在 JDK 21 下可启动；默认 JDK 25 曾触发 `Failed to load native library 'libnative-platform.so'`。Android 工程尚未下载依赖或完成构建。
 
 ## 已知错误
 
-1. 当前 Android 工程尚不存在，因此无法执行 guide 要求的 `./gradlew clean`、`./gradlew assembleDebug` 和 `./gradlew test`。
+1. Android 工程尚未配置 Gradle wrapper，也未完成 `./gradlew clean`、`./gradlew assembleDebug` 和 `./gradlew test`。
 2. 当前沙箱无法解析 `dutongjian.com`，实时站点分析和正式采集器验证被网络环境限制。
-3. API 测试此前使用同步 `fastapi.testclient.TestClient` 时在第一个请求处挂起；测试已改成 ASGI 异步客户端，尚未重新完成验证。
+3. Android 依赖尚未下载，AGP/Kotlin/Compose/Room/Hilt 版本兼容性尚未经过实际编译验证。
 4. `data/dutongjian.db` 和 Python 字节码属于本地运行生成物，已由 `.gitignore` 排除，不进入提交。
 
 ## 已解决错误
@@ -166,17 +191,16 @@ Android 工程尚未创建，具体版本需以本机 Android Gradle Plugin、SD
 2. 初始测试缺少 `service` 的 Python path 配置。已通过 `service/pyproject.toml` 的 `pythonpath = ["."]` 固定测试导入路径。
 3. Python 依赖未安装。已按 `service/requirements.txt` 安装 FastAPI、Uvicorn、pytest 等依赖。
 4. 运行生成物曾显示为未跟踪文件。已创建 `.gitignore`，后续只提交源码、测试、部署配置和文档。
+5. 同步 FastAPI 路由在线程池中阻塞 ASGI 测试。已将只读 API 路由改为 `async def`，避免该线程池路径；4 个 API 测试已通过。
 
 ## 下一步任务
 
-1. 重新执行 `pytest -q service/tests --cov=service/app --cov-report=term-missing`，只记录首个真正 root cause。
-2. 补齐 `.gitignore`，排除 SQLite、`__pycache__`、构建产物和本地环境文件。
-3. 创建 `android/` 原生 Compose 单模块工程，按 `data/domain/ui` 分层。
-4. 实现首页、分类、搜索、详情、收藏、历史和离线缓存状态。
-5. 配置 Retrofit、Room、Hilt、Coil、Material 3 及测试依赖；确保 API base URL 可通过 BuildConfig 配置。
-6. 完成 README、服务部署说明、站点分析报告和 Android 运行说明。
-7. 验证 `./gradlew clean`、`./gradlew assembleDebug`、`./gradlew test`、`pytest`，生成并定位 APK。
-8. 在可访问目标站点的环境中确认 robots/sitemap/API 后，再实现真实 HTML/API 采集和同步命令。
+1. 补 Compose UI：首页推荐/分类筛选、搜索、详情、收藏、历史、加载/错误/空状态和深色模式。
+2. 修正并验证 Repository/Room/StateFlow 代码的 Kotlin 编译问题。
+3. 生成 Gradle wrapper，使用 JDK 21 执行 clean、assembleDebug、test；记录首个真实 root cause。
+4. 完成 README、服务部署说明、站点分析报告和 Android 运行说明。
+5. 重新执行完整 `pytest` 和覆盖率，更新本状态文件。
+6. 在可访问目标站点的环境中确认 robots/sitemap/API 后，再实现真实 HTML/API 采集和同步命令。
 
 ## 重要决策
 

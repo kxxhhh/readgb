@@ -27,22 +27,22 @@ def item_list(items) -> list[dict[str, Any]]:
 
 
 @app.get("/api/home")
-def home() -> dict[str, Any]:
+async def home() -> dict[str, Any]:
     return envelope({"items": item_list(store.list_items(limit=12)), "categories": store.categories()})
 
 
 @app.get("/api/search")
-def search(q: str = Query(min_length=1, max_length=80), limit: int = Query(default=20, ge=1, le=50)) -> dict[str, Any]:
+async def search(q: str = Query(min_length=1, max_length=80), limit: int = Query(default=20, ge=1, le=50)) -> dict[str, Any]:
     return envelope({"query": q.strip(), "items": item_list(store.list_items(query=q.strip(), limit=limit))})
 
 
 @app.get("/api/items")
-def items(category: str | None = None, limit: int = Query(default=20, ge=1, le=50)) -> dict[str, Any]:
+async def items(category: str | None = None, limit: int = Query(default=20, ge=1, le=50)) -> dict[str, Any]:
     return envelope({"category": category, "items": item_list(store.list_items(category=category, limit=limit))})
 
 
 @app.get("/api/detail/{item_id}", response_model=None)
-def detail(item_id: str) -> JSONResponse | dict[str, Any]:
+async def detail(item_id: str) -> JSONResponse | dict[str, Any]:
     item = store.get_item(item_id)
     if item is None:
         return JSONResponse(status_code=404, content=envelope(None, "item not found", 404))
