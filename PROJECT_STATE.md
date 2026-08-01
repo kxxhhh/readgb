@@ -221,3 +221,193 @@ Android 工程已创建；当前锁定 AGP 9.0.0、Kotlin 2.4.10、Compose BOM 2
 - Gradle：优先使用项目 wrapper，避免依赖系统 Gradle；当前系统 Gradle 初始化 native platform 失败，需在工程创建后处理。
 - 构建内存：按 guide 要求为 Gradle 配置约 8 GB（`org.gradle.jvmargs=-Xmx8g`），但应根据容器实际可用内存调整并记录结果。
 - 实时站点采集需要可解析 `dutongjian.com` DNS 的网络环境；生产环境还需持久化 `data/` 卷并配置明确的 CORS 来源。
+
+---
+
+## 增量阶段更新：Compose UI 实现（2026-08-01）
+
+本节为新增记录，保留前文全部历史状态、完成项、错误和决策。
+
+### 本阶段完成
+
+- 新增 `MainActivity` 和 Hilt Android Application 入口。
+- 新增 Material 3 主题，支持系统深色模式和手动切换。
+- 新增首页：搜索框、分类筛选、推荐条目、加载/错误/空状态、刷新入口。
+- 新增书架：收藏和最近阅读两个视图。
+- 新增详情页：返回、收藏、导读、正文和来源信息。
+- 新增条目卡片和淡入淡出页面过渡。
+- 修正 Room Flow 的 `first()` 调用，并允许本地开发 API 使用 HTTP。
+
+### 当前增量文件
+
+- `android/app/src/main/java/com/dutongjian/app/MainActivity.kt`
+- `android/app/src/main/java/com/dutongjian/app/ui/DutongjianApp.kt`
+- `android/app/src/main/java/com/dutongjian/app/ui/theme/Theme.kt`
+
+### 本阶段验证状态
+
+- Compose UI 尚未完成 Gradle 编译验证。
+- 首轮构建使用 JDK 21；默认 JDK 25 的 Gradle native platform 问题仍保留在前文错误记录中。
+- 下一步先生成 Gradle wrapper，再执行 `clean`、`assembleDebug`、`test`，每次失败只追加第一个 root cause。
+- Android Debug/Release 构建显式关闭 `isMinifyEnabled` 和 `isShrinkResources`，按用户要求跳过 R8 和资源收缩。
+
+### 增量构建修复
+
+- 已按首个 Android 依赖 root cause 将 Compose BOM 从不存在的 `2026.07.00` 修正为官方示例使用的 `2026.06.00`。
+- 本次修复保留 R8 跳过配置；下一轮构建继续只记录首个新的 root cause。
+
+### 第四个 Android 构建 root cause 记录
+
+- Root cause：`android/app/build.gradle.kts` 中 `io.coil-kt:coil-compose:3.3.0` 无法解析。
+- 相关文件：`android/app/build.gradle.kts`。
+- 原因：Coil 3 使用新的 Maven group `io.coil-kt.coil3`，旧 group 坐标不再匹配当前发行版。
+- 修复方案：改用 `io.coil-kt.coil3:coil-compose:3.5.0`，并加入对应的 OkHttp 网络模块。
+- 修复结果：待下一轮 `clean assembleDebug` 确认；R8 仍显式关闭。
+
+### 首轮 Gradle root cause 记录
+
+- Root cause：`android/build.gradle.kts:4` 声明的 KSP 插件版本 `2.4.10-2.0.2` 无法从 Gradle Plugin Portal/Google/Maven Central 解析。
+- 相关文件：`android/build.gradle.kts`。
+- 原因：该版本号不是当前可解析的 KSP 插件坐标；官方 KSP 快速入门示例使用独立版本号 `2.3.10`。
+- 修复方案：将 KSP 插件版本改为 `2.3.10`，不改动 Kotlin、AGP 或业务代码。
+- 修复结果：待重新运行 Gradle wrapper 任务确认。
+
+### 第三个 Gradle root cause 记录
+
+- Root cause：`android/app/build.gradle.kts:40` 的旧版 `kotlinOptions { jvmTarget = "17" }` DSL 在 Kotlin 2.4/AGP 9 配置阶段无法解析。
+- 相关文件：`android/app/build.gradle.kts`。
+- 原因：新版 Kotlin Gradle 插件使用 `compilerOptions` DSL 管理编译器选项。
+- 修复方案：改用 `kotlin { compilerOptions { jvmTarget.set(JvmTarget.JVM_17) } }`，保持 JVM 17 编译目标。
+- 修复结果：待重新运行 Gradle wrapper 任务确认。
+
+### 第二个 Gradle root cause 记录
+
+- Root cause：`android/app/build.gradle.kts:5` 应用 `com.google.dagger.hilt.android` 时失败，报 `Android BaseExtension not found`。
+- 相关文件：`android/build.gradle.kts`、`android/app/build.gradle.kts`。
+- 原因：当前 Hilt Gradle 插件仍依赖旧 Android BaseExtension API，与 AGP 9.0 的插件 API 不兼容。
+- 修复方案：移除 Hilt Gradle 插件声明和模块应用，保留 Hilt runtime/compiler、`@HiltAndroidApp`、`@Inject` 和 KSP 代码生成能力。
+- 修复结果：待重新运行 Gradle wrapper 任务确认。
+
+---
+
+## 增量构建更新：API 35 依赖收敛（2026-08-01）
+
+本节继续追加当前会话进展，不修改或删除前文历史记录。
+
+### 本次唯一首个 Android 构建 root cause
+
+- Root cause：`androidx.core:core-ktx:1.19.0` 的 AAR metadata 要求 `compileSdk 37` 和更高版本的 Android Gradle Plugin；当前容器只有 Android API 35，工程使用 AGP 9.0.0。
+- 相关文件：`android/app/build.gradle.kts`；环境相关目录为 `/home/codespace/android-sdk/platforms/android-35`。
+- 错误原因：依赖版本超出当前本地 SDK 与构建插件能够验证的 API 范围，导致 `:app:checkDebugAarMetadata` 在 Kotlin 编译前失败。
+- 修复方案：将 Compose、Core、Activity、Lifecycle、Navigation、Coil 等依赖收敛到 API 35 兼容的稳定版本，保持 `compileSdk = 35`，不为本地构建强行下载尚不存在于容器的更高 Android 平台。
+- 修复结果：待下一轮 `clean assembleDebug` 验证。
+
+### 下一轮 Android 构建 root cause
+
+- Root cause：`androidx.core:core-ktx:1.17.0` 及其传递的 `androidx.core:core:1.17.0` 仍要求 `compileSdk 36`，因此 API 35 工程在 `:app:checkDebugAarMetadata` 阶段继续失败。
+- 相关文件：`android/app/build.gradle.kts`。
+- 错误原因：Core 1.17.0 已按 API 36 构建，不能用于当前仅安装 API 35 的构建环境。
+- 修复方案：继续回退到 API 35 时期的 `androidx.core:core-ktx:1.16.0`，保持其他已验证的依赖版本和 R8 跳过配置不变。
+- 修复结果：待下一轮 `clean assembleDebug` 验证。
+
+### 下一轮 Android Kotlin 编译 root cause
+
+- Root cause：`android/app/src/main/java/com/dutongjian/app/ui/DutongjianApp.kt` 使用的 `SmallTopAppBar` 与 `TopAppBarDefaults.smallTopAppBarColors` 不存在于当前 Compose Material 3 依赖组合。
+- 相关文件：`android/app/src/main/java/com/dutongjian/app/ui/DutongjianApp.kt`。
+- 错误原因：顶部栏 API 名称与当前稳定 Material 3 artifact 不匹配，导致顶部栏声明解析失败，并连带产生 Composable 上下文错误。
+- 修复方案：统一改用当前稳定的 `TopAppBar` 与 `TopAppBarDefaults.topAppBarColors`，不改变导航、刷新、深色模式和收藏交互。
+- 修复结果：待下一轮 `clean assembleDebug` 验证。
+
+### 下一轮 Android Kotlin 编译 root cause
+
+- Root cause：当前 Compose Material 3 版本将 `TopAppBar` 和相关颜色 API 标记为实验 API，而 Kotlin 编译器按项目配置将未处理的 opt-in 警告作为错误。
+- 相关文件：`android/app/src/main/java/com/dutongjian/app/ui/DutongjianApp.kt`。
+- 错误原因：代码已使用正确的 API 名称，但缺少 `ExperimentalMaterial3Api` 显式 opt-in。
+- 修复方案：在 UI 文件中加入 Material 3 实验 API 的文件级 opt-in，保留当前顶部栏实现。
+- 修复结果：待下一轮 `clean assembleDebug` 验证。
+
+### 下一轮 Android Hilt 编译 root cause
+
+- Root cause：Hilt 2.59.2 注解处理器在 `:app:hiltJavaCompileDebug` 阶段拒绝 Kotlin metadata 2.4.0，报其内置解析器最高支持 2.3.0。
+- 相关文件：`android/app/build.gradle.kts`；触发来源为 Kotlin 2.4.10 与 Hilt compiler 2.59.2 的版本组合。
+- 错误原因：Hilt compiler 的 metadata 解析能力落后于当前 Kotlin 编译器生成的 metadata 版本。
+- 修复方案：将 Hilt Android runtime、compiler 和 Gradle plugin 统一升级到官方当前构建说明使用的 2.60.1，保持 KSP 与 Kotlin 版本不变。
+- 修复结果：待下一轮 `clean assembleDebug` 验证。
+
+### 当前构建约束
+
+- Debug 和 Release 均保持 `isMinifyEnabled = false`、`isShrinkResources = false`，编译时跳过 R8 与资源收缩。
+
+---
+
+## 增量环境更新：Codex 自主开发配置（2026-08-01）
+
+- 已读取 `codex --help`，当前 CLI 版本为 `codex-cli 0.146.0`。
+- 已确认支持的高自主配置值：`approval_policy = "never"`、`sandbox_mode = "danger-full-access"`；现有 `network_access = "enabled"` 和当前项目 trusted 配置保留。
+- 已将上述配置写入 `/home/codespace/.codex/config.toml`，未读取或输出任何 credential 文件和敏感值。
+- `codex --strict-config --help` 返回成功，配置语法有效。
+- 未启用 `--dangerously-bypass-approvals-and-sandbox`，因为它会绕过安全边界，超出当前项目自主开发所需范围。
+- 无害 `codex exec` 验证受当前 app-server 的只读文件系统初始化错误阻塞；该错误不代表配置解析失败，后续仍以普通 Shell、构建和测试命令验证项目能力。
+
+---
+
+## 增量阶段更新：Android Debug 构建通过（2026-08-01）
+
+本节继续追加当前会话结果，保留此前所有阶段、错误记录和解决记录。
+
+### 本阶段完成
+
+- Android Compose 首页、书架、详情、搜索、分类筛选、收藏、阅读历史和深色模式入口完成首版实现。
+- Android 数据层已接入 Retrofit、Room、Hilt 和 ViewModel，保留本地缓存与远端服务边界。
+- Gradle wrapper 已生成，构建固定使用 JDK 21；本地安装的 Android API 35 作为 `compileSdk`。
+- Debug/Release 均明确设置 `isMinifyEnabled = false`、`isShrinkResources = false`，构建时跳过 R8 和资源收缩。
+- Hilt Gradle plugin 已恢复并升级到 2.60.1，兼容当前 Kotlin metadata 和 AGP 9 构建链。
+
+### 当前编译状态
+
+- `clean assembleDebug`：通过。
+- 产物：`android/app/build/outputs/apk/debug/app-debug.apk`。
+- 关键构建阶段已完成：KSP、Kotlin、Java、Hilt、dex、APK 打包。
+- 构建输出中的 `libandroidx.graphics.path.so` 无法 strip 属于 native 库打包警告，Gradle 已按原样打包，不是失败原因。
+- 仍存在非阻塞 Kotlin warning：`MenuBook` 自动镜像 API 弃用提示，以及 `ReadingViewModel` 的两个泛型转换 warning；下一轮可做代码质量清理。
+
+### 已解决错误追加
+
+- API 35 依赖收敛：Core 使用 1.16.0，Activity 使用 1.10.1，Lifecycle 使用 2.8.7，Navigation 使用 2.8.9，Compose BOM 使用 2025.08.01，Coil 使用 3.4.0。
+- Material 3 顶部栏 API 已改用 `TopAppBar` 和 `topAppBarColors`，并加入文件级实验 API opt-in。
+- Hilt 2.59.2 的 Kotlin metadata 不兼容已通过升级到 Hilt 2.60.1 解决。
+
+### 下一步任务追加
+
+1. 执行 Android JVM 单元测试和 Release 构建，确认两个变体都保持 R8 关闭。
+2. 清理已确认的 Compose 图标弃用 warning 和 ViewModel 泛型转换 warning。
+3. 完善 README、服务部署说明、Android 运行说明和站点分析报告。
+4. 在可访问 `dutongjian.com` 的网络环境中继续确认 robots、sitemap、HTML/API 数据结构，并实现真实采集同步命令。
+
+---
+
+## 增量验证更新：Android 双变体与 Backend 验证完成（2026-08-01）
+
+本节为当前会话的最终追加记录，不删除前文任何历史内容。
+
+### 验证结果
+
+- `./gradlew clean assembleDebug`：通过。
+- `./gradlew testDebugUnitTest assembleRelease`：通过；当前 Android JVM 测试目录无测试源，因此 `testDebugUnitTest` 为 `NO-SOURCE`。
+- `./gradlew assembleDebug`（清理 warning 后）：通过，Debug Kotlin、Java、KSP、Hilt、dex 和 APK 打包全部完成。
+- Debug APK：`android/app/build/outputs/apk/debug/app-debug.apk`。
+- Release APK：`android/app/build/outputs/apk/release/app-release-unsigned.apk`。
+- `pytest -q service/tests --cov=service/app --cov-report=term-missing`：6 passed，覆盖率 85%。
+- `git diff --check`：通过。
+
+### 本阶段错误处理闭环
+
+- API 35 依赖、Material 3 顶部栏 API、Material 3 opt-in、Hilt AGP 集成和 Kotlin metadata 兼容问题均已解决。
+- `ReadingViewModel` 的 unchecked cast 已改为类型安全的分阶段 `combine`。
+- `MenuBook` 图标已改为自动镜像 API，相关弃用 warning 已清理。
+- R8 和资源收缩在 Debug/Release 两个变体中均保持关闭；本阶段验证没有执行 minify/R8 任务。
+
+### 提交状态
+
+- 本地变更已完成验证，准备创建本地 Git checkpoint commit。
+- 当前分支此前已领先 `origin/main` 1 个提交；本次提交完成后仍不自动 push，等待明确的远端操作指令。

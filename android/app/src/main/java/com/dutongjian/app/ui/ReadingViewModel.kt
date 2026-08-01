@@ -26,6 +26,14 @@ data class ReadingUiState(
     val libraryTab: LibraryTab = LibraryTab.FAVORITES,
 )
 
+private data class ReadingStateParts(
+    val items: List<ReadingItem>,
+    val query: String,
+    val selectedCategory: String?,
+    val categories: List<String>,
+    val isRefreshing: Boolean,
+)
+
 @HiltViewModel
 class ReadingViewModel @Inject constructor(
     private val repository: ReadingRepository,
@@ -39,19 +47,27 @@ class ReadingViewModel @Inject constructor(
     private val libraryTab = MutableStateFlow(LibraryTab.FAVORITES)
 
     val state: StateFlow<ReadingUiState> = combine(
-        repository.observeItems(), query, selectedCategory, categories, isRefreshing, isLoading, error, libraryTab,
-    ) { values ->
-        ReadingUiState(
-            items = values[0] as List<ReadingItem>,
-            query = values[1] as String,
-            selectedCategory = values[2] as String?,
-            categories = values[3] as List<String>,
-            isRefreshing = values[4] as Boolean,
-            isLoading = values[5] as Boolean,
-            error = values[6] as String?,
-            libraryTab = values[7] as LibraryTab,
+        repository.observeItems(), query, selectedCategory, categories, isRefreshing,
+    ) { items, queryValue, selectedCategoryValue, categoryValues, refreshing ->
+        ReadingStateParts(
+            items = items,
+            query = queryValue,
+            selectedCategory = selectedCategoryValue,
+            categories = categoryValues,
+            isRefreshing = refreshing,
         )
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ReadingUiState())
+    }.combine(isLoading) { parts, loading ->
+        ReadingUiState(
+            items = parts.items,
+            query = parts.query,
+            selectedCategory = parts.selectedCategory,
+            categories = parts.categories,
+            isRefreshing = parts.isRefreshing,
+            isLoading = loading,
+        )
+    }.combine(error) { current, message -> current.copy(error = message) }
+        .combine(libraryTab) { current, tab -> current.copy(libraryTab = tab) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ReadingUiState())
 
     init { refresh() }
 

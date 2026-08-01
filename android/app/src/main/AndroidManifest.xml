@@ -6,6 +6,7 @@
         android:name=".DutongjianApplication"
         android:allowBackup="true"
         android:label="读通鉴"
+        android:usesCleartextTraffic="true"
         android:supportsRtl="true"
         android:theme="@style/Theme.Dutongjian">
         <activity

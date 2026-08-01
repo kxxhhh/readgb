@@ -9,6 +9,7 @@ import com.dutongjian.app.domain.model.HomeFeed
 import com.dutongjian.app.domain.model.ReadingItem
 import com.dutongjian.app.domain.repository.ReadingRepository
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 
@@ -38,9 +39,7 @@ class ReadingRepositoryImpl @Inject constructor(
 
     override suspend fun recordOpened(itemId: String) = dao.recordOpened(itemId, System.currentTimeMillis())
 
-    private suspend fun ItemDao.observeAllOnce(): Map<String, ItemEntity> = observeAll().firstValue().associateBy { it.id }
-
-    private suspend fun <T> Flow<T>.firstValue(): T = kotlinx.coroutines.flow.first()
+    private suspend fun ItemDao.observeAllOnce(): Map<String, ItemEntity> = observeAll().first().associateBy { it.id }
 
     private fun ItemDto.toEntity(previous: ItemEntity? = null) = ItemEntity(
         id = id,
