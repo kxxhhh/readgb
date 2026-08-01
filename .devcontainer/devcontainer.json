@@ -33,14 +33,27 @@
         "vscjava.vscode-java-pack",
         "vscjava.vscode-gradle",
         "GitHub.copilot",
-        "ms-python.python"
+        "ms-python.python",
+        "redhat.java",
+        "usernamehw.errorlens"
       ]
     }
   },
 
 
   "containerEnv": {
-    "ANDROID_HOME": "/opt/android-sdk",
-    "ANDROID_SDK_ROOT": "/opt/android-sdk"
+    "ANDROID_HOME": "/home/vscode/android-sdk",
+    "ANDROID_SDK_ROOT": "/home/vscode/android-sdk"
+  },
+
+
+  "forwardPorts": [
+    8000,
+    8080
+  ],
+
+
+  "remoteEnv": {
+    "PATH": "${containerEnv:PATH}:/home/vscode/android-sdk/platform-tools:/home/vscode/android-sdk/cmdline-tools/latest/bin"
   }
 }
