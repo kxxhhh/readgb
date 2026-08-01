@@ -1,5 +1,5 @@
 {
-  "name": "Android-Codex-Dev",
+  "name": "Android-Codex-Ultimate",
 
   "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
 
@@ -20,21 +20,22 @@
   },
 
 
-  "postCreateCommand": "bash .devcontainer/setup.sh && mkdir -p ~/.codex && cp .codex/config.toml ~/.codex/config.toml",
-
-
   "remoteUser": "vscode",
+
+
+  "postCreateCommand": "bash .devcontainer/setup.sh",
 
 
   "customizations": {
     "vscode": {
+
       "extensions": [
         "fwcd.kotlin",
         "vscjava.vscode-java-pack",
         "vscjava.vscode-gradle",
-        "GitHub.copilot",
+        "ms-androidtools.vscode-android",
         "ms-python.python",
-        "redhat.java",
+        "GitHub.copilot",
         "usernamehw.errorlens"
       ]
     }
@@ -42,18 +43,18 @@
 
 
   "containerEnv": {
+
     "ANDROID_HOME": "/home/vscode/android-sdk",
-    "ANDROID_SDK_ROOT": "/home/vscode/android-sdk"
+
+    "ANDROID_SDK_ROOT": "/home/vscode/android-sdk",
+
+    "GRADLE_USER_HOME": "/home/vscode/.gradle"
+
   },
 
 
   "forwardPorts": [
     8000,
     8080
-  ],
-
-
-  "remoteEnv": {
-    "PATH": "${containerEnv:PATH}:/home/vscode/android-sdk/platform-tools:/home/vscode/android-sdk/cmdline-tools/latest/bin"
-  }
+  ]
 }
