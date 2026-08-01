@@ -3,22 +3,29 @@
 set -e
 
 
-echo "=== Installing Android SDK ==="
-
+echo "===== System update ====="
 
 sudo apt update
 
-
 sudo apt install -y \
 wget \
-unzip \
 curl \
+unzip \
+zip \
 git \
+jq \
 python3-pip \
 build-essential
 
 
-mkdir -p $HOME/android-sdk
+
+echo "===== Android SDK ====="
+
+
+ANDROID_HOME=/home/vscode/android-sdk
+
+
+mkdir -p $ANDROID_HOME/cmdline-tools
 
 
 cd /tmp
@@ -28,25 +35,29 @@ wget -q \
 https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
 
 
-mkdir -p $HOME/android-sdk/cmdline-tools
-
-
 unzip -q commandlinetools-linux-*.zip \
--d $HOME/android-sdk/cmdline-tools
+-d $ANDROID_HOME/cmdline-tools
 
 
-mv $HOME/android-sdk/cmdline-tools/cmdline-tools \
-$HOME/android-sdk/cmdline-tools/latest
+mv \
+$ANDROID_HOME/cmdline-tools/cmdline-tools \
+$ANDROID_HOME/cmdline-tools/latest
 
 
-export ANDROID_HOME=$HOME/android-sdk
+
+echo "export ANDROID_HOME=$ANDROID_HOME" >> ~/.bashrc
+
+echo "export ANDROID_SDK_ROOT=$ANDROID_HOME" >> ~/.bashrc
+
+echo 'export PATH=$PATH:$ANDROID_HOME/platform-tools:$ANDROID_HOME/cmdline-tools/latest/bin' >> ~/.bashrc
 
 
-echo 'export ANDROID_HOME=$HOME/android-sdk' >> ~/.bashrc
-echo 'export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools' >> ~/.bashrc
+
+export ANDROID_HOME=$ANDROID_HOME
 
 
 yes | sdkmanager --licenses
+
 
 
 sdkmanager \
@@ -55,29 +66,40 @@ sdkmanager \
 "build-tools;35.0.0"
 
 
-echo "=== Installing Gradle ==="
+
+echo "===== Gradle ====="
 
 
 sudo apt install -y gradle
 
 
-echo "=== Installing Kotlin ==="
+
+echo "===== Kotlin ====="
 
 
 curl -s https://get.sdkman.io | bash || true
 
 
-echo "=== Installing Codex ==="
+source ~/.sdkman/bin/sdkman-init.sh || true
+
+
+sdk install kotlin || true
+
+
+
+echo "===== Codex ====="
 
 
 npm install -g @openai/codex
 
 
-echo "=== Installing Python crawler tools ==="
+
+echo "===== Python AI crawler ====="
 
 
 pip3 install --user \
 requests \
+httpx \
 beautifulsoup4 \
 lxml \
 scrapy \
@@ -86,7 +108,38 @@ fastapi \
 uvicorn
 
 
+
 playwright install chromium
 
 
-echo "DONE"
+
+echo "===== Codex config ====="
+
+
+mkdir -p ~/.codex
+
+
+cp .codex/config.toml ~/.codex/config.toml
+
+
+
+echo "===== Verify ====="
+
+
+java -version
+
+node -v
+
+python3 --version
+
+gradle -v
+
+adb version
+
+codex --version
+
+
+
+echo "================================"
+echo " Android + Codex Environment Ready "
+echo "================================"
