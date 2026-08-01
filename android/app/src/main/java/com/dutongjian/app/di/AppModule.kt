@@ -22,6 +22,18 @@ import retrofit2.Retrofit
 import retrofit2.converter.kotlinx.serialization.asConverterFactory
 import javax.inject.Singleton
 
+private val MIGRATION_1_2 = object : androidx.room.migration.Migration(1, 2) {
+    override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE reading_items ADD COLUMN section TEXT NOT NULL DEFAULT '资治通鉴'")
+        db.execSQL("ALTER TABLE reading_items ADD COLUMN volumeId TEXT")
+        db.execSQL("ALTER TABLE reading_items ADD COLUMN yearId TEXT")
+        db.execSQL("ALTER TABLE reading_items ADD COLUMN original TEXT NOT NULL DEFAULT ''")
+        db.execSQL("ALTER TABLE reading_items ADD COLUMN translation TEXT NOT NULL DEFAULT ''")
+        db.execSQL("ALTER TABLE reading_items ADD COLUMN notes TEXT NOT NULL DEFAULT ''")
+        db.execSQL("ALTER TABLE reading_items ADD COLUMN tags TEXT NOT NULL DEFAULT ''")
+    }
+}
+
 @Module
 @InstallIn(SingletonComponent::class)
 object NetworkModule {
@@ -54,7 +66,7 @@ object DatabaseModule {
         context,
         AppDatabase::class.java,
         "dutongjian.db",
-    ).build()
+    ).addMigrations(MIGRATION_1_2).build()
 
     @Provides
     fun provideItemDao(database: AppDatabase): ItemDao = database.itemDao()

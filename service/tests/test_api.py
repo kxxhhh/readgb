@@ -48,3 +48,35 @@ async def test_items_can_filter_by_category(client):
 
     assert response.status_code == 200
     assert all(item["category"] == "资治通鉴" for item in response.json()["data"]["items"])
+
+
+@pytest.mark.anyio
+async def test_catalog_exposes_section_volume_year_hierarchy(client):
+    sections = await client.get("/api/sections")
+    assert sections.status_code == 200
+    section = next(item for item in sections.json()["data"]["sections"] if item["id"] == "zizhi")
+
+    volumes = await client.get(f"/api/sections/{section['id']}/volumes")
+    assert volumes.status_code == 200
+    volume_id = volumes.json()["data"]["volumes"][0]["id"]
+
+    years = await client.get(f"/api/volumes/{volume_id}/years")
+    assert years.status_code == 200
+    year_id = years.json()["data"]["years"][0]["id"]
+
+    items = await client.get(f"/api/years/{year_id}/items")
+    assert items.status_code == 200
+    assert items.json()["data"]["items"]
+
+
+@pytest.mark.anyio
+async def test_knowledge_supports_category_search_and_detail(client):
+    response = await client.get("/api/knowledge", params={"q": "赵无恤"})
+
+    assert response.status_code == 200
+    entry = response.json()["data"]["items"][0]
+    assert entry["category"] == "人物"
+
+    detail = await client.get(f"/api/knowledge/{entry['id']}")
+    assert detail.status_code == 200
+    assert detail.json()["data"]["title"] == "赵无恤"

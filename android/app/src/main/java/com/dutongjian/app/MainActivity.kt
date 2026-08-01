@@ -39,6 +39,12 @@ class MainActivity : ComponentActivity() {
                         onLibraryTabSelected = viewModel::selectLibraryTab,
                         onFavoriteToggle = viewModel::toggleFavorite,
                         onOpen = viewModel::open,
+                        onSectionSelected = viewModel::selectSection,
+                        onVolumeSelected = viewModel::selectVolume,
+                        onYearSelected = viewModel::selectYear,
+                        onCatalogBack = viewModel::catalogBack,
+                        onKnowledgeSearch = viewModel::searchKnowledge,
+                        onKnowledgeCategorySelected = viewModel::selectKnowledgeCategory,
                         onDarkModeToggle = { darkMode = !darkMode },
                     )
                 }

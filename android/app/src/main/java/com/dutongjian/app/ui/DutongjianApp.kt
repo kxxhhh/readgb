@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -69,11 +70,24 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.dutongjian.app.domain.model.KnowledgeEntry
+import com.dutongjian.app.domain.model.LibrarySection
 import com.dutongjian.app.domain.model.ReadingItem
+import com.dutongjian.app.domain.model.ReadingYear
+import com.dutongjian.app.domain.model.Volume
 
 private enum class AppTab(val label: String) {
     HOME("首页"),
+    CATALOG("目录"),
+    KNOWLEDGE("百科"),
     LIBRARY("书架"),
+}
+
+private enum class ReadingMode(val label: String) {
+    PARALLEL("对照"),
+    ORIGINAL("原文"),
+    TRANSLATION("白话"),
+    NOTES("注释"),
 }
 
 @Composable
@@ -85,22 +99,31 @@ fun DutongjianApp(
     onLibraryTabSelected: (LibraryTab) -> Unit,
     onFavoriteToggle: (ReadingItem) -> Unit,
     onOpen: (ReadingItem) -> Unit,
+    onSectionSelected: (LibrarySection) -> Unit,
+    onVolumeSelected: (Volume) -> Unit,
+    onYearSelected: (ReadingYear) -> Unit,
+    onCatalogBack: () -> Unit,
+    onKnowledgeSearch: (String) -> Unit,
+    onKnowledgeCategorySelected: (String?) -> Unit,
     onDarkModeToggle: () -> Unit,
 ) {
     var tab by rememberSaveable { mutableStateOf(AppTab.HOME) }
     var selectedItem by remember { mutableStateOf<ReadingItem?>(null) }
+    var selectedKnowledge by remember { mutableStateOf<KnowledgeEntry?>(null) }
 
     AnimatedContent(
-        targetState = selectedItem,
+        targetState = selectedItem?.id ?: selectedKnowledge?.id,
         transitionSpec = { fadeIn() togetherWith fadeOut() },
         label = "detail-transition",
-    ) { detail ->
-        if (detail != null) {
+    ) {
+        if (selectedItem != null) {
             DetailScreen(
-                item = detail,
+                item = selectedItem!!,
                 onBack = { selectedItem = null },
-                onFavoriteToggle = { onFavoriteToggle(detail) },
+                onFavoriteToggle = { onFavoriteToggle(selectedItem!!) },
             )
+        } else if (selectedKnowledge != null) {
+            KnowledgeDetailScreen(entry = selectedKnowledge!!, onBack = { selectedKnowledge = null })
         } else {
             Scaffold(
                 modifier = Modifier.windowInsetsPadding(WindowInsets.safeDrawing),
@@ -132,6 +155,18 @@ fun DutongjianApp(
                             label = { Text(AppTab.HOME.label) },
                         )
                         NavigationBarItem(
+                            selected = tab == AppTab.CATALOG,
+                            onClick = { tab = AppTab.CATALOG },
+                            icon = { Icon(Icons.AutoMirrored.Filled.MenuBook, contentDescription = null) },
+                            label = { Text(AppTab.CATALOG.label) },
+                        )
+                        NavigationBarItem(
+                            selected = tab == AppTab.KNOWLEDGE,
+                            onClick = { tab = AppTab.KNOWLEDGE },
+                            icon = { Icon(Icons.Default.Search, contentDescription = null) },
+                            label = { Text(AppTab.KNOWLEDGE.label) },
+                        )
+                        NavigationBarItem(
                             selected = tab == AppTab.LIBRARY,
                             onClick = { tab = AppTab.LIBRARY },
                             icon = { Icon(Icons.Default.Bookmark, contentDescription = null) },
@@ -149,6 +184,21 @@ fun DutongjianApp(
                                 onCategorySelected = onCategorySelected,
                                 onFavoriteToggle = onFavoriteToggle,
                                 onOpen = { item -> onOpen(item); selectedItem = item },
+                            )
+                            AppTab.CATALOG -> CatalogScreen(
+                                state = state,
+                                onSectionSelected = onSectionSelected,
+                                onVolumeSelected = onVolumeSelected,
+                                onYearSelected = onYearSelected,
+                                onBack = onCatalogBack,
+                                onFavoriteToggle = onFavoriteToggle,
+                                onOpen = { item -> onOpen(item); selectedItem = item },
+                            )
+                            AppTab.KNOWLEDGE -> KnowledgeScreen(
+                                state = state,
+                                onSearch = onKnowledgeSearch,
+                                onCategorySelected = onKnowledgeCategorySelected,
+                                onOpen = { selectedKnowledge = it },
                             )
                             AppTab.LIBRARY -> LibraryScreen(
                                 state = state,
@@ -288,6 +338,166 @@ private fun LibraryScreen(
 }
 
 @Composable
+private fun CatalogScreen(
+    state: ReadingUiState,
+    onSectionSelected: (LibrarySection) -> Unit,
+    onVolumeSelected: (Volume) -> Unit,
+    onYearSelected: (ReadingYear) -> Unit,
+    onBack: () -> Unit,
+    onFavoriteToggle: (ReadingItem) -> Unit,
+    onOpen: (ReadingItem) -> Unit,
+) {
+    val title = when (state.catalogLevel) {
+        CatalogLevel.SECTIONS -> "阅读目录"
+        CatalogLevel.VOLUMES -> "选择卷册"
+        CatalogLevel.YEARS -> "选择年代"
+        CatalogLevel.ITEMS -> "年代条目"
+    }
+    Column(modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) {
+            if (state.catalogLevel != CatalogLevel.SECTIONS) {
+                IconButton(onClick = onBack) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回上一级目录")
+                }
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(title, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                Text("主站的卷、纪、年阅读结构", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        if (state.isCatalogLoading) {
+            LoadingState()
+        } else {
+            when (state.catalogLevel) {
+                CatalogLevel.SECTIONS -> {
+                    LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(vertical = 16.dp)) {
+                        items(state.sections, key = { it.id }) { section ->
+                            ElevatedCard(
+                                modifier = Modifier.fillMaxWidth().clickable { onSectionSelected(section) },
+                                shape = RoundedCornerShape(16.dp),
+                            ) {
+                                Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Text(section.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                                    Text(section.description, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text("进入目录", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                                }
+                            }
+                        }
+                    }
+                }
+                CatalogLevel.VOLUMES -> {
+                    CatalogList(
+                        values = state.volumes,
+                        title = { it.title },
+                        subtitle = { it.dynasty },
+                        onClick = onVolumeSelected,
+                    )
+                }
+                CatalogLevel.YEARS -> {
+                    CatalogList(
+                        values = state.years,
+                        title = { it.title },
+                        subtitle = { it.era },
+                        onClick = onYearSelected,
+                    )
+                }
+                CatalogLevel.ITEMS -> {
+                    if (state.catalogItems.isEmpty()) {
+                        EmptyState("这一年还没有条目", "同步服务接入真实公开内容后会显示在这里")
+                    } else {
+                        LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(vertical = 16.dp)) {
+                            items(state.catalogItems, key = { it.id }) { item ->
+                                ReadingCard(item, onFavoriteToggle, onOpen)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun <T> CatalogList(
+    values: List<T>,
+    title: (T) -> String,
+    subtitle: (T) -> String,
+    onClick: (T) -> Unit,
+) {
+    LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(vertical = 16.dp)) {
+        items(values) { value ->
+            ElevatedCard(
+                modifier = Modifier.fillMaxWidth().clickable { onClick(value) },
+                shape = RoundedCornerShape(14.dp),
+            ) {
+                Row(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(title(value), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        Text(subtitle(value), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Text("进入", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun KnowledgeScreen(
+    state: ReadingUiState,
+    onSearch: (String) -> Unit,
+    onCategorySelected: (String?) -> Unit,
+    onOpen: (KnowledgeEntry) -> Unit,
+) {
+    var query by rememberSaveable { mutableStateOf(state.knowledgeQuery) }
+    Column(modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
+        Text("通鉴百科", modifier = Modifier.padding(top = 16.dp), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+        Text("人物、战争、地点、政权与典故", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        OutlinedTextField(
+            value = query,
+            onValueChange = { query = it; onSearch(it) },
+            modifier = Modifier.fillMaxWidth().padding(top = 14.dp),
+            singleLine = true,
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+            placeholder = { Text("搜索百科条目") },
+            shape = RoundedCornerShape(16.dp),
+        )
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(vertical = 12.dp)) {
+            item {
+                FilterChip(selected = state.selectedKnowledgeCategory == null, onClick = { onCategorySelected(null) }, label = { Text("全部") })
+            }
+            items(state.knowledgeCategories, key = { it }) { category ->
+                FilterChip(
+                    selected = state.selectedKnowledgeCategory == category,
+                    onClick = { onCategorySelected(category) },
+                    label = { Text(category) },
+                )
+            }
+        }
+        if (state.isKnowledgeLoading) {
+            LoadingState()
+        } else if (state.knowledge.isEmpty()) {
+            EmptyState("没有找到百科条目", "换一个人物、事件或地点关键词")
+        } else {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = 20.dp)) {
+                items(state.knowledge, key = { it.id }) { entry ->
+                    ElevatedCard(
+                        modifier = Modifier.fillMaxWidth().clickable { onOpen(entry) },
+                        shape = RoundedCornerShape(14.dp),
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                            Text(entry.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                            Text(entry.category, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                            Text(entry.summary, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun ReadingCard(item: ReadingItem, onFavoriteToggle: (ReadingItem) -> Unit, onOpen: (ReadingItem) -> Unit) {
     ElevatedCard(
         modifier = Modifier.fillMaxWidth().clickable(onClick = { onOpen(item) }),
@@ -318,6 +528,9 @@ private fun ReadingCard(item: ReadingItem, onFavoriteToggle: (ReadingItem) -> Un
 
 @Composable
 private fun DetailScreen(item: ReadingItem, onBack: () -> Unit, onFavoriteToggle: () -> Unit) {
+    var mode by rememberSaveable { mutableStateOf(ReadingMode.PARALLEL) }
+    var showSandbox by rememberSaveable { mutableStateOf(false) }
+    var showDecisionCard by rememberSaveable { mutableStateOf(false) }
     Scaffold(
         modifier = Modifier.windowInsetsPadding(WindowInsets.safeDrawing),
         topBar = {
@@ -348,13 +561,105 @@ private fun DetailScreen(item: ReadingItem, onBack: () -> Unit, onFavoriteToggle
                 Text(item.summary, style = MaterialTheme.typography.bodyLarge, lineHeight = 26.sp)
             }
             item {
-                Surface(color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f), shape = RoundedCornerShape(16.dp)) {
-                    Text(item.content, modifier = Modifier.padding(18.dp), style = MaterialTheme.typography.bodyLarge, lineHeight = 30.sp)
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(ReadingMode.entries.toList(), key = { it.name }) { candidate ->
+                        FilterChip(selected = mode == candidate, onClick = { mode = candidate }, label = { Text(candidate.label) })
+                    }
                 }
             }
             item {
-                Text("来源：公开站点内容索引，${item.sourceUrl}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                val original = item.original.ifBlank { item.content }
+                val translation = item.translation.ifBlank { item.content }
+                val notes = item.notes.ifBlank { "当前条目暂无独立注释，先使用导读和主题标签阅读。" }
+                Surface(color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f), shape = RoundedCornerShape(16.dp)) {
+                    Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        when (mode) {
+                            ReadingMode.PARALLEL -> {
+                                Text("原文", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                                Text(original, style = MaterialTheme.typography.bodyLarge, lineHeight = 30.sp)
+                                Text("白话", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                                Text(translation, style = MaterialTheme.typography.bodyLarge, lineHeight = 30.sp)
+                            }
+                            ReadingMode.ORIGINAL -> Text(original, style = MaterialTheme.typography.bodyLarge, lineHeight = 30.sp)
+                            ReadingMode.TRANSLATION -> Text(translation, style = MaterialTheme.typography.bodyLarge, lineHeight = 30.sp)
+                            ReadingMode.NOTES -> Text(notes, style = MaterialTheme.typography.bodyLarge, lineHeight = 30.sp)
+                        }
+                    }
+                }
             }
+            item {
+                if (item.tags.isNotEmpty()) {
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(item.tags, key = { it }) { tag -> AssistChip(onClick = {}, label = { Text("#$tag") }) }
+                    }
+                }
+            }
+            item {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    AssistChip(onClick = { showSandbox = !showSandbox }, label = { Text("沙盘态势") })
+                    AssistChip(onClick = { showDecisionCard = !showDecisionCard }, label = { Text("决策卡") })
+                    AssistChip(onClick = {}, label = { Text("古本") })
+                }
+            }
+            if (showSandbox) {
+                item {
+                    Surface(color = MaterialTheme.colorScheme.primaryContainer, shape = RoundedCornerShape(16.dp)) {
+                        Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("沙盘态势", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                            Text("事件背景", style = MaterialTheme.typography.labelLarge)
+                            Text(item.summary)
+                            Text("阅读路径", style = MaterialTheme.typography.labelLarge)
+                            Text("条目背景 → 原文证据 → 白话解释 → 主题标签", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+            }
+            if (showDecisionCard) {
+                item {
+                    Surface(color = MaterialTheme.colorScheme.secondaryContainer, shape = RoundedCornerShape(16.dp)) {
+                        Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("决策卡", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                            Text("如果你处在这段历史的关键节点，会优先考虑什么？")
+                            Text(item.tags.joinToString("、").ifBlank { "名分、人物、制度" }, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+            }
+            item {
+                Text("来源标记：${item.sourceUrl}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+}
+
+@Composable
+private fun KnowledgeDetailScreen(entry: KnowledgeEntry, onBack: () -> Unit) {
+    Scaffold(
+        modifier = Modifier.windowInsetsPadding(WindowInsets.safeDrawing),
+        topBar = {
+            TopAppBar(
+                title = { Text(entry.title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回") } },
+            )
+        },
+    ) { padding ->
+        LazyColumn(
+            modifier = Modifier.padding(padding).fillMaxSize(),
+            contentPadding = PaddingValues(horizontal = 24.dp, vertical = 18.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            item {
+                Text(entry.category, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                Spacer(Modifier.height(8.dp))
+                Text(entry.title, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+            }
+            item { Text(entry.summary, style = MaterialTheme.typography.titleMedium, lineHeight = 26.sp) }
+            item {
+                Surface(color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f), shape = RoundedCornerShape(16.dp)) {
+                    Text(entry.content, modifier = Modifier.padding(18.dp), style = MaterialTheme.typography.bodyLarge, lineHeight = 30.sp)
+                }
+            }
+            item { Text("来源标记：${entry.sourceUrl}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
         }
     }
 }

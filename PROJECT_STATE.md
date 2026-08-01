@@ -411,3 +411,159 @@ Android 工程已创建；当前锁定 AGP 9.0.0、Kotlin 2.4.10、Compose BOM 2
 
 - 本地变更已完成验证，准备创建本地 Git checkpoint commit。
 - 当前分支此前已领先 `origin/main` 1 个提交；本次提交完成后仍不自动 push，等待明确的远端操作指令。
+
+---
+
+## 增量阶段更新：完整网站原生移植启动（2026-08-01）
+
+本阶段目标已由“Android MVP”升级为“完整网站功能的原生 Android 重构”。当前已有的 Compose MVP 只是基础壳层，不视为最终交付；本节只追加新事实，不删除任何历史描述。
+
+### 真实站点分析结果
+
+- 主站名称为“读通鉴”，首页可见四个阅读入口：读通鉴、资治通鉴、纪事本末、读通鉴论。
+- 资治通鉴入口按卷、纪、年组织目录；搜索索引可见“卷第一（周纪一）”到更后卷的目录项，完整卷数仍需通过站点页面或 sitemap 逐步确认。
+- 年页面按条目分页展示；已观察到每条内容包含原文、白话译文、注释/胡注、标签/主题，并有“沙盘态势”“古本”“张居正直解”等阅读辅助入口或切换项。
+- 站点存在登录页，支持邮箱登录和手机登录；当前重构不读取或模拟用户凭据，个人空间功能先保留为本地收藏/历史。
+- `wiki.dutongjian.com` 是独立的“通鉴百科”知识库，公开索引显示已收录约 115760 条数据，分类包括人物、战争、官职、地点、政权、典故等。
+- 当前没有确认到稳定的官方 JSON/GraphQL API；原生 App 使用自建数据服务，数据服务通过合规 HTML 解析器同步公开页面，不伪造官方接口。
+
+### 完整移植的数据边界
+
+1. 主阅读站：入口、卷目录、年份目录、历史条目、原文/白话/注释/标签阅读器。
+2. 纪事本末与读通鉴论：使用同一内容模型，通过 `section` 区分来源和目录。
+3. 通鉴百科：分类、关键词搜索、知识条目详情和与主阅读内容的来源关联。
+4. 本地能力：收藏、历史、离线缓存、阅读设置；登录/同步在确认站点公开认证协议前不实现账号代理。
+
+### 当前阶段实现计划
+
+- Backend 新增 section/volume/year/entry/knowledge 领域模型及目录 API。
+- Android 新增原生目录、条目阅读器、百科页面和底部导航；继续沿用 Compose、Room、Hilt、StateFlow 分层。
+- 抓取器新增针对主站目录/年页/条目/百科列表的解析入口；仅在 robots 允许且限速的情况下工作。
+- 每完成一个页面层级和数据链路，追加记录真实接口、测试和构建结果。
+
+---
+
+## 增量分析更新：公开高级阅读功能与付费边界（2026-08-01）
+
+### 已确认的公开功能
+
+- 主站公开内容展示原文与白话译文对照。
+- 年页公开显示“沙盘态势”“古本”“张居正直解”等阅读模式或辅助入口。
+- 条目公开显示标签、主题和部分“决策卡”提示，可作为原生 App 的阅读辅助模块。
+- 登录页公开提供邮箱登录、手机验证码登录和密码重置入口，但未确认公开会员价格、权益清单、支付回调或授权 API。
+
+### 合法移植边界
+
+- 将公开可见的阅读模式、标签/主题、决策卡、沙盘入口和原文/白话/注释对照实现为原生 Android 功能。
+- 为未来正版账号体系预留 `entitlement`/会员权益接口边界，但不模拟账号、不读取凭据、不绕过登录、验证码、权限或付费墙。
+- 只采集 robots 允许的公开页面；付费内容必须由用户通过合法授权后由官方接口提供，当前不抓取、不复制、不解锁。
+
+### 本阶段状态
+
+- Backend 已追加 sections/volumes/years/knowledge 数据模型、SQLite 兼容迁移和 REST 路由；新增 API 测试待本轮执行确认。
+- Android 尚待把目录层级、百科入口和公开高级阅读模式接入原生导航。
+
+---
+
+## 增量决策更新：App 与原网站运行时隔离（2026-08-01）
+
+- 用户明确要求：该 Android App 不与 `dutongjian.com` 或 `wiki.dutongjian.com` 发生运行时数据交流。
+- Android App 的唯一网络目标是本项目自己的 FastAPI 服务；离线模式只读本地 Room 缓存。
+- App 不向原网站登录、不上传阅读记录/收藏、不调用原网站账号或付费接口，也不在运行时直接打开原网站页面。
+- `source_url` 仅用于记录内容来源和后台同步溯源，不是 Android 运行时请求地址。
+- 后台公开内容同步若启用，属于独立的人工/受控数据准备流程，不属于 App 与原网站的数据交换；付费内容不采集、不复制、不解锁。
+
+---
+
+## 增量功能决策：独立高级阅读工作区（2026-08-01）
+
+- 用户要求尽量根据公开描述开发付费/高级功能；本项目将其实现为独立 App 的本地高级阅读能力，不复刻原站会员鉴权。
+- 计划实现：原文/白话并排阅读、古本视图、注释/直解、主题标签、决策卡、沙盘时间线、阅读字号/主题设置、收藏/历史和本地笔记入口。
+- 所有权益判断由本项目自己的本地/Backend 数据决定；当前不向原网站请求会员状态，不绕过或解锁原站受限内容。
+- 未从公开页面确认到价格、套餐、支付、会员 API 或付费字段，因此这些部分不虚构为原站权益；将作为独立 App 的可配置 entitlement 能力保留。
+
+### 本轮 Backend 测试 root cause
+
+- Root cause：已有 `data/dutongjian.db` 中的旧种子记录没有新增 `volume_id`/`year_id`，目录测试通过层级查询后返回空条目。
+- 相关文件：`service/app/store.py`，以及本地运行时数据库 `data/dutongjian.db`。
+- 错误原因：初始化逻辑只在 `items` 为空时插入新种子；旧数据库虽然完成了列迁移，但没有按稳定 ID 回填新增目录字段。
+- 修复方案：在 schema 迁移后按稳定种子 ID 幂等回填 section、volume、year、原文、译文、注释和 tags，不删除用户已有数据。
+- 修复结果：已重新执行 Backend 全量测试，8 passed，覆盖率 90%，目录层级测试通过。
+
+## 增量阶段更新：原生目录、百科与高级阅读工作区编译通过（2026-08-01）
+
+### 已完成
+
+- Android 原生 Compose 已接入 section -> volume -> year -> item 四级目录导航。
+- Android 原生 Compose 已接入通鉴百科列表、分类筛选、关键词搜索和知识条目详情。
+- 阅读详情已加入原文、译文、注释/直解、并行阅读模式，以及标签、古本、沙盘态势和决策卡等独立 App 阅读工作区入口。
+- Room 从 schema 1 迁移到 schema 2，新增内容分层字段，并保留已有本地收藏数据。
+- `MainActivity` 已将目录和百科回调连接到 `ReadingViewModel`；App 运行时仍只请求本项目 FastAPI，不请求原网站。
+
+### 验证结果
+
+- `python3 -m pytest -q service/tests --cov=service/app --cov-report=term-missing`：8 passed，覆盖率 90%。
+- `./gradlew clean assembleDebug`：通过。
+- `./gradlew testDebugUnitTest assembleRelease`：通过；Android 当前无 JVM 测试源，因此 `testDebugUnitTest` 为 `NO-SOURCE`。
+- Debug APK：`android/app/build/outputs/apk/debug/app-debug.apk`。
+- Release APK：`android/app/build/outputs/apk/release/app-release-unsigned.apk`。
+- 本轮 Debug/Release 均未执行 R8/minify；native library strip 提示不影响 APK 构建结果。
+- `git diff --check`：待本轮最终提交前再次执行。
+
+### 已解决错误追加
+
+- Kotlin 编译 warning：Room `Migration.migrate` 参数名与超类型不一致；已将参数统一为 `db`，下一轮构建通过且不再出现该 warning。
+
+### 下一步任务追加
+
+1. 为公开主站目录、阅读条目和百科索引实现结构化 HTML 解析器及小型 fixture 测试。
+2. 增加受 robots 和限速约束的独立同步命令；Android 运行时不调用该同步器，也不与原网站交换数据。
+3. 完善 README、服务部署、Android 运行和网站分析文档。
+4. 增加 CI 的 Backend 测试和 Android Debug/Release 构建检查。
+
+## 增量阶段更新：公开 HTML 解析与受控同步器完成（2026-08-01）
+
+### 已完成
+
+- 新增 `service/app/parsers.py`，使用 BeautifulSoup 解析目录、阅读条目和百科索引，不执行网络请求、不执行脚本、不访问认证页面。
+- 新增 `service/app/sync.py`，只接受人工明确指定的公开路径，复用 robots 检查、同源限制、缓存、最小间隔和退避；不会递归爬取站点。
+- `ContentStore` 新增知识条目幂等写入，采集结果可以进入本项目 SQLite 数据服务。
+- 新增 parser/sync fixture 测试，覆盖目录级别、原文/译文/注释/标签、百科分类、来源 URL 和本地 upsert。
+- README、站点分析报告和 GitHub Actions 已补齐；CI 包含 Backend pytest、Android JVM 测试、lint、Debug 和 Release 构建。
+
+### 验证结果
+
+- `python3 -m compileall -q service/app`：通过。
+- `python3 -m pytest -q service/tests --cov=service/app --cov-report=term-missing`：13 passed，覆盖率 87%。
+- `git diff --check`：通过。
+- Android 本阶段代码未改变，上一阶段已验证 Debug/Release APK；R8/minify 继续关闭。
+
+### 当前限制和下一步
+
+- 真实站点页面的 HTML 选择器仍需在 robots 允许且网络可访问的环境中逐页校准；未确认到可复用的官方 JSON/GraphQL API。
+- 需要补充真实公开页面 fixture、签名发布配置说明和 Android UI/Room 集成测试。
+- 需要在本地 checkpoint commit 前再次执行完整 Android 构建和 Backend 验证，并确认工作树只包含本项目变更。
+
+## 增量验证更新：解析器阶段 APK 回归与本地 checkpoint 准备（2026-08-01）
+
+### 最终验证
+
+- `./gradlew clean assembleDebug`：通过。
+- `./gradlew testDebugUnitTest assembleRelease`：通过；`testDebugUnitTest` 为 `NO-SOURCE`。
+- Debug APK：`android/app/build/outputs/apk/debug/app-debug.apk`。
+- unsigned Release APK：`android/app/build/outputs/apk/release/app-release-unsigned.apk`。
+- 两个 Android 变体均未启用 `minify`、资源收缩或 R8。
+- Backend 最近一次全量结果：13 passed，覆盖率 87%。
+- `python3 -m compileall -q service/app`：通过。
+- `git diff --check`：通过。
+
+### 当前提交边界
+
+- 本地变更包含原生目录/百科/阅读器、Room schema 迁移、公开 HTML parser/sync、Backend API、文档和 CI。
+- 本轮准备创建本地 checkpoint commit；未执行新的远端 push。
+
+## 增量提交更新：本阶段本地 checkpoint 已建立（2026-08-01）
+
+- 本地提交：`feat: extend native catalog and public sync`。
+- 提交内容包含本阶段全部已验证的 Android、Backend、公开 HTML parser/sync、文档和 CI 变更。
+- 该 checkpoint 已在本地创建；本轮没有新的远端 push，远端操作需由后续明确指令触发。
