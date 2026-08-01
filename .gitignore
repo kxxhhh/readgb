@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+
+# Local service data
+data/*.db
+data/*.sqlite
+data/*.sqlite3
+
+# Android / Gradle
+.gradle/
+build/
+*/build/
+local.properties
+*.apk
+*.aab
+.idea/
+*.iml
+
+# Local environment
+.env
+.env.*
+!.env.example

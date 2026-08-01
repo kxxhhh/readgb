@@ -1,0 +1,13 @@
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      DUTONGJIAN_DB: /app/data/dutongjian.db
+      CORS_ORIGINS: "*"
+    volumes:
+      - dutongjian-data:/app/data
+
+volumes:
+  dutongjian-data:
