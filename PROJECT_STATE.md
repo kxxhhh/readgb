@@ -960,3 +960,4 @@ Android 工程已创建；当前锁定 AGP 9.0.0、Kotlin 2.4.10、Compose BOM 2
 - `01_home.png` 显示 `2112` 条内容和设置入口；`02_detail.png` 显示真实正文；`03_scroll.png` 显示四种模式、字号 Slider、原文/白话短篇排版。
 - 交互检查确认：字号 `100% -> 110%`；AI 设置页显示 API URL、模型、API Key 和保存按钮；沙盘展开后 DOM 包含事件主线、关键人物、相关地点；全程未发现 Fatal、AndroidRuntime 或 NullPointer。
 - APK 已导出至 [app-autodev.apk](/workspaces/-app/build/outputs/app-autodev.apk)，大小 `18,412,697` bytes，SHA-256 `fd746c74c5006ab52126ed269fba7ab8ca5d0f8e0536e179def24258ad4a3c07`，版本 `versionCode 7 / versionName 0.1.6`；`apksigner` 已确认 APK v2 签名有效。
+- GitHub 预发布已创建：<https://github.com/kxxhhh/-app/releases/tag/v0.1.7>，上传 APK 与本地闭环产物 SHA-256 一致。
