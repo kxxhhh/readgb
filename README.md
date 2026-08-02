@@ -1,104 +1,102 @@
 # 📚 读通鉴
 
-> 一个以原生 Android 为阅读入口、以 FastAPI + SQLite 为数据底座的中国史阅读应用。
+> 原生 Android 中国史阅读器：把《资治通鉴》及相关史论整理成可搜索、可收藏、可离线阅读的个人阅读工作区。
 
-读通鉴将《资治通鉴》《通鉴纪事本末》《读通鉴论》和通鉴百科组织成可搜索、可收藏、可离线阅读的内容工作区。Android 端使用 Jetpack Compose 原生实现，不是 WebView 套壳；运行时只请求项目自己的 FastAPI 服务，`source_url` 仅用于内容溯源。
+读通鉴采用 Kotlin + Jetpack Compose 构建原生 Android 客户端，以 Room 保存本地内容、收藏和阅读历史；Python + FastAPI 数据服务负责本地联调、内容校验和离线资产准备。日常阅读不依赖网络，也不会在运行时请求目标网站。
 
-> ⚖️ 数据同步只面向人工指定的公开页面，遵守同源限制、`robots.txt`、请求间隔和退避策略；项目不模拟账号、不绕过登录、验证码、权限或付费墙。
+> ⚖️ 数据准备工具只处理人工确认的公开内容，遵守同源限制、robots 规则、限速、重试和访问边界；不登录、不绕过验证码、权限或付费墙。
 
 ## 🧭 快速导航
 
 - [✨ 核心特性](#-核心特性)
 - [🧰 技术栈](#-技术栈)
 - [🚀 快速开始](#-快速开始)
-- [🗂️ 项目结构](#️-项目结构)
-- [📖 开发者文档](./DOCS.md)
+- [🗂️ 项目结构](#-项目结构)
+- [🧪 测试与验证](#-测试与验证)
 - [📌 当前状态](#-当前状态)
+- [📖 开发者文档](./DOCS.md)
 - [📄 开源协议](#-开源协议)
 
 ## ✨ 核心特性
 
-- ✅ **原生 Android 阅读体验**：Kotlin + Jetpack Compose + Material 3，支持首页、目录、百科、书架和详情页。
-- ✅ **多层历史目录**：按 `section → volume → year → item` 浏览《资治通鉴》及相关内容。
-- ✅ **阅读工作区**：原文、白话、注释、标签、古本入口、沙盘态势和决策卡视图。
-- ✅ **搜索与筛选**：支持条目搜索、分类筛选、百科关键词搜索和百科分类筛选。
-- ✅ **个人阅读状态**：使用 Room 保存收藏和最近阅读记录。
-- ✅ **离线优先**：内置 `OfflineSeed`，网络不可用时回退到本地种子和 Room 缓存。
-- ✅ **统一 REST API**：所有服务端响应使用 `{code, message, data}` envelope，便于 Android 端统一解析。
-- ✅ **合规公开内容同步**：支持人工指定的公开 HTML 单页同步，以及带磁盘缓存、checkpoint、断点续传和去重的公开《资治通鉴》 API 导入。
-- ✅ **容器化服务**：提供 `Dockerfile` 和 Docker Compose，SQLite 数据使用持久化 volume。
+- ✅ 原生 Android UI：Kotlin、Jetpack Compose、Material 3，禁止 WebView 套壳。
+- ✅ 离线优先阅读：内容来自 APK assets、OfflineSeed 和 Room；网络不可用时仍可启动、浏览和搜索。
+- ✅ 多层历史目录：按 section -> volume -> year -> item 浏览栏目、卷、纪年和正文段落。
+- ✅ 原文与译文并读：保存繁体原文、简体正文、白话译文、注释和关联标签。
+- ✅ 搜索与筛选：支持正文关键词、分类筛选、百科关键词和百科分类。
+- ✅ 个人阅读状态：Room 持久化收藏和最近阅读记录。
+- ✅ 本地数据服务：FastAPI 提供统一 code/message/data REST envelope，用于本地联调、检查数据和生成资产。
+- ✅ 可恢复内容同步：公开《资治通鉴》 API 导入支持限速、磁盘缓存、Retry-After 退避、checkpoint、断点续传和稳定 ID 去重。
+- ✅ 安全的资产导出：只有验证到 30,989 条正文、294 卷和 1,405 个纪年后，才允许导出 Android 离线资产。
+- ✅ 容器化服务：提供 Dockerfile 和 Docker Compose，SQLite 使用持久化 volume。
 
 ## 🧰 技术栈
 
 | 层级 | 技术 | 用途 |
 | --- | --- | --- |
-| Android | Kotlin、Jetpack Compose、Material 3 | 原生 UI 与阅读交互 |
-| Android 架构 | MVVM、`StateFlow`、Repository | UI 状态管理与分层 |
-| Android 网络 | Retrofit 3、OkHttp、Kotlin Serialization | 调用 FastAPI REST API |
-| Android 本地存储 | Room 2.8、SQLite | 阅读内容缓存、收藏、历史 |
-| Android 依赖注入 | Hilt | 组装 Retrofit、Room 和 Repository |
-| Backend | Python 3.12+、FastAPI、Uvicorn | JSON API 服务 |
-| 数据存储 | SQLite（标准库） | 内容索引与 HTTP cache |
-| HTML 处理 | BeautifulSoup4 | 解析调用方提供的公开 HTML |
-| 测试 | pytest、pytest-cov、JUnit、Kotlin Coroutines Test | 服务端与 ViewModel 测试 |
-| 构建与部署 | Gradle 9.4.0、Docker Compose | Android 构建与服务部署 |
+| Android | Kotlin、Jetpack Compose、Material 3 | 原生界面、阅读交互和响应式布局 |
+| Android 架构 | MVVM、StateFlow、Repository | 状态管理和分层解耦 |
+| Android 本地 | Room 2.8、SQLite | 内容缓存、收藏、阅读历史 |
+| Android DI | Hilt | 组装 API、数据库和 Repository |
+| Android 联调 | Retrofit 3、OkHttp、Kotlin Serialization | 仅用于本地 Backend 联调 |
+| Backend | Python 3.12+、FastAPI、Uvicorn | 本地 REST API 和数据检查 |
+| 数据层 | SQLite、标准库 sqlite3 | 内容索引、种子、HTTP cache |
+| 内容处理 | BeautifulSoup4 | 公开 HTML 解析 |
+| 测试 | pytest、JUnit、Coroutines Test | 服务端和 Android 单元测试 |
+| 构建 | Gradle 9.4、Docker Compose | APK 构建和服务部署 |
 
 ## 🚀 快速开始
 
 ### 环境要求
 
-- Linux Dev Container 或 GitHub Codespace（其他系统也可，但命令需按环境调整）。
-- Python 3.12+。
 - JDK 21；Android 编译目标为 Java 17。
-- Android SDK Platform 35、Build Tools 35、Platform Tools。
+- Android SDK Platform 35、Build Tools 35。
+- Python 3.12+。
 - 至少 8 GB 可用内存用于 Gradle 构建。
-- 若要访问真实公开页面或公开 API，需要能够解析 `dutongjian.com` 的网络环境。
+- 终端用户运行 APK 不需要网络；只有维护者执行公开内容同步时才需要访问目标站点。
 
-### 1. 启动 Backend
+### 1. 构建离线 Android App
 
-在仓库根目录执行：
+~~~bash
+cd android
+./gradlew assembleDebug
+~~~
 
-```bash
+输出：android/app/build/outputs/apk/debug/app-debug.apk。安装后无需启动 Backend，也无需配置远程 API。
+
+应用启动时会先显示 OfflineSeed，然后从 Room 观察本地内容；如果 APK 含有 offline_content.ndjson.gz，Repository 会按批次导入正文；如果资产不存在，则继续使用种子和已有缓存。
+
+### 2. 可选：启动本地 Backend
+
+Backend 只用于本地联调、数据检查和资产准备，不是 App 正常阅读的必需组件。
+
+~~~bash
 python3 -m venv .venv
 . .venv/bin/activate
 python -m pip install -r service/requirements.txt
 python -m pytest -q service/tests
 uvicorn app.main:app --app-dir service --reload
-```
+~~~
 
-服务默认监听 `http://127.0.0.1:8000`，SQLite 默认写入 `data/dutongjian.db`。启动后可访问：
+服务默认监听 http://127.0.0.1:8000，默认数据库为 data/dutongjian.db。容器方式：
 
-```bash
-curl http://127.0.0.1:8000/api/home
-```
-
-也可以使用 Docker Compose：
-
-```bash
+~~~bash
 cd service
 docker compose up --build
-```
+~~~
 
-### 2. 构建 Android
+Android Emulator 联调时可覆盖本地 API 地址：
 
-```bash
+~~~bash
 cd android
-./gradlew assembleDebug
-```
-
-Debug APK 输出在 `android/app/build/outputs/apk/debug/app-debug.apk`。Android Emulator 访问宿主机服务时默认使用 `10.0.2.2:8000`。
-
-如需覆盖 API 地址，必须保留末尾 `/`：
-
-```bash
 ./gradlew assembleDebug -PapiBaseUrl=http://10.0.2.2:8000/
-```
+~~~
 
-实体设备应把地址改为开发机在局域网中的 IP，例如 `http://192.168.1.20:8000/`，并确保防火墙允许访问 8000 端口。
+实体设备请改成开发机局域网 IP。apiBaseUrl 必须以 / 结尾，并且只应指向自己的本地 Backend，不应填写 dutongjian.com 或 wiki.dutongjian.com。
 
-### 3. 运行测试与质量检查
+### 3. 运行测试和检查
 
-```bash
+~~~bash
 # Backend
 python3 -m pytest -q service/tests
 python3 -m compileall -q service/app
@@ -107,76 +105,94 @@ python3 -m compileall -q service/app
 cd android
 ./gradlew testDebugUnitTest
 ./gradlew lintDebug
-```
+./gradlew assembleDebug
+~~~
 
-### 4. 按需同步公开内容
+### 4. 维护者准备离线内容
 
-同步器只处理一个人工指定的公开路径，不会递归遍历站点：
+以下命令只在维护者联网环境执行，不属于 App 运行时路径。
 
-```bash
+同步人工指定的公开 HTML 页面：
+
+~~~bash
 cd service
 python -m app.sync \
   --base-url https://www.dutongjian.com \
   --path /公开阅读路径 \
   --kind reading \
   --database ../data/dutongjian.db
-```
+~~~
 
-百科页面将 `--kind` 改为 `knowledge`，并使用百科站点的 `--base-url`。运行前应确认目标页面公开可访问且 `robots.txt` 明确允许；无法读取 robots 规则时，抓取器默认拒绝请求。
+导入已确认的公开《资治通鉴》 JSON API：
 
-如需导入已确认的公开《资治通鉴》 API，可使用可恢复同步器。该命令必须显式传入 `--allow-public-api`，并建议保留 cache 与 checkpoint：
-
-```bash
+~~~bash
 PYTHONPATH=service python -m app.tongjian_sync \
   --allow-public-api \
   --database service/data/dutongjian.db \
   --cache-dir service/data/tongjian-cache \
   --checkpoint service/data/tongjian-progress.json \
   --min-interval 5.0
-```
+~~~
 
-同步器只访问公开、未登录的 JSON API；默认每次请求至少间隔 5 秒，缓存单个请求结果，并在每个纪年节点完成后原子更新 checkpoint。遇到 HTTP 429 时会尊重 `Retry-After`。真实全本同步仍未完成，不能将当前部分数据库视为包含完整 `30989` 段正文。
+同步器默认每次新请求至少间隔 5 秒，遇到 HTTP 429 会尊重 Retry-After；每个纪年成功后原子更新 checkpoint。完成并校验全本后导出 Android assets：
+
+~~~bash
+PYTHONPATH=service python -m app.export_android \
+  --database service/data/dutongjian.db \
+  --output android/app/src/main/assets/offline_content.ndjson.gz \
+  --catalog-output android/app/src/main/assets/offline_catalog.json
+~~~
+
+导出脚本会拒绝不完整数据库，不会把部分抓取结果伪装成全本离线包。
 
 ## 🗂️ 项目结构
 
-```text
+~~~text
 .
-├── android/                         # 原生 Android 单模块工程
+├── android/
 │   └── app/src/main/java/com/dutongjian/app/
-│       ├── data/                    # Retrofit、Room、Repository 实现
-│       ├── domain/                  # 领域模型、Repository 接口、离线种子
-│       ├── di/                      # Hilt、Retrofit、Room 依赖注入
-│       └── ui/                      # Compose 页面、ViewModel、主题
-├── service/                         # Python 数据服务
-│   ├── app/main.py                  # FastAPI 路由与响应 envelope
-│   ├── app/models.py                # 内容领域模型
-│   ├── app/store.py                 # SQLite 内容索引与 HTTP cache
-│   ├── app/crawler.py               # robots-aware 抓取器
-│   ├── app/parsers.py               # 公开 HTML 结构化解析器
-│   ├── app/sync.py                  # 公开 HTML 单页同步服务与 CLI
-│   ├── app/tongjian_sync.py         # 公开 API 限速、缓存、断点续传同步器
-│   ├── data/                        # API 同步 cache/checkpoint/SQLite 运行数据
-│   └── tests/                       # API、解析器、抓取器、同步测试
-├── data/                            # 默认 SQLite 运行数据，已被 gitignore 排除
-├── docs/site-analysis.md            # 站点分析与数据边界记录
-├── PROJECT_STATE.md                 # 增量开发状态与已知问题
-├── README.md                        # 项目首页
-└── DOCS.md                          # 详细开发文档
-```
+│       ├── data/       # Retrofit、Room、Entity、Repository 实现
+│       ├── domain/     # 领域模型、Repository contract、OfflineSeed
+│       ├── di/         # Hilt、Room、Retrofit、OkHttp 组装
+│       └── ui/         # Compose 页面、ViewModel、主题
+├── service/
+│   ├── app/main.py             # FastAPI 路由
+│   ├── app/store.py            # SQLite 内容存储
+│   ├── app/crawler.py          # robots-aware HTML fetcher
+│   ├── app/parsers.py          # HTML parser
+│   ├── app/sync.py             # 单页 HTML 同步
+│   ├── app/tongjian_sync.py    # 公开 API 全本同步
+│   ├── app/export_android.py   # Android 资产导出
+│   └── tests/                  # API、parser、crawler、sync 测试
+├── docs/site-analysis.md       # 站点和数据边界记录
+├── PROJECT_STATE.md            # 增量进度、问题和验证记录
+├── README.md
+└── DOCS.md
+~~~
 
-更详细的架构、API、调试和贡献说明请阅读：[📖 DOCS.md](./DOCS.md)。
+## 🧪 测试与验证
+
+当前已验证的基线：
+
+- Backend：18 passed。
+- Python：python3 -m compileall -q service/app 通过。
+- Android：testDebugUnitTest 通过。
+- Release APK 默认是 unsigned；正式签名需要由发布环境注入 keystore。
 
 ## 📌 当前状态
 
-- ✅ Backend 当前为 **17 passed**，包含 429 `Retry-After` 退避测试。
-- ✅ `python3 -m compileall -q service/app` 当前通过。
-- ✅ Android `testDebugUnitTest` 当前通过；无网络时默认显示 `OfflineSeed`，若构建包含完整资产则导入 Room。
-- ⚠️ Release 构建目前是 unsigned 产物；签名配置应由部署环境注入，仓库不保存 keystore 或凭据。
-- ⚠️ 全本同步仍在进行；当前数据服务包含部分真实公开 API 内容和待清理的本地演示种子，不代表已经拥有完整 `30989` 段正文。实时进度见 [PROJECT_STATE.md](./PROJECT_STATE.md)。
+- 公开目录已确认 294 卷、1,405 个纪年节点；目标结构声明内容范围为 1..30,989。
+- 全本同步是独立的长任务，当前进度和最近一次真实统计以 PROJECT_STATE.md 为准。
+- 在全本导入、字段校验和 APK 构建完成前，不把当前部分数据库或 APK 宣称为完整全本。
+- App 的核心阅读路径坚持离线优先；Backend 连接失败时应回退到本地内容，不因 10.0.2.2:8000 不可用而出现空壳首页。
+
+## 🤝 贡献
+
+请先阅读 [📖 开发者文档](./DOCS.md)，了解架构、测试、抓取边界和提交规范。
 
 ## 📄 开源协议
 
-本项目采用 [MIT License](./LICENSE)。完整许可文本请查看仓库根目录的 [LICENSE](./LICENSE) 文件。
+本项目采用 MIT License，完整文本见 LICENSE。
 
 ---
 
