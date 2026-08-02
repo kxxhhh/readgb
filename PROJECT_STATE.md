@@ -766,3 +766,18 @@ Android 工程已创建；当前锁定 AGP 9.0.0、Kotlin 2.4.10、Compose BOM 2
 ### 同步快照
 
 - 本次记录时 checkpoint 为 `115/1405`，真实 `zztj-*` 正文为 `375` 条；同步进程仍以 `--min-interval 5` 在独立 session 中运行。
+
+## 增量交付更新：v0.1.1 APK GitHub Release（2026-08-02）
+
+### Release
+
+- 已将当前 `main` 的 Debug/Release 构建发布为 GitHub 预发布：<https://github.com/kxxhhh/-app/releases/tag/v0.1.1>。
+- Release tag 为 `v0.1.1`，目标分支为 `main`，两个 APK 资产状态均为 `uploaded`。
+- `app-debug.apk`：`19,659,588` bytes，可用于设备安装检查；SHA-256 为 `3b5484904710c6cc10b1dc7b41e7b038ba011b3d2ef93614220fab2e8516560c`。
+- `app-release-unsigned.apk`：`12,956,434` bytes，unsigned Release 构建；SHA-256 为 `2d0dbced56b583320a6b0c04cca8e7fc5a4deecaa466eb505b165742be3bb883`。
+- GitHub Actions CI 的 Backend 和 Android job 均通过；构建仍保留已知的 `libandroidx.graphics.path.so` 无法 strip 非阻塞提示。
+
+### Release 边界
+
+- 该预发布包含当前 OfflineSeed、Room fallback 和原生阅读功能，不包含完整 `30,989` 条正文资产。
+- 全本同步仍在后台以单进程、5 秒最小间隔运行；本次记录时 checkpoint 为 `118/1405`，真实正文为 `381` 条。
