@@ -4,6 +4,7 @@ import android.content.Context
 import android.media.MediaPlayer
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import com.dutongjian.app.domain.model.TtsEngineType
 import com.dutongjian.app.domain.tts.TTSEngine
 import okhttp3.OkHttpClient
@@ -14,9 +15,12 @@ import okhttp3.WebSocketListener
 import okio.ByteString
 import java.io.File
 import java.nio.charset.StandardCharsets
-import java.time.Instant
+import java.security.MessageDigest
 import java.time.ZoneOffset
+import java.time.Instant
 import java.time.format.DateTimeFormatter
+import java.time.format.DateTimeFormatterBuilder
+import java.util.Locale
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 
@@ -29,14 +33,26 @@ class EdgeTTSEngine(context: Context) : TTSEngine {
     private var player: MediaPlayer? = null
     private var audioFile: File? = null
     private var callbacks: Callbacks? = null
-    private val requestId = UUID.randomUUID().toString().replace("-", "")
 
     override fun speak(text: String, onProgress: (Int) -> Unit, onComplete: () -> Unit, onError: (Throwable) -> Unit) {
         stop()
         callbacks = Callbacks(onProgress, onComplete, onError)
         val connectionId = UUID.randomUUID().toString().replace("-", "")
-        val url = "wss://speech.platform.bing.com/consumer/speech/synthesize/readaloud/edge/v1?TrustedClientToken=$TRUSTED_CLIENT_TOKEN&ConnectionId=$connectionId"
-        socket = client.newWebSocket(Request.Builder().url(url).build(), EdgeListener(text))
+        val url = "wss://speech.platform.bing.com/consumer/speech/synthesize/readaloud/edge/v1?TrustedClientToken=$TRUSTED_CLIENT_TOKEN&ConnectionId=$connectionId&Sec-MS-GEC=${generateSecMsGec()}&Sec-MS-GEC-Version=$SEC_MS_GEC_VERSION"
+        socket = client.newWebSocket(
+            Request.Builder()
+                .url(url)
+                .header("Pragma", "no-cache")
+                .header("Cache-Control", "no-cache")
+                .header("Origin", EDGE_ORIGIN)
+                .header("Sec-WebSocket-Version", "13")
+                .header("Accept-Encoding", "gzip, deflate, br, zstd")
+                .header("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8")
+                .header("User-Agent", EDGE_USER_AGENT)
+                .header("Cookie", "muid=${generateMuid()}")
+                .build(),
+            EdgeListener(text, connectionId),
+        )
     }
 
     override fun pause() = player?.pause() ?: Unit
@@ -59,7 +75,7 @@ class EdgeTTSEngine(context: Context) : TTSEngine {
         client.connectionPool.evictAll()
     }
 
-    private inner class EdgeListener(private val text: String) : WebSocketListener() {
+    private inner class EdgeListener(private val text: String, private val requestId: String) : WebSocketListener() {
         private val audio = java.io.ByteArrayOutputStream()
 
         override fun onOpen(webSocket: WebSocket, response: Response) {
@@ -83,12 +99,21 @@ class EdgeTTSEngine(context: Context) : TTSEngine {
         }
 
         override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-            mainHandler.post { callbacks?.onError?.invoke(IllegalStateException("Edge-TTS 连接失败：${t.message ?: "服务不可用"}", t)) }
+            val status = response?.code ?: -1
+            val code = if (status > 0) "EDGE_HTTP_$status" else "EDGE_CONNECTION_FAILED"
+            val reason = if (status == 403) {
+                "Edge-TTS WebSocket 握手被服务拒绝（HTTP 403）；请切换 Sherpa-onnx 离线引擎。"
+            } else {
+                "Edge-TTS 连接失败：${t.message ?: "服务不可用"}"
+            }
+            logAudioError(code, reason, status)
+            mainHandler.post { callbacks?.onError?.invoke(IllegalStateException(reason, t)) }
         }
 
         private fun finishAudio() {
             val bytes = audio.toByteArray()
             if (bytes.isEmpty()) {
+                logAudioError("EDGE_EMPTY_AUDIO", "Edge-TTS 未返回音频", -1)
                 mainHandler.post { callbacks?.onError?.invoke(IllegalStateException("Edge-TTS 未返回音频")) }
                 return
             }
@@ -110,6 +135,7 @@ class EdgeTTSEngine(context: Context) : TTSEngine {
                     stop()
                 }
                 media.setOnErrorListener { _, what, extra ->
+                    logAudioError("EDGE_DECODE_FAILED", "Edge-TTS 音频解码失败：$what/$extra", -1)
                     current.onError(IllegalStateException("Edge-TTS 音频解码失败：$what/$extra"))
                     stop()
                     true
@@ -119,21 +145,37 @@ class EdgeTTSEngine(context: Context) : TTSEngine {
         }
 
         private fun sendConfig(webSocket: WebSocket) {
-            val body = """{"context":{"synthesis":{"audio":{"metadataoptions":{"sentenceBoundaryEnabled":"false","wordBoundaryEnabled":"false"},"outputFormat":"audio-24khz-48kbitrate-mono-mp3"}}}}"""
-            webSocket.send(frame("speech.config", body, "application/json; charset=utf-8"))
+            val body = """{"context":{"synthesis":{"audio":{"metadataoptions":{"sentenceBoundaryEnabled":"false","wordBoundaryEnabled":"false"},"outputFormat":"audio-24khz-48kbitrate-mono-mp3"}}}}""" + "\r\n"
+            webSocket.send("X-Timestamp:${edgeTimestamp()}\r\nContent-Type:application/json; charset=utf-8\r\nPath:speech.config\r\n\r\n$body")
         }
 
         private fun sendSsml(webSocket: WebSocket, value: String) {
             val escaped = value.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;").replace("'", "&apos;")
-            val body = "<speak version=\"1.0\" xmlns=\"http://www.w3.org/2001/10/synthesis\" xml:lang=\"zh-CN\"><voice name=\"zh-CN-YunxiNeural\"><prosody rate=\"0%\" pitch=\"0%\">$escaped</prosody></voice></speak>"
-            webSocket.send(frame("ssml", body, "application/ssml+xml"))
-        }
-
-        private fun frame(path: String, body: String, contentType: String): String {
-            val timestamp = DateTimeFormatter.ISO_INSTANT.withZone(ZoneOffset.UTC).format(Instant.now())
-            return "X-RequestId: $requestId\r\nContent-Type: $contentType\r\nPath: $path\r\nX-Timestamp: $timestamp\r\nContent-Length: ${body.toByteArray().size}\r\n\r\n$body"
+            val body = "<speak version=\"1.0\" xmlns=\"http://www.w3.org/2001/10/synthesis\" xml:lang=\"zh-CN\"><voice name=\"zh-CN-YunxiNeural\"><prosody rate=\"+0%\" pitch=\"+0Hz\" volume=\"+0%\">$escaped</prosody></voice></speak>"
+            webSocket.send("X-RequestId:$requestId\r\nContent-Type:application/ssml+xml\r\nX-Timestamp:${edgeTimestamp()}Z\r\nPath:ssml\r\n\r\n$body")
         }
     }
+
+    private fun logAudioError(code: String, reason: String, httpStatus: Int) {
+        val escapedReason = reason.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n")
+        Log.e(
+            AUDIO_DIAGNOSTIC_TAG,
+            """{"event":"AUDIO_ERROR","code":"$code","reason":"$escapedReason","audioTrackState":-1,"audioTrackPlayState":-1,"writtenBytes":0,"consecutiveZeroWrites":0,"pcmBytes":0,"pcmNonZero":false,"httpStatus":$httpStatus}""",
+        )
+    }
+
+    private fun generateSecMsGec(): String {
+        val windowsEpochSeconds = 11_644_473_600L
+        val roundedSeconds = (Instant.now().epochSecond + windowsEpochSeconds).let { it - it % 300L }
+        val input = "${roundedSeconds * 10_000_000L}$TRUSTED_CLIENT_TOKEN"
+        return MessageDigest.getInstance("SHA-256")
+            .digest(input.toByteArray(StandardCharsets.US_ASCII))
+            .joinToString("") { "%02X".format(Locale.US, it) }
+    }
+
+    private fun generateMuid(): String = UUID.randomUUID().toString().replace("-", "").uppercase(Locale.US)
+
+    private fun edgeTimestamp(): String = EDGE_TIMESTAMP_FORMAT.format(Instant.now().atZone(ZoneOffset.UTC))
 
     private data class Callbacks(
         val onProgress: (Int) -> Unit,
@@ -142,6 +184,13 @@ class EdgeTTSEngine(context: Context) : TTSEngine {
     )
 
     private companion object {
+        const val AUDIO_DIAGNOSTIC_TAG = "AUDIO_DIAGNOSTIC"
         const val TRUSTED_CLIENT_TOKEN = "6A5AA1D4EAFF4E9FB37E23D68491D6F4"
+        const val SEC_MS_GEC_VERSION = "1-143.0.3650.75"
+        const val EDGE_ORIGIN = "chrome-extension://jdiccldimpdaibmpdkjnbmckianbfold"
+        const val EDGE_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36 Edg/143.0.0.0"
+        val EDGE_TIMESTAMP_FORMAT: DateTimeFormatter = DateTimeFormatterBuilder()
+            .appendPattern("EEE MMM dd yyyy HH:mm:ss 'GMT+0000 (Coordinated Universal Time)'")
+            .toFormatter(Locale.US)
     }
 }

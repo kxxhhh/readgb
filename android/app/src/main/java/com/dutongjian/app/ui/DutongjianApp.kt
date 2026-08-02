@@ -7,6 +7,8 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Intent
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
@@ -107,7 +109,6 @@ private enum class ReadingMode(val label: String) {
     PARALLEL("对照"),
     ORIGINAL("原文"),
     TRANSLATION("白话"),
-    NOTES("注释"),
 }
 
 @Composable
@@ -207,7 +208,13 @@ fun DutongjianApp(
             )
         } else AnimatedContent(
         targetState = selectedItemId ?: selectedKnowledgeId,
-        transitionSpec = { slideInHorizontally { it / 3 } togetherWith slideOutHorizontally { -it / 3 } },
+        transitionSpec = {
+            if (targetState == null && initialState != null) {
+                slideInHorizontally { -it / 3 } + fadeIn() togetherWith slideOutHorizontally { it / 3 } + fadeOut()
+            } else {
+                slideInHorizontally { it / 3 } + fadeIn() togetherWith slideOutHorizontally { -it / 3 } + fadeOut()
+            }
+        },
         label = "detail-transition",
     ) { targetId ->
         val targetItem = targetId?.let { id ->
@@ -771,22 +778,17 @@ private fun DetailScreen(
     var selectedDecision by rememberSaveable(item.id) { androidx.compose.runtime.mutableIntStateOf(0) }
     var selectedPlace by remember { mutableStateOf<HistoricalPlace?>(null) }
     var showMap by rememberSaveable(item.id) { mutableStateOf(false) }
-    var selectedHistoricalNote by remember { mutableStateOf<ReadableHistoricalNote?>(null) }
-    var highlightedNotePosition by rememberSaveable(item.id) { mutableStateOf<Int?>(null) }
     var showNoteEditor by rememberSaveable(item.id) { mutableStateOf(false) }
     val context = LocalContext.current
     val fontScale = fontPercent / 100f
     val original = item.original.ifBlank { item.content }
     val translation = item.translation.ifBlank { item.content }
-    val historicalNotes = remember(item.id, item.notes) { formatHistoricalNotes(item.notes) }
-    val notes = historicalNotes.joinToString("\n") { it.text }.ifBlank { "当前条目暂无独立注释，先使用导读和主题标签阅读。" }
     val localContext = parseHistoricalContext(item.notes)
     val decisionOptions = localDecisionOptions(item, localContext)
     val currentText = when (mode) {
         ReadingMode.PARALLEL -> "原文\n$original\n\n白话\n$translation"
         ReadingMode.ORIGINAL -> original
         ReadingMode.TRANSLATION -> translation
-        ReadingMode.NOTES -> notes
     }
     val bodyFontSize = (18f * fontScale).sp
     val bodyLineHeight = (30f * fontScale).sp
@@ -815,13 +817,19 @@ private fun DetailScreen(
                 Text(item.title, style = MaterialTheme.typography.headlineMedium, fontSize = (28f * fontScale).sp, fontWeight = FontWeight.Bold)
             }
             item {
-                Text("原文", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text("导语", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(6.dp))
                 SelectionContainer {
-                    ReadingAnnotatedText(original, places, historicalNotes, savedNotes, bodyFontSize, bodyLineHeight, highlightedSavedNoteId, highlightedNotePosition, { place -> selectedPlace = place }) { note ->
-                        highlightedNotePosition = note.position
-                        selectedHistoricalNote = note
-                    }
+                    ReadingAnnotatedText(
+                        text = original,
+                        places = places,
+                        historicalNotes = emptyList(),
+                        savedNotes = savedNotes,
+                        fontSize = bodyFontSize,
+                        lineHeight = bodyLineHeight,
+                        highlightedSavedNoteId = highlightedSavedNoteId,
+                        onPlaceClick = { place -> selectedPlace = place },
+                    )
                 }
             }
             item {
@@ -921,11 +929,6 @@ private fun DetailScreen(
                             }
                             ReadingMode.ORIGINAL -> Spacer(Modifier.height(1.dp))
                             ReadingMode.TRANSLATION -> Text(translation, style = MaterialTheme.typography.bodyLarge, fontSize = bodyFontSize, lineHeight = bodyLineHeight)
-                            ReadingMode.NOTES -> HistoricalNotesList(historicalNotes) { note ->
-                                highlightedNotePosition = note.position
-                                selectedHistoricalNote = note
-                                mode = ReadingMode.ORIGINAL
-                            }
                             }
                         }
                     }
@@ -957,7 +960,6 @@ private fun DetailScreen(
                             ContextSection("关键人物", localContext.people)
                             ContextSection("相关地点", localContext.places)
                             ContextSection("官职与军政", localContext.officials)
-                            ContextSection("史料注释", localContext.annotations)
                         }
                     }
                 }
@@ -1041,14 +1043,6 @@ private fun DetailScreen(
     selectedPlace?.let { place ->
         if (showMap) MapSheet(places, place) { showMap = false; selectedPlace = null }
         else PlaceBottomSheet(place, onDismiss = { selectedPlace = null }, onShowMap = { showMap = true })
-    }
-    selectedHistoricalNote?.let { note ->
-        AlertDialog(
-            onDismissRequest = { selectedHistoricalNote = null },
-            title = { Text("注释 · 原文位置 ${note.position}") },
-            text = { Text(note.text) },
-            confirmButton = { TextButton(onClick = { selectedHistoricalNote = null }) { Text("返回正文") } },
-        )
     }
     if (showNoteEditor) {
         NoteEditorDialog(

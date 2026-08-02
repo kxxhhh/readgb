@@ -1020,3 +1020,37 @@ Android 工程已创建；当前锁定 AGP 9.0.0、Kotlin 2.4.10、Compose BOM 2
 - 代码、截图和 LFS 模型已提交并推送：`54eb515 feat(android): integrate sherpa onnx reading controls`。Sherpa 模型 9 个 LFS 对象已上传。
 - APK 已导出至 [app-autodev.apk](/workspaces/-app/build/outputs/app-autodev.apk)，SHA-256 `3f9d1d6540456a97a3b261d02905e8a0c80129b6790912dd7c598870c7a050c8`，并发布 GitHub 预发布 [v0.1.9](https://github.com/kxxhhh/-app/releases/tag/v0.1.9)。
 - 当前闭环验证覆盖编译、安装、启动、详情导航、滚动、Compose 渲染和错误日志；自动脚本没有主动触发一次完整 Sherpa 音频播放，因此真实设备上的扬声器输出仍需安装 APK 后检查。Edge-TTS 仍依赖网络，连接失败会显示错误，不会回退系统 TTS。
+
+## 增量修复：音频自检、地图补全与正文条目标号清洗（2026-08-02）
+
+### 正文数据修复
+
+- 定位到详情页开头的 `5`：它来自 `offline_content.ndjson.gz` 的 `content`/`original` 数据，是条目标号，不是正文；当前资产中有 `1,379` 条记录带有这类数字前缀，去掉后均与条目标题对齐。
+- 导入映射增加受控清洗：仅处理“数字前缀后紧接汉字，且正文去掉前缀后匹配标题”的简体内容；繁体 `original` 允许异体字匹配，但仍要求前缀后是汉字。普通正文数字不会被盲删。
+- 离线资产版本递增为 `2026-08-02-329-content-clean-2`，已有 Room 数据会自动重导入。闭环 DOM 已确认从 `烏孫...`/`乌孙...` 开始，不再显示 `5烏孫` 或 `5乌孙`。
+
+### 历史地图联动
+
+- 古地名目录补充渭水、彭城、许昌、江陵、赤壁、函谷关、会稽、蜀郡、河东等现代对应、说明和坐标；范围型地名保留“一带/流域”等不确定性描述。
+- `historical_places` 已存在的数据库不再只在空表时初始化，启动时会 upsert 最新目录，确保安装过旧版本的用户也能收到新增地点。
+- 正文已知古地名继续以带下划线的可点击标记呈现；BottomSheet 展示古今对照、历史说明和坐标；“在地图中查看”打开带选中红色 Marker 的轻量地图视图，并显示当前 Marker 数量。
+- 地点核对参考灵宝市政府关于函谷关位于灵宝的资料、运城市政府关于古称河东的资料，以及地方志关于会稽与绍兴沿革的资料；赤壁保留传统定位与具体战场存在异说的说明。
+
+### TTS 音频自检与 Edge 403
+
+- `TTSEngine` 增加 `AudioDiagnosticSnapshot`；Sherpa `AudioTrack.play()` 后严格检查初始化/播放状态，记录负写入、连续三次零写入，并抛出 `AudioHardwareException`，不通过 catch 静默吞掉异常。
+- Sherpa 开启 `DEBUG_DUMP_PCM`，异步生成 `cacheDir/debug_tts_output.pcm`；每个异常或状态变化用 `AUDIO_DIAGNOSTIC` 输出 JSON。新增 `androidTest` 的 `testTTSAudioOutputDataNotZero` 验证非零 PCM 与正向写入。
+- `connectedDebugAndroidTest`：`BUILD SUCCESSFUL`，`TTSEngineSelfTest` 通过。模拟器日志记录 `writtenBytes=49904`、`pcmBytes=49904`、`pcmNonZero=true`、`AUDIO_PLAYBACK_COMPLETE`。这证明合成和 AudioTrack 写入管线工作，不等同于实体扬声器已经发声。
+- Edge-TTS WebSocket 补齐 `Sec-MS-GEC`、版本、Origin、MUID、桌面 UA、时间戳和配置帧 CRLF；HTTP 403 现在会输出 `EDGE_HTTP_403` 的结构化音频错误并提示切换离线引擎。当前模拟器网络状态为 not connected，因此不能宣称 Edge 网络请求已恢复；公共端点仍可能主动拒绝握手。
+
+### 构建、模拟器和体积
+
+- `./gradlew clean assembleDebug`：`BUILD SUCCESSFUL`；原生 sherpa/ONNX 库无法 strip 的 Gradle 提示已保留为诊断信息，不影响打包。
+- `./gradlew :app:testDebugUnitTest`：`BUILD SUCCESSFUL`，包含条目前缀清洗回归测试。
+- 再次执行 `./run_codex_autodev.sh`：Inspection 编译、安装、启动、截图、DOM dump 均成功；`build/ui_checks/crash.log` 为 `No Fatal, AndroidRuntime, or NullPointer errors detected.`。
+- 最终 APK [app-autodev.apk](/workspaces/-app/build/outputs/app-autodev.apk)：`118,523,302` bytes，SHA-256 `072f31b92b53a0dcb0bd5ae19093f624eed00a3880f89408e257b58d5890dde8`，`versionCode 8 / versionName 0.1.7`；相比之前同时打包四 ABI 的约 `192 MB` debug APK，当前双 ABI Inspection APK 约 `114 MB`，保留实体 ARM64 与当前 x86_64 模拟器。
+- 本轮截图 `build/ui_checks/01_home.png`、`02_detail.png`、`03_scroll.png` 已重新生成，随本轮提交。
+
+### 当前边界
+
+- 当前没有实体 Android 设备，无法完成真实扬声器听感和 Edge-TTS 网络可用性验证；安装后若 Edge 仍返回 403，应使用 Sherpa-onnx 离线引擎或提供可用网络环境。

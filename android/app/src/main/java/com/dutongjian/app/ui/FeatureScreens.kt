@@ -190,6 +190,7 @@ internal fun MapSheet(places: List<HistoricalPlace>, selected: HistoricalPlace?,
             Text("历史地图", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
             Text("${selected?.ancientName ?: "已标记地点"} · ${selected?.modernName.orEmpty()}", color = MaterialTheme.colorScheme.primary)
             HistoricalMap(places, selected)
+            Text("已加载 ${places.size} 个古地名 Marker；红色标记为当前选中地点。", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(12.dp))
         }
     }
@@ -356,7 +357,7 @@ internal fun ReadingAnnotatedText(
     highlightedSavedNoteId: String?,
     highlightedNotePosition: Int? = null,
     onPlaceClick: (HistoricalPlace) -> Unit,
-    onHistoricalNoteClick: (ReadableHistoricalNote) -> Unit,
+    onHistoricalNoteClick: (ReadableHistoricalNote) -> Unit = {},
 ) {
     var layoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
     val annotated = remember(text, places, historicalNotes, savedNotes, highlightedSavedNoteId, highlightedNotePosition) {
