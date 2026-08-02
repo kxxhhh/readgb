@@ -3,8 +3,8 @@ import json
 
 import pytest
 
-from app.export_android import export_catalog, export_content
-from app.models import Item
+from app.export_android import export_catalog, export_content, export_partial_catalog, export_partial_content
+from app.models import Item, ReadingYear, Volume
 from app.store import ContentStore
 
 
@@ -74,3 +74,65 @@ def test_export_catalog_refuses_incomplete_hierarchy(tmp_path):
         export_catalog(store.path, output, expected_volumes=294, expected_years=1405)
 
     assert not output.exists()
+
+
+def test_partial_export_only_includes_completed_checkpoint_years(tmp_path):
+    database = tmp_path / "partial.db"
+    store = ContentStore(database)
+    store.upsert_volumes([Volume("partial-volume", "zizhi", "卷一", "周纪", 1)])
+    store.upsert_years(
+        [
+            ReadingYear("completed-year", "partial-volume", "二十三年", "前403年", 1),
+            ReadingYear("pending-year", "partial-volume", "二十四年", "前402年", 2),
+        ]
+    )
+    store.upsert_items(
+        [
+            Item(
+                id="zztj-completed",
+                title="已完成正文",
+                category="资治通鉴",
+                dynasty="周纪",
+                summary="已完成摘要",
+                content="已完成正文",
+                source_url="https://www.dutongjian.com/api/reign?reign_tongjian_id=completed-year",
+                updated_at="2026-08-02",
+                volume_id="partial-volume",
+                year_id="completed-year",
+                original="已完成原文",
+                translation="已完成译文",
+            ),
+            Item(
+                id="zztj-pending",
+                title="未完成正文",
+                category="资治通鉴",
+                dynasty="周纪",
+                summary="未完成摘要",
+                content="未完成正文",
+                source_url="https://www.dutongjian.com/api/reign?reign_tongjian_id=pending-year",
+                updated_at="2026-08-02",
+                volume_id="partial-volume",
+                year_id="pending-year",
+                original="未完成原文",
+                translation="未完成译文",
+            ),
+        ]
+    )
+    checkpoint = tmp_path / "progress.json"
+    checkpoint.write_text(
+        json.dumps({"total_reigns": 2, "completed_reign_ids": ["completed-year"]}),
+        encoding="utf-8",
+    )
+
+    content_output = tmp_path / "offline_content.ndjson.gz"
+    catalog_output = tmp_path / "offline_catalog.json"
+
+    assert export_partial_content(database, content_output, checkpoint) == 1
+    catalog = export_partial_catalog(database, catalog_output, checkpoint)
+
+    with gzip.open(content_output, "rt", encoding="utf-8") as stream:
+        assert [json.loads(line)["id"] for line in stream] == ["zztj-completed"]
+    assert catalog == {"sections": 1, "volumes": 1, "years": 1}
+    exported_catalog = json.loads(catalog_output.read_text(encoding="utf-8"))
+    assert [year["id"] for year in exported_catalog["years"]] == ["completed-year"]
+    assert [volume["id"] for volume in exported_catalog["volumes"]] == ["partial-volume"]
