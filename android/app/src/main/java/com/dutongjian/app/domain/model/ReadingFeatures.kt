@@ -3,7 +3,6 @@ package com.dutongjian.app.domain.model
 enum class TtsEngineType(val label: String, val description: String) {
     LOCAL("Android 本地 TTS", "离线 · 使用系统引擎"),
     EDGE("微软 Edge-TTS", "在线 · 高音质"),
-    SHERPA_ONNX("Sherpa-onnx", "离线 · 无需网络"),
 }
 
 data class TimelineEvent(
@@ -11,6 +10,7 @@ data class TimelineEvent(
     val yearLabel: String,
     val era: String,
     val sortKey: String,
+    val yearInt: Int? = null,
 )
 
 data class HistoricalPlace(

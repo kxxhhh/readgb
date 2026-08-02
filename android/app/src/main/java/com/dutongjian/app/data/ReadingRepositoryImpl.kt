@@ -117,6 +117,10 @@ class ReadingRepositoryImpl @Inject constructor(
         fallback = { bundledCatalog().years.filter { it.volume_id == volumeId }.map { it.toDomain() } },
     )
 
+    override suspend fun loadAllYears(): Result<List<ReadingYear>> = runCatching {
+        bundledCatalog().years.map { it.toDomain() }.sortedBy { it.yearInt ?: Int.MAX_VALUE }
+    }
+
     override suspend fun loadYearItems(yearId: String): Result<List<ReadingItem>> = withOfflineFallback(
         remote = {
             val response = api.yearItems(yearId)
@@ -237,7 +241,7 @@ class ReadingRepositoryImpl @Inject constructor(
                 OfflineCatalogAsset(
                     sections = OfflineSeed.sections.map { SectionDto(it.id, it.title, it.description, it.sourceUrl, it.sortOrder) },
                     volumes = OfflineSeed.volumes.map { VolumeDto(it.id, it.sectionId, it.title, it.dynasty, it.sortOrder) },
-                    years = OfflineSeed.years.map { YearDto(it.id, it.volumeId, it.title, it.era, it.sortOrder) },
+                    years = OfflineSeed.years.map { YearDto(it.id, it.volumeId, it.title, it.era, it.sortOrder, it.yearInt) },
                 )
             }
             bundledCatalog = loaded
@@ -299,7 +303,7 @@ class ReadingRepositoryImpl @Inject constructor(
 
     private fun VolumeDto.toDomain() = Volume(id, section_id, title, dynasty, sort_order)
 
-    private fun YearDto.toDomain() = ReadingYear(id, volume_id, title, era, sort_order)
+    private fun YearDto.toDomain() = ReadingYear(id, volume_id, title, era, sort_order, year_int)
 
     private fun KnowledgeDto.toDomain() = KnowledgeEntry(id, title, category, summary, content, source_url, updated_at)
 
@@ -329,7 +333,7 @@ private const val LEGACY_CONTENT_ASSET = "offline_content.ndjson.gz"
 private const val OFFLINE_CATALOG_ASSET = "offline_catalog.json"
 private const val OFFLINE_KNOWLEDGE_ASSET = "offline_knowledge.json"
 private const val OFFLINE_CONTENT_RECORD_COUNT = 2_107
-private const val OFFLINE_ASSET_VERSION = "2026-08-02-329-raw-crawled-1"
+private const val OFFLINE_ASSET_VERSION = "2026-08-02-541-raw-crawled-2"
 private const val OFFLINE_ASSET_PREFERENCES = "offline_assets"
 private const val OFFLINE_ASSET_VERSION_KEY = "content_version"
 private const val ASSET_BATCH_SIZE = 500

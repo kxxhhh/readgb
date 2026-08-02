@@ -47,6 +47,7 @@ data class ReadingYear(
     val title: String,
     val era: String,
     val sortOrder: Int,
+    val yearInt: Int? = null,
 )
 
 data class KnowledgeEntry(

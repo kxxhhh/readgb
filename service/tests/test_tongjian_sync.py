@@ -86,6 +86,7 @@ def test_sync_imports_catalog_and_preserves_full_public_payload(tmp_path):
     assert result.content_records == 1
     assert store.volumes("zizhi")[0].title == "資治通鑑卷第一"
     assert store.years("juan-1")[0].title == "威烈王二十三年"
+    assert store.years("juan-1")[0].year_int == -403
     item = store.get_item("zztj-content-1")
     assert item is not None
     assert item.original.startswith("1初命晉大夫")

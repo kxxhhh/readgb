@@ -244,6 +244,7 @@ class TongjianSync:
                     f"{ref.emperor_name}{ref.reign_name}",
                     ref.year_anno,
                     ref.sort_order,
+                    ref.year_int,
                 )
             )
         self.store.upsert_volumes(list(volumes.values()))

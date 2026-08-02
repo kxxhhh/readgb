@@ -157,7 +157,7 @@ class ContentStore:
                 );
                 CREATE TABLE IF NOT EXISTS years (
                     id TEXT PRIMARY KEY, volume_id TEXT NOT NULL, title TEXT NOT NULL,
-                    era TEXT NOT NULL, sort_order INTEGER NOT NULL
+                    era TEXT NOT NULL, sort_order INTEGER NOT NULL, year_int INTEGER
                 );
                 CREATE TABLE IF NOT EXISTS knowledge_entries (
                     id TEXT PRIMARY KEY, title TEXT NOT NULL, category TEXT NOT NULL,
@@ -178,6 +178,9 @@ class ContentStore:
             }.items():
                 if name not in existing_columns:
                     connection.execute(f"ALTER TABLE items ADD COLUMN {name} {definition}")
+            year_columns = {row[1] for row in connection.execute("PRAGMA table_info(years)").fetchall()}
+            if "year_int" not in year_columns:
+                connection.execute("ALTER TABLE years ADD COLUMN year_int INTEGER")
             count = connection.execute("SELECT COUNT(*) FROM items").fetchone()[0]
             if count == 0:
                 connection.executemany(
@@ -199,7 +202,12 @@ class ContentStore:
                     )
             connection.executemany("INSERT OR IGNORE INTO sections VALUES (:id, :title, :description, :source_url, :sort_order)", [section.to_dict() for section in SECTIONS])
             connection.executemany("INSERT OR IGNORE INTO volumes VALUES (:id, :section_id, :title, :dynasty, :sort_order)", [volume.to_dict() for volume in VOLUMES])
-            connection.executemany("INSERT OR IGNORE INTO years VALUES (:id, :volume_id, :title, :era, :sort_order)", [year.to_dict() for year in YEARS])
+            connection.executemany(
+                """INSERT OR IGNORE INTO years
+                (id, volume_id, title, era, sort_order, year_int)
+                VALUES (:id, :volume_id, :title, :era, :sort_order, :year_int)""",
+                [year.to_dict() for year in YEARS],
+            )
             connection.executemany("INSERT OR IGNORE INTO knowledge_entries VALUES (:id, :title, :category, :summary, :content, :source_url, :updated_at)", [entry.to_dict() for entry in KNOWLEDGE_ENTRIES])
 
     @staticmethod
@@ -269,8 +277,8 @@ class ContentStore:
         with self._lock, self._connect() as connection:
             connection.executemany(
                 """INSERT OR REPLACE INTO years
-                (id, volume_id, title, era, sort_order)
-                VALUES (:id, :volume_id, :title, :era, :sort_order)""",
+                (id, volume_id, title, era, sort_order, year_int)
+                VALUES (:id, :volume_id, :title, :era, :sort_order, :year_int)""",
                 [year.to_dict() for year in years],
             )
 

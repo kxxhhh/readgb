@@ -19,6 +19,7 @@ interface ReadingRepository {
     suspend fun loadSections(): Result<List<LibrarySection>>
     suspend fun loadVolumes(sectionId: String): Result<List<Volume>>
     suspend fun loadYears(volumeId: String): Result<List<ReadingYear>>
+    suspend fun loadAllYears(): Result<List<ReadingYear>>
     suspend fun loadYearItems(yearId: String): Result<List<ReadingItem>>
     suspend fun loadKnowledge(query: String? = null, category: String? = null): Result<List<KnowledgeEntry>>
     fun observeNotes(): Flow<List<Note>>

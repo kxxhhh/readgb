@@ -102,7 +102,7 @@ class EdgeTTSEngine(context: Context) : TTSEngine {
             val status = response?.code ?: -1
             val code = if (status > 0) "EDGE_HTTP_$status" else "EDGE_CONNECTION_FAILED"
             val reason = if (status == 403) {
-                "Edge-TTS WebSocket 握手被服务拒绝（HTTP 403）；请切换 Sherpa-onnx 离线引擎。"
+                "Edge-TTS WebSocket 握手被服务拒绝（HTTP 403）；请切换 Android 本地 TTS。"
             } else {
                 "Edge-TTS 连接失败：${t.message ?: "服务不可用"}"
             }

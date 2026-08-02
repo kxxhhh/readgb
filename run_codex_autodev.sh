@@ -64,7 +64,13 @@ mkdir -p "$OUTPUT_DIR"
 adb shell am force-stop "$PACKAGE_NAME"
 adb shell monkey -p "$PACKAGE_NAME" -c android.intent.category.LAUNCHER 1
 # Allow the offline asset importer to finish before sampling the home screen.
-sleep 8
+for attempt in $(seq 1 45); do
+    adb shell uiautomator dump /sdcard/autodev_ready.xml >/dev/null 2>&1 || true
+    if adb shell cat /sdcard/autodev_ready.xml 2>/dev/null | grep -q "精选条目"; then
+        break
+    fi
+    sleep 1
+done
 
 # 1. 首页截图
 adb shell screencap -p /sdcard/01_home.png
@@ -73,6 +79,11 @@ adb pull /sdcard/01_home.png "$OUTPUT_DIR/01_home.png"
 # 2. 点击首页首张正文卡片，进入详情页
 adb shell input tap 160 440
 sleep 2
+adb shell uiautomator dump /sdcard/autodev_detail.xml >/dev/null 2>&1 || true
+if ! adb shell cat /sdcard/autodev_detail.xml 2>/dev/null | grep -q "原文"; then
+    adb shell input tap 160 440
+    sleep 2
+fi
 adb shell screencap -p /sdcard/02_detail.png
 adb pull /sdcard/02_detail.png "$OUTPUT_DIR/02_detail.png"
 

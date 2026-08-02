@@ -70,27 +70,36 @@ import android.content.ClipDescription
 import android.content.ClipboardManager
 import com.dutongjian.app.domain.model.HistoricalPlace
 import com.dutongjian.app.domain.model.Note
+import com.dutongjian.app.domain.model.ReadingYear
 import com.dutongjian.app.domain.model.ReadingItem
 import com.dutongjian.app.domain.model.TimelineEvent
 import androidx.compose.ui.text.TextStyle
 import java.util.UUID
 
 @Composable
-internal fun TimelineScreen(items: List<ReadingItem>, onOpen: (ReadingItem) -> Unit) {
+internal fun TimelineScreen(items: List<ReadingItem>, catalogYears: List<ReadingYear>, onOpen: (ReadingItem) -> Unit) {
     var yearFilter by rememberSaveable { mutableStateOf<String?>(null) }
     var eraFilter by rememberSaveable { mutableStateOf<String?>(null) }
-    val events = remember(items) {
+    val yearById = remember(catalogYears) { catalogYears.associateBy { it.id } }
+    val events = remember(items, yearById) {
         items.map { item ->
-            TimelineEvent(item, item.yearId ?: "未标年", item.dynasty.ifBlank { "未分纪" }, "${item.updatedAt}-${item.yearId}-${item.id}")
-        }.sortedBy(TimelineEvent::sortKey)
+            val year = item.yearId?.let(yearById::get)
+            TimelineEvent(
+                item = item,
+                yearLabel = year?.title ?: item.yearId ?: "未标年",
+                era = year?.era ?: item.dynasty.ifBlank { "未分纪" },
+                sortKey = "${item.updatedAt}-${item.id}",
+                yearInt = year?.yearInt,
+            )
+        }.sortedWith(compareBy<TimelineEvent> { it.yearInt ?: Int.MAX_VALUE }.thenBy(TimelineEvent::sortKey))
     }
-    val years = remember(events) { events.map(TimelineEvent::yearLabel).distinct().take(24) }
+    val yearOptions = remember(events) { events.map(TimelineEvent::yearLabel).distinct().take(24) }
     val eras = remember(events) { events.map(TimelineEvent::era).distinct().take(24) }
     val visible = events.filter { (yearFilter == null || it.yearLabel == yearFilter) && (eraFilter == null || it.era == eraFilter) }
     Column(modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
         Text("历史年表", modifier = Modifier.padding(top = 16.dp), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
         Text("按本地已导入条目的纪、年和年号整理", color = MaterialTheme.colorScheme.onSurfaceVariant)
-        FilterRow("年份", years, yearFilter) { yearFilter = it }
+        FilterRow("年份", yearOptions, yearFilter) { yearFilter = it }
         FilterRow("纪年", eras, eraFilter) { eraFilter = it }
         Text("${visible.size} 个事件", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(vertical = 8.dp))
         LazyColumn(
@@ -111,7 +120,7 @@ internal fun TimelineScreen(items: List<ReadingItem>, onOpen: (ReadingItem) -> U
                     ) {
                         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                             Text(event.item.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                            Text("${event.era} · ${event.yearLabel}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                            Text("${event.era} · ${formatPublicYear(event.yearInt, event.yearLabel)}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
                             Text(event.item.summary, maxLines = 2, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Text("打开正文并定位事件", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.secondary)
                         }
@@ -120,6 +129,12 @@ internal fun TimelineScreen(items: List<ReadingItem>, onOpen: (ReadingItem) -> U
             }
         }
     }
+}
+
+internal fun formatPublicYear(yearInt: Int?, fallback: String): String = when {
+    yearInt == null -> fallback
+    yearInt < 0 -> "公元前${-yearInt}年"
+    else -> "公元${yearInt}年"
 }
 
 @Composable

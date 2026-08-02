@@ -57,6 +57,7 @@ class ReadingYear:
     title: str
     era: str
     sort_order: int
+    year_int: int | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

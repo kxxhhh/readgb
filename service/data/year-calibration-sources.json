@@ -1,0 +1,20 @@
+{
+  "method": "使用 dutongjian.com 公共目录的 year_int 作为机器可排序值，并用权威公开年表做锚点复核。",
+  "anchors": [
+    {
+      "title": "威烈王二十三年",
+      "year_int": -403,
+      "source": "https://lib2.buct.edu.cn/bookInfo_01h1339348.html"
+    },
+    {
+      "title": "高祖武皇帝永初元年",
+      "year_int": 420,
+      "source": "https://ytliu0.github.io/ChineseCalendar/era_names.html"
+    },
+    {
+      "title": "高祖神堯大聖光孝皇帝上之上武德元年",
+      "year_int": 618,
+      "source": "https://www.dpm.org.cn/lemmas/243111.html"
+    }
+  ]
+}

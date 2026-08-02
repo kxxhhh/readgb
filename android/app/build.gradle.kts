@@ -1,7 +1,6 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 val apiBaseUrl = providers.gradleProperty("apiBaseUrl").orElse("http://10.0.2.2:8000/").get()
-val sherpaOnnxVersion = providers.gradleProperty("sherpaOnnxVersion").orElse("master-116a44e72c-1").get()
 
 plugins {
     id("com.android.application")
@@ -19,8 +18,8 @@ android {
         applicationId = "com.dutongjian.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 9
-        versionName = "0.1.8"
+        versionCode = 10
+        versionName = "0.1.9"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
@@ -98,8 +97,6 @@ dependencies {
     implementation("io.coil-kt.coil3:coil-compose:3.4.0")
     implementation("io.coil-kt.coil3:coil-network-okhttp:3.4.0")
 
-    // Official sherpa-onnx Android AAR/JNI build published through JitPack.
-    implementation("com.github.k2-fsa.sherpa-onnx:sherpa-onnx:$sherpaOnnxVersion@aar")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
     testImplementation("junit:junit:4.13.2")

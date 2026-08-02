@@ -1084,3 +1084,21 @@ Android 工程已创建；当前锁定 AGP 9.0.0、Kotlin 2.4.10、Compose BOM 2
 
 - Sherpa-onnx 和 Edge-TTS 仍可由设置手动选择，但本轮默认使用 Android 本地 TTS；Edge-TTS 是否可用取决于网络端点，Sherpa 听感取决于模型和设备音频输出。
 - 当前没有实体 Android 设备，无法完成真实扬声器音量、音色和硬件兼容性验证。
+
+## Sherpa 移除、内容同步与目录性能修复（2026-08-02）
+
+### 变更
+
+- Sherpa-onnx 的 AAR/JNI 依赖、VITS 模型/FST assets、`SherpaOnnxEngine`、专用音频硬件异常类和 instrumented 自检已从 Android 工程移除；设置页只保留 Android 本地 TTS 与 Edge-TTS，Edge 403 提示改为切换本地 TTS。
+- 当前离线快照按 checkpoint `541/1405` 导出：正文 `4552` 条，目录 `1` 个 section、`53` 卷、`541` 个年，百科关联 `10167` 条；App 导入版本更新为 `2026-08-02-541-raw-crawled-2`。抓取进程仍在后台继续推进，后续完整抓取结束后需再次导出资产。
+- 服务端 `ReadingYear` 保存公开目录的 `year_int`，Android 年表按数字年份排序并显示公元/公元前格式；加入 `service/data/year-calibration-sources.json` 记录校准锚点。网络复核锚点：通鉴起于前403年、刘宋永初元年为420年、唐武德元年为618年，分别参考 [北京化工大学图书馆](https://lib2.buct.edu.cn/bookInfo_01h1339348.html)、[中国历史纪年表](https://ytliu0.github.io/ChineseCalendar/era_names.html)、[故宫博物院武德词条](https://www.dpm.org.cn/lemmas/243111.html)。
+- 目录页改为先显示已有本地数据、后台刷新远程目录；卷/年/条目增加内存缓存，过滤结果使用 `remember`，列表使用稳定 key，避免每次进入目录等待网络回退和重复构建列表。
+- `run_codex_autodev.sh` 改为轮询离线导入完成后再采样，并确认详情页进入“原文”，避免内容量增长后固定等待时间造成误判。
+
+### 验证与产物
+
+- `service`: `python -m pytest -q`，`21 passed`。
+- Android: `./gradlew :app:testDebugUnitTest :app:assembleDebug`，`BUILD SUCCESSFUL`；`connectedDebugAndroidTest` 无 instrumented 用例，任务成功完成。
+- `./run_codex_autodev.sh`：Inspection 编译成功、模拟器安装成功，首页显示 `4557` 篇；详情截图进入真实正文页；目录点击后立即显示“阅读目录”，进入资治通鉴可见多卷；年表卡片显示 `公元前403年`；`crash.log` 为 `No Fatal, AndroidRuntime, or NullPointer errors detected.`。
+- 最终 APK [app-autodev.apk](/workspaces/-app/build/outputs/app-autodev.apk)：`24,369,577` bytes，SHA-256 `d6d5db2a88e93b6444cf527383c236105520da9ab1ed07de1b694e94f6fa4fb5`，版本 `versionCode 10 / versionName 0.1.9`。APK 内未发现 Sherpa、ONNX、`model.onnx` 或 `.far` 文件，相比上一版约 `118 MB` 明显缩小。
+- 当前没有实体 Android 设备，无法验证真实扬声器输出；本轮只验证了本地 TTS 选项、目录/年表渲染、安装和 Runtime 日志。

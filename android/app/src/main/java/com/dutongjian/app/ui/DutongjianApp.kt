@@ -349,6 +349,7 @@ fun DutongjianApp(
                                 )
                                 AppTab.TIMELINE -> TimelineScreen(
                                     items = state.items,
+                                    catalogYears = state.timelineYears,
                                     onOpen = { item -> onOpen(item); selectedItem = item; selectedNoteId = null },
                                 )
                                 AppTab.LIBRARY -> LibraryScreen(
@@ -593,7 +594,13 @@ private fun CatalogScreen(
                 shape = RoundedCornerShape(16.dp),
             )
         }
-        if (state.isCatalogLoading) {
+        val hasCatalogContent = when (state.catalogLevel) {
+            CatalogLevel.SECTIONS -> state.sections.isNotEmpty()
+            CatalogLevel.VOLUMES -> state.volumes.isNotEmpty()
+            CatalogLevel.YEARS -> state.years.isNotEmpty()
+            CatalogLevel.ITEMS -> state.catalogItems.isNotEmpty()
+        }
+        if (state.isCatalogLoading && !hasCatalogContent) {
             LoadingState()
         } else {
             when (state.catalogLevel) {
@@ -620,23 +627,27 @@ private fun CatalogScreen(
                         subtitle = { it.dynasty },
                         query = catalogQuery,
                         onClick = onVolumeSelected,
+                        key = { it.id },
                     )
                 }
                 CatalogLevel.YEARS -> {
                     CatalogList(
                         values = state.years,
                         title = { it.title },
-                        subtitle = { it.era },
+                        subtitle = { formatPublicYear(it.yearInt, it.era) },
                         query = catalogQuery,
                         onClick = onYearSelected,
+                        key = { it.id },
                     )
                 }
                 CatalogLevel.ITEMS -> {
                     if (state.catalogItems.isEmpty()) {
                         EmptyState("这一年还没有条目", "同步服务接入真实公开内容后会显示在这里")
                     } else {
-                        val filteredItems = state.catalogItems.filter { item ->
-                            catalogQuery.isBlank() || item.title.contains(catalogQuery, ignoreCase = true) || item.summary.contains(catalogQuery, ignoreCase = true)
+                        val filteredItems = remember(state.catalogItems, catalogQuery) {
+                            state.catalogItems.filter { item ->
+                                catalogQuery.isBlank() || item.title.contains(catalogQuery, ignoreCase = true) || item.summary.contains(catalogQuery, ignoreCase = true)
+                            }
                         }
                         LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(vertical = 16.dp)) {
                             items(filteredItems, key = { it.id }) { item ->
@@ -657,12 +668,15 @@ private fun <T> CatalogList(
     subtitle: (T) -> String,
     query: String,
     onClick: (T) -> Unit,
+    key: (T) -> Any,
 ) {
-    val filteredValues = values.filter { value ->
-        query.isBlank() || title(value).contains(query, ignoreCase = true) || subtitle(value).contains(query, ignoreCase = true)
+    val filteredValues = remember(values, query) {
+        values.filter { value ->
+            query.isBlank() || title(value).contains(query, ignoreCase = true) || subtitle(value).contains(query, ignoreCase = true)
+        }
     }
     LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(vertical = 16.dp)) {
-        items(filteredValues) { value ->
+        items(filteredValues, key = { value -> key(value) }) { value ->
             ElevatedCard(
                 modifier = Modifier.fillMaxWidth().clickable { onClick(value) },
                 shape = RoundedCornerShape(14.dp),
@@ -1183,7 +1197,7 @@ private fun AiSettingsScreen(
                         )
                     }
                 }
-                Text("默认使用 Android 本地 TTS；Edge-TTS 需要网络，Sherpa-onnx 适合需要固定离线音色的场景。引擎切换后立即生效。", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 6.dp))
+                Text("默认使用 Android 本地 TTS；Edge-TTS 需要网络，连接失败时请使用本地引擎。引擎切换后立即生效。", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 6.dp))
             }
             item {
                 OutlinedTextField(

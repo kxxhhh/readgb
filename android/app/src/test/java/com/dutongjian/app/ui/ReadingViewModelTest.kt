@@ -132,6 +132,8 @@ private class FakeRepository(
 
     override suspend fun loadYears(volumeId: String) = Result.success(emptyList<ReadingYear>())
 
+    override suspend fun loadAllYears() = Result.success(emptyList<ReadingYear>())
+
     override suspend fun loadYearItems(yearId: String) = Result.success(emptyList<ReadingItem>())
 
     override suspend fun loadKnowledge(query: String?, category: String?) = Result.success(emptyList<KnowledgeEntry>())

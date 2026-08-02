@@ -66,6 +66,7 @@ data class YearDto(
     val title: String,
     val era: String,
     val sort_order: Int,
+    val year_int: Int? = null,
 )
 
 @Serializable

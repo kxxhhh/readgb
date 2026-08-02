@@ -58,6 +58,7 @@ data class ReadingUiState(
     val sections: List<LibrarySection> = OfflineSeed.sections,
     val volumes: List<Volume> = emptyList(),
     val years: List<ReadingYear> = emptyList(),
+    val timelineYears: List<ReadingYear> = OfflineSeed.years,
     val catalogItems: List<ReadingItem> = emptyList(),
     val catalogLevel: CatalogLevel = CatalogLevel.SECTIONS,
     val selectedSectionId: String? = null,
@@ -84,6 +85,10 @@ class ReadingViewModel @Inject constructor(
 ) : ViewModel() {
     private var knowledgeCache = OfflineSeed.knowledge
     private var knowledgeRequest: Job? = null
+    private val sectionCache = mutableListOf<LibrarySection>()
+    private val volumeCache = mutableMapOf<String, List<Volume>>()
+    private val yearCache = mutableMapOf<String, List<ReadingYear>>()
+    private val itemCache = mutableMapOf<String, List<ReadingItem>>()
     private val _state = MutableStateFlow(
         ReadingUiState(
             items = OfflineSeed.items,
@@ -92,6 +97,7 @@ class ReadingViewModel @Inject constructor(
             knowledge = OfflineSeed.knowledge,
             knowledgeCategories = OfflineSeed.knowledge.map(KnowledgeEntry::category).distinct().sorted(),
             knowledgeCategoryCounts = OfflineSeed.knowledge.groupingBy(KnowledgeEntry::category).eachCount(),
+            timelineYears = OfflineSeed.years,
             isLoading = true,
         ),
     )
@@ -120,6 +126,11 @@ class ReadingViewModel @Inject constructor(
         }
         refresh()
         loadSections()
+        viewModelScope.launch {
+            repository.loadAllYears().onSuccess { years ->
+                _state.update { it.copy(timelineYears = years) }
+            }
+        }
         loadKnowledge()
         loadAiSettings()
     }
@@ -230,8 +241,14 @@ class ReadingViewModel @Inject constructor(
     }
 
     fun loadSections() = viewModelScope.launch {
-        _state.update { it.copy(isCatalogLoading = true) }
+        if (sectionCache.isNotEmpty()) {
+            _state.update { it.copy(sections = sectionCache.toList(), isCatalogLoading = false) }
+        } else {
+            _state.update { it.copy(isCatalogLoading = false) }
+        }
         repository.loadSections().onSuccess { sections ->
+            sectionCache.clear()
+            sectionCache.addAll(sections)
             _state.update { it.copy(sections = sections, isCatalogLoading = false, error = null) }
         }.onFailure { failure ->
             _state.update { it.copy(isCatalogLoading = false, error = failure.message ?: "目录加载失败") }
@@ -239,54 +256,66 @@ class ReadingViewModel @Inject constructor(
     }
 
     fun selectSection(section: LibrarySection) = viewModelScope.launch {
+        val cached = volumeCache[section.id]
         _state.update {
             it.copy(
                 selectedSectionId = section.id,
                 selectedVolumeId = null,
                 selectedYearId = null,
-                volumes = emptyList(),
+                volumes = cached.orEmpty(),
                 years = emptyList(),
                 catalogItems = emptyList(),
                 catalogLevel = CatalogLevel.VOLUMES,
-                isCatalogLoading = true,
+                isCatalogLoading = cached == null,
             )
         }
         repository.loadVolumes(section.id).onSuccess { volumes ->
-            _state.update { it.copy(volumes = volumes, isCatalogLoading = false) }
+            volumeCache[section.id] = volumes
+            _state.update { current ->
+                if (current.selectedSectionId == section.id) current.copy(volumes = volumes, isCatalogLoading = false) else current
+            }
         }.onFailure { failure ->
             _state.update { it.copy(isCatalogLoading = false, error = failure.message ?: "卷目录加载失败") }
         }
     }
 
     fun selectVolume(volume: Volume) = viewModelScope.launch {
+        val cached = yearCache[volume.id]
         _state.update {
             it.copy(
                 selectedVolumeId = volume.id,
                 selectedYearId = null,
-                years = emptyList(),
+                years = cached.orEmpty(),
                 catalogItems = emptyList(),
                 catalogLevel = CatalogLevel.YEARS,
-                isCatalogLoading = true,
+                isCatalogLoading = cached == null,
             )
         }
         repository.loadYears(volume.id).onSuccess { years ->
-            _state.update { it.copy(years = years, isCatalogLoading = false) }
+            yearCache[volume.id] = years
+            _state.update { current ->
+                if (current.selectedVolumeId == volume.id) current.copy(years = years, isCatalogLoading = false) else current
+            }
         }.onFailure { failure ->
             _state.update { it.copy(isCatalogLoading = false, error = failure.message ?: "年份目录加载失败") }
         }
     }
 
     fun selectYear(year: ReadingYear) = viewModelScope.launch {
+        val cached = itemCache[year.id]
         _state.update {
             it.copy(
                 selectedYearId = year.id,
-                catalogItems = emptyList(),
+                catalogItems = cached.orEmpty(),
                 catalogLevel = CatalogLevel.ITEMS,
-                isCatalogLoading = true,
+                isCatalogLoading = cached == null,
             )
         }
         repository.loadYearItems(year.id).onSuccess { items ->
-            _state.update { it.copy(catalogItems = items, isCatalogLoading = false) }
+            itemCache[year.id] = items
+            _state.update { current ->
+                if (current.selectedYearId == year.id) current.copy(catalogItems = items, isCatalogLoading = false) else current
+            }
         }.onFailure { failure ->
             _state.update { it.copy(isCatalogLoading = false, error = failure.message ?: "条目加载失败") }
         }
