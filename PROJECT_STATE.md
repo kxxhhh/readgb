@@ -864,3 +864,5 @@ Android 工程已创建；当前锁定 AGP 9.0.0、Kotlin 2.4.10、Compose BOM 2
 - 本次资源快照包含 `1601` 条正文、`20` 卷、`271` 个纪年和 `3643` 条百科条目；正文、原文、译文及百科摘要/正文均非空。
 - 百科分类统计：人物 `1820`、地点 `915`、官职 `580`、决策 `250`、主题 `78`。这些是已抓内容的阶段性关联索引，不是完整百科全量。
 - 新版本为 `versionCode 5`、`versionName 0.1.4`；后续发布使用 `v0.1.5`，旧 `v0.1.4` 仍只有正文资产。
+- `v0.1.5` 已发布：<https://github.com/kxxhhh/-app/releases/tag/v0.1.5>；`app-inspection.apk` SHA-256 为 `c2f5acd93341282270960e1ecd9928a675237e74b445493b426645d9d6683859`。
+- 新 APK 执行 `./gradlew clean testDebugUnitTest lintDebug assembleDebug assembleInspection assembleRelease`：`BUILD SUCCESSFUL`；APK 内部核对正文 `1601`、目录纪年 `271`、百科 `3643`，并确认 APK v2 签名有效。
