@@ -2,13 +2,15 @@
 
 package com.dutongjian.app.ui
 
+import android.app.Activity
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Intent
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.layout.Arrangement
@@ -67,6 +69,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -80,6 +83,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import android.widget.Toast
 import com.dutongjian.app.domain.model.AiTask
 import com.dutongjian.app.domain.model.HistoricalPlace
 import com.dutongjian.app.domain.model.KnowledgeEntry
@@ -90,8 +94,7 @@ import com.dutongjian.app.domain.model.ReadingYear
 import com.dutongjian.app.domain.model.TtsEngineType
 import com.dutongjian.app.domain.model.Volume
 import com.dutongjian.app.domain.tts.TtsPlaybackState
-import java.util.UUID
-
+import kotlinx.coroutines.delay
 private enum class AppTab(val label: String) {
     HOME("首页"),
     CATALOG("目录"),
@@ -145,24 +148,66 @@ fun DutongjianApp(
     var selectedKnowledge by remember { mutableStateOf<KnowledgeEntry?>(null) }
     var selectedNoteId by remember { mutableStateOf<String?>(null) }
     var showAiSettings by rememberSaveable { mutableStateOf(false) }
+    var exitArmed by rememberSaveable { mutableStateOf(false) }
+    val context = LocalContext.current
     val selectedItemId = selectedItem?.id
     val selectedKnowledgeId = selectedKnowledge?.id
 
-    if (showAiSettings) {
-        AiSettingsScreen(
-            aiState = aiState,
-            onBack = { showAiSettings = false },
-            onBaseUrlChanged = onAiBaseUrlChanged,
-            onModelChanged = onAiModelChanged,
-            onApiKeyChanged = onAiApiKeyChanged,
-            onSave = onAiSettingsSave,
-            onClearApiKey = onAiApiKeyClear,
-            ttsEngine = state.tts.engine,
-            onTtsEngineSelected = onTtsEngineSelected,
-        )
-    } else AnimatedContent(
+    LaunchedEffect(state.tts.currentItemId, state.tts.isPlaying) {
+        if (state.tts.isPlaying) {
+            state.tts.currentItemId?.let { currentId ->
+                state.items.firstOrNull { it.id == currentId }?.let { currentItem ->
+                    if (selectedItem?.id != currentItem.id) {
+                        selectedItem = currentItem
+                        selectedKnowledge = null
+                        selectedNoteId = null
+                    }
+                }
+            }
+        }
+    }
+    LaunchedEffect(exitArmed) {
+        if (exitArmed) {
+            delay(2000)
+            exitArmed = false
+        }
+    }
+    BackHandler {
+        when {
+            showAiSettings -> showAiSettings = false
+            selectedItem != null -> {
+                selectedItem = null
+                selectedNoteId = null
+            }
+            selectedKnowledge != null -> selectedKnowledge = null
+            tab != AppTab.HOME -> {
+                tab = AppTab.HOME
+                exitArmed = false
+            }
+            exitArmed -> (context as? Activity)?.finish()
+            else -> {
+                exitArmed = true
+                Toast.makeText(context, "再按一次返回桌面", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        if (showAiSettings) {
+            AiSettingsScreen(
+                aiState = aiState,
+                onBack = { showAiSettings = false },
+                onBaseUrlChanged = onAiBaseUrlChanged,
+                onModelChanged = onAiModelChanged,
+                onApiKeyChanged = onAiApiKeyChanged,
+                onSave = onAiSettingsSave,
+                onClearApiKey = onAiApiKeyClear,
+                ttsEngine = state.tts.engine,
+                onTtsEngineSelected = onTtsEngineSelected,
+            )
+        } else AnimatedContent(
         targetState = selectedItemId ?: selectedKnowledgeId,
-        transitionSpec = { fadeIn() togetherWith fadeOut() },
+        transitionSpec = { slideInHorizontally { it / 3 } togetherWith slideOutHorizontally { -it / 3 } },
         label = "detail-transition",
     ) { targetId ->
         val targetItem = targetId?.let { id ->
@@ -293,6 +338,17 @@ fun DutongjianApp(
                     }
                 }
             }
+        }
+        }
+        if (state.tts.isPlaying || state.tts.isPaused) {
+            FloatingTtsBall(
+                title = state.tts.currentItemId?.let { id -> state.items.firstOrNull { it.id == id }?.title } ?: "正在朗读",
+                isPaused = state.tts.isPaused,
+                onPause = onPauseTts,
+                onResume = onResumeTts,
+                onStop = onStopTts,
+                modifier = Modifier.align(Alignment.BottomEnd).padding(end = 16.dp, bottom = 88.dp),
+            )
         }
     }
 }
@@ -759,9 +815,14 @@ private fun DetailScreen(
                 Text(item.title, style = MaterialTheme.typography.headlineMedium, fontSize = (28f * fontScale).sp, fontWeight = FontWeight.Bold)
             }
             item {
-                Text("导读", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text("原文", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(6.dp))
-                Text(item.summary, style = MaterialTheme.typography.bodyLarge, fontSize = (17f * fontScale).sp, lineHeight = (26f * fontScale).sp)
+                SelectionContainer {
+                    ReadingAnnotatedText(original, places, historicalNotes, savedNotes, bodyFontSize, bodyLineHeight, highlightedSavedNoteId, highlightedNotePosition, { place -> selectedPlace = place }) { note ->
+                        highlightedNotePosition = note.position
+                        selectedHistoricalNote = note
+                    }
+                }
             }
             item {
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -841,10 +902,8 @@ private fun DetailScreen(
                     }
                     item {
                         AssistChip(
-                            onClick = {
-                                onSaveNote(Note(UUID.randomUUID().toString(), item.id, 0, original.length, original, "", "#F4C95D", System.currentTimeMillis()))
-                            },
-                            label = { Text("划线当前原文") },
+                            onClick = { showNoteEditor = true },
+                            label = { Text("划线选中文本") },
                         )
                     }
                     item {
@@ -857,22 +916,10 @@ private fun DetailScreen(
                     Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         when (mode) {
                             ReadingMode.PARALLEL -> {
-                                Text("原文", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-                                SelectionContainer {
-                                    ReadingAnnotatedText(original, places, historicalNotes, savedNotes, bodyFontSize, bodyLineHeight, highlightedSavedNoteId, { place -> selectedPlace = place }) { note ->
-                                        highlightedNotePosition = note.position
-                                        selectedHistoricalNote = note
-                                    }
-                                }
                                 Text("白话", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
                                 Text(translation, style = MaterialTheme.typography.bodyLarge, fontSize = bodyFontSize, lineHeight = bodyLineHeight)
                             }
-                            ReadingMode.ORIGINAL -> {
-                                ReadingAnnotatedText(original, places, historicalNotes, savedNotes, bodyFontSize, bodyLineHeight, highlightedSavedNoteId, { place -> selectedPlace = place }) { note ->
-                                    highlightedNotePosition = note.position
-                                    selectedHistoricalNote = note
-                                }
-                            }
+                            ReadingMode.ORIGINAL -> Spacer(Modifier.height(1.dp))
                             ReadingMode.TRANSLATION -> Text(translation, style = MaterialTheme.typography.bodyLarge, fontSize = bodyFontSize, lineHeight = bodyLineHeight)
                             ReadingMode.NOTES -> HistoricalNotesList(historicalNotes) { note ->
                                 highlightedNotePosition = note.position
@@ -1006,7 +1053,8 @@ private fun DetailScreen(
     if (showNoteEditor) {
         NoteEditorDialog(
             articleId = item.id,
-            selectedText = original,
+            articleText = original,
+            selectedText = "",
             startIndex = 0,
             onDismiss = { showNoteEditor = false },
             onSave = onSaveNote,
@@ -1065,7 +1113,7 @@ private fun AiSettingsScreen(
                         )
                     }
                 }
-                Text("当前版本在未打包 Sherpa 模型或 Edge 音频传输时使用系统中文语音回退；接口和播放队列已独立。", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 6.dp))
+                Text("Sherpa 模型与 JNI 已随应用打包；Edge-TTS 需要网络，连接失败会直接提示错误，不会静默切换系统语音。", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 6.dp))
             }
             item {
                 OutlinedTextField(

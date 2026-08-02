@@ -1,6 +1,7 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 val apiBaseUrl = providers.gradleProperty("apiBaseUrl").orElse("http://10.0.2.2:8000/").get()
+val sherpaOnnxVersion = providers.gradleProperty("sherpaOnnxVersion").orElse("master-116a44e72c-1").get()
 
 plugins {
     id("com.android.application")
@@ -95,6 +96,9 @@ dependencies {
     implementation("androidx.hilt:hilt-navigation-compose:1.2.0")
     implementation("io.coil-kt.coil3:coil-compose:3.4.0")
     implementation("io.coil-kt.coil3:coil-network-okhttp:3.4.0")
+
+    // Official sherpa-onnx Android AAR/JNI build published through JitPack.
+    implementation("com.github.k2-fsa.sherpa-onnx:sherpa-onnx:$sherpaOnnxVersion@aar")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
     testImplementation("junit:junit:4.13.2")

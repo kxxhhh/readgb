@@ -987,3 +987,26 @@ Android 工程已创建；当前锁定 AGP 9.0.0、Kotlin 2.4.10、Compose BOM 2
 - 当前环境已经有无头模拟器，可完成编译、安装和 Compose 交互检查；没有真实 Android 设备，不能替代实体设备兼容性验证。
 - Sherpa 模型文件尚未进入 `assets/sherpa-onnx-tts/`，Edge 音频传输端点也未配置；两个引擎类、播放队列和设置契约已接入，未具备外部模型/传输时使用系统中文语音回退，不能宣称真实 Edge 网络合成或 Sherpa 本地模型已验证。
 - 本轮 APK 仍使用已导出的 `2026-08-02-329` 离线内容快照；爬虫进程 PID `114706` 仍在运行，checkpoint 已推进到 `361/1405`。后续完整抓取结束后需要重新导出资源、编译并发布新 APK。
+
+## 进行中：Sherpa-onnx 完整本地引擎与阅读交互修复（2026-08-02）
+
+### 当前目标
+
+- 将官方 `k2-fsa/sherpa-onnx` 的 Android AAR/JNI、中文 VITS 模型和词典资产真正打入 APK，使用 `OfflineTts` + `AudioTrack` 完成本地合成，不再调用 Google/系统 TTS 兜底。
+- 修复朗读悬浮球、自动连播时详情页跟随并带横向动画、笔记按实际选中文本划线、首页双击返回退出、非首页常规返回。
+- 将详情页顶部唯一正文标题改为“原文”，移除重复正文；有注释的原文范围显示虚线下划线，注释与正文相互点击并高亮定位。
+- 编译通过后执行无头模拟器闭环，确认安装、Compose 渲染、Sherpa JNI 资产和 APK 产物；再更新日志、提交、推送和 GitHub Release。
+
+### 已完成但待构建确认
+
+- 已下载官方 `vits-icefall-zh-aishell3` 模型至 `android/app/src/main/assets/sherpa-onnx-tts/`，包含 `model.onnx`、`lexicon.txt`、FST 词典和 `rule.far`；`rule.far` 约 180 MB，将由 Git LFS 管理。
+- `SherpaOnnxEngine` 已改为调用官方 `OfflineTts`，首次朗读时异步初始化，使用 `AudioTrack` 播放生成的 PCM；系统 Google TTS 类已删除。
+- `EdgeTTSEngine` 已改为真实 Edge-TTS WebSocket + MP3 播放，连接失败直接展示错误。
+- 已加入可锁定的 JitPack 上游依赖版本和 `scripts/update_sherpa_onnx.sh`，用于查询上游提交并在编译/模拟器验证后显式升级。
+- Compose 侧已写入悬浮球、章节自动跟随和滑入/滑出动画、双击返回、选中文本笔记输入、注释虚线和单一“原文”布局。
+
+### 当前阻塞与证据
+
+- 首次 `./gradlew :app:compileDebugKotlin --stacktrace` 未进入 Kotlin 编译：JitPack 产物 POM 声明版本为 `master-SNAPSHOT`，而当前坐标使用 `master-116a44e72c-1`，Gradle 报 `inconsistent module metadata`。
+- 因此当前不能宣称 APK 已包含 Sherpa JNI，也不能宣称新 UI 或 TTS 已通过运行验证；需要先修正依赖坐标，再执行完整构建和模拟器闭环。
+- 爬虫 PID `114706` 仍在运行，最近 checkpoint 为 `361/1405`；本阶段仍使用现有内容快照，抓取进度与本次 Sherpa/UI 修复互不覆盖。

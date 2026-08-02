@@ -26,12 +26,18 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -40,14 +46,20 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalContext
+import android.content.ClipDescription
+import android.content.ClipboardManager
 import com.dutongjian.app.domain.model.HistoricalPlace
 import com.dutongjian.app.domain.model.Note
 import com.dutongjian.app.domain.model.ReadingItem
@@ -210,21 +222,40 @@ private fun HistoricalMap(places: List<HistoricalPlace>, selected: HistoricalPla
 @Composable
 internal fun NoteEditorDialog(
     articleId: String,
+    articleText: String,
     selectedText: String,
     startIndex: Int,
     initial: Note? = null,
     onDismiss: () -> Unit,
     onSave: (Note) -> Unit,
 ) {
+    var quote by rememberSaveable(initial?.id) { mutableStateOf(initial?.selectedText ?: selectedText) }
     var memo by rememberSaveable(initial?.id) { mutableStateOf(initial?.memo.orEmpty()) }
     var color by rememberSaveable(initial?.id) { mutableStateOf(initial?.color ?: "#F4C95D") }
+    val context = LocalContext.current
+    val quoteStart = quote.trim().let { value -> articleText.indexOf(value).takeIf { value.isNotBlank() && it >= 0 } }
     val colors = listOf("#F4C95D", "#A8DADC", "#F4A6A6", "#CDB4DB")
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(if (initial == null) "记一条笔记" else "编辑笔记") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("“${selectedText.take(120)}”", color = MaterialTheme.colorScheme.primary)
+                OutlinedTextField(
+                    value = quote,
+                    onValueChange = { quote = it },
+                    label = { Text("划线原文") },
+                    placeholder = { Text("先在正文选择并复制，再粘贴到这里") },
+                    minLines = 2,
+                )
+                TextButton(
+                    onClick = {
+                        val clipboard = context.getSystemService(ClipboardManager::class.java)
+                        if (clipboard?.hasPrimaryClip() == true && clipboard.primaryClipDescription?.hasMimeType(ClipDescription.MIMETYPE_TEXT_PLAIN) == true) {
+                            quote = clipboard.primaryClip?.getItemAt(0)?.coerceToText(context)?.toString().orEmpty()
+                        }
+                    },
+                ) { Text("粘贴剪贴板原文") }
+                quote.takeIf { it.isNotBlank() }?.let { Text("“${it.take(120)}”", color = MaterialTheme.colorScheme.primary) }
                 OutlinedTextField(value = memo, onValueChange = { memo = it }, label = { Text("笔记心得") }, minLines = 3)
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(colors) { candidate ->
@@ -235,9 +266,11 @@ internal fun NoteEditorDialog(
         },
         confirmButton = {
             TextButton(onClick = {
-                onSave(Note(initial?.id ?: UUID.randomUUID().toString(), articleId, initial?.startIndex ?: startIndex, initial?.endIndex ?: startIndex + selectedText.length, selectedText, memo.trim(), color, initial?.createdAt ?: System.currentTimeMillis()))
+                val normalizedQuote = quote.trim()
+                val resolvedStart = initial?.startIndex ?: quoteStart ?: startIndex
+                onSave(Note(initial?.id ?: UUID.randomUUID().toString(), articleId, resolvedStart, initial?.endIndex ?: resolvedStart + normalizedQuote.length, normalizedQuote, memo.trim(), color, initial?.createdAt ?: System.currentTimeMillis()))
                 onDismiss()
-            }, enabled = selectedText.isNotBlank()) { Text("保存") }
+            }, enabled = quoteStart != null || initial != null) { Text("保存") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } },
     )
@@ -321,15 +354,45 @@ internal fun ReadingAnnotatedText(
     fontSize: androidx.compose.ui.unit.TextUnit,
     lineHeight: androidx.compose.ui.unit.TextUnit,
     highlightedSavedNoteId: String?,
+    highlightedNotePosition: Int? = null,
     onPlaceClick: (HistoricalPlace) -> Unit,
     onHistoricalNoteClick: (ReadableHistoricalNote) -> Unit,
 ) {
-    val annotated = remember(text, places, historicalNotes, savedNotes, highlightedSavedNoteId) {
-        buildReadingAnnotatedString(text, places, historicalNotes, savedNotes, highlightedSavedNoteId)
+    var layoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
+    val annotated = remember(text, places, historicalNotes, savedNotes, highlightedSavedNoteId, highlightedNotePosition) {
+        buildReadingAnnotatedString(text, places, historicalNotes, savedNotes, highlightedSavedNoteId, highlightedNotePosition)
+    }
+    val noteRanges = remember(text, historicalNotes) {
+        historicalNotes.sortedBy { it.position }.mapNotNull { note ->
+            if (note.position !in text.indices) return@mapNotNull null
+            val end = (note.position + 2).coerceAtMost(text.length)
+            note.position to end
+        }.filter { (start, end) -> start < end }
     }
     ClickableText(
         text = annotated,
+        modifier = Modifier
+            .drawBehind {
+                val layout = layoutResult ?: return@drawBehind
+                noteRanges.forEach { (start, end) ->
+                    val firstLine = layout.getLineForOffset(start)
+                    val lastLine = layout.getLineForOffset((end - 1).coerceAtLeast(start))
+                    for (line in firstLine..lastLine) {
+                        val left = if (line == firstLine) layout.getHorizontalPosition(start, true) else layout.getLineLeft(line)
+                        val right = if (line == lastLine) layout.getHorizontalPosition(end, false) else layout.getLineRight(line)
+                        val y = layout.getLineBottom(line) + 2.dp.toPx()
+                        drawLine(
+                            color = Color(0xFFB34B32),
+                            start = Offset(left, y),
+                            end = Offset(right, y),
+                            strokeWidth = 1.5.dp.toPx(),
+                            pathEffect = PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 3.dp.toPx())),
+                        )
+                    }
+                }
+            },
         style = TextStyle(fontSize = fontSize, lineHeight = lineHeight, color = MaterialTheme.colorScheme.onSurface),
+        onTextLayout = { layoutResult = it },
         onClick = { offset ->
             annotated.getStringAnnotations("place", offset, offset).firstOrNull()?.let { annotation ->
                 places.firstOrNull { it.ancientName == annotation.item }?.let(onPlaceClick)
@@ -350,6 +413,7 @@ private fun buildReadingAnnotatedString(
     historicalNotes: List<ReadableHistoricalNote>,
     savedNotes: List<Note>,
     highlightedSavedNoteId: String?,
+    highlightedNotePosition: Int? = null,
 ): AnnotatedString {
     val marks = mutableListOf<ReadingMark>()
     places.forEach { place ->
@@ -359,8 +423,8 @@ private fun buildReadingAnnotatedString(
     }
     historicalNotes.sortedBy { it.position }.forEachIndexed { index, note ->
         if (note.position in text.indices) {
-            val end = historicalNotes.getOrNull(index + 1)?.position?.coerceAtMost(text.length) ?: (note.position + 2).coerceAtMost(text.length)
-            marks += ReadingMark(note.position, end, "historical-note", note.position.toString(), SpanStyle(background = Color(0x33B34B32), textDecoration = TextDecoration.Underline))
+            val end = (note.position + 2).coerceAtMost(text.length)
+            marks += ReadingMark(note.position, end, "historical-note", note.position.toString(), SpanStyle(background = if (note.position == highlightedNotePosition) Color(0xFFF4C95D) else Color(0x33B34B32)))
         }
     }
     savedNotes.forEach { note ->
@@ -397,11 +461,11 @@ private fun buildHistoricalNoteAnnotatedString(text: String, notes: List<Readabl
         var cursor = 0
         valid.forEachIndexed { index, note ->
             val start = note.position.coerceAtLeast(cursor)
-            val end = valid.getOrNull(index + 1)?.position?.coerceAtMost(text.length) ?: (start + 2).coerceAtMost(text.length)
+            val end = (start + 2).coerceAtMost(text.length)
             if (start > cursor) append(text.substring(cursor, start))
             if (end > start) {
                 pushStringAnnotation("historical-note", note.position.toString())
-                pushStyle(SpanStyle(background = if (selectedPosition == note.position) Color(0xFFF4C95D) else Color(0x33B34B32), textDecoration = TextDecoration.Underline))
+                pushStyle(SpanStyle(background = if (selectedPosition == note.position) Color(0xFFF4C95D) else Color(0x33B34B32)))
                 append(text.substring(start, end))
                 pop()
                 pop()
@@ -426,5 +490,53 @@ internal fun TtsControlRow(
         if (isPlaying && !isPaused) TextButton(onClick = onPause) { Text("暂停") }
         if (isPaused) TextButton(onClick = onResume) { Text("继续") }
         if (isPlaying) TextButton(onClick = onStop) { Text("停止") }
+    }
+}
+
+@Composable
+internal fun FloatingTtsBall(
+    title: String,
+    isPaused: Boolean,
+    onPause: () -> Unit,
+    onResume: () -> Unit,
+    onStop: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var expanded by rememberSaveable { mutableStateOf(false) }
+    Box(modifier = modifier) {
+        Column(horizontalAlignment = Alignment.End) {
+            if (expanded) {
+                Surface(
+                    modifier = Modifier.width(220.dp).padding(bottom = 8.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    tonalElevation = 5.dp,
+                ) {
+                    Row(
+                        modifier = Modifier.padding(start = 12.dp, end = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(title, modifier = Modifier.weight(1f), maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                        IconButton(onClick = { if (isPaused) onResume() else onPause() }) {
+                            Icon(if (isPaused) Icons.Default.PlayArrow else Icons.Default.Pause, contentDescription = if (isPaused) "继续朗读" else "暂停朗读")
+                        }
+                        IconButton(onClick = onStop) { Icon(Icons.Default.Stop, contentDescription = "停止朗读") }
+                    }
+                }
+            }
+            Surface(
+                modifier = Modifier.size(58.dp).clickable { expanded = !expanded },
+                shape = androidx.compose.foundation.shape.CircleShape,
+                tonalElevation = 8.dp,
+                color = MaterialTheme.colorScheme.primary,
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        if (isPaused) Icons.Default.PlayArrow else Icons.Default.Pause,
+                        contentDescription = if (isPaused) "展开并继续朗读" else "展开并暂停朗读",
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                    )
+                }
+            }
+        }
     }
 }

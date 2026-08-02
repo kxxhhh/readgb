@@ -47,8 +47,8 @@ class TtsController @Inject constructor(@ApplicationContext private val context:
 
     override fun resume() {
         if (!_state.value.isPaused) return
+        engine.resume()
         _state.value = _state.value.copy(isPaused = false)
-        speakCurrentSentence()
     }
 
     override fun stop() {

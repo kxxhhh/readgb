@@ -11,6 +11,12 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        maven {
+            url = uri("https://jitpack.io")
+            // JitPack's generated POM incorrectly reports master-SNAPSHOT for
+            // commit-pinned AARs; resolve the published AAR artifact directly.
+            metadataSources { artifact() }
+        }
     }
 }
 
