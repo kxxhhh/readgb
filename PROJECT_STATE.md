@@ -1110,7 +1110,7 @@ Android 工程已创建；当前锁定 AGP 9.0.0、Kotlin 2.4.10、Compose BOM 2
 
 - 用户确认当前 APK 中已有的 `4552` 条正文来自此前另一终端已经打包的内容；本轮不能用当前临时爬虫数据库覆盖这部分资产。
 - 当前 APK 继续使用 `android/app/src/main/assets/offline_content.ndjson.gz` 的既有快照：正文 `4552` 条、目录 `1` 个 section、`53` 卷、`541` 个年、百科关联 `10167` 条；`ReadingRepositoryImpl` 保持 `2026-08-02-541-raw-crawled-2` 版本标识。
-- 本轮新启动的公开 API 同步任务是独立断点任务，截至记录时完成 `253/1405` 个纪年，运行于 zellij 会话 `readgb-crawler`，未导入 Android 资产；它只写入 `service/data` 的临时数据库、缓存和 checkpoint。
+- 本轮新启动的公开 API 同步任务是独立断点任务，运行于 zellij 会话 `readgb-crawler`，未导入 Android 资产；它只写入 `service/data` 的临时数据库、缓存和 checkpoint。
 
 ### 环境与自动化
 
@@ -1134,7 +1134,14 @@ Android 工程已创建；当前锁定 AGP 9.0.0、Kotlin 2.4.10、Compose BOM 2
 - 当前 Inspection APK：[app-inspection.apk](/mnt/workspace/readgb/android/app/build/outputs/apk/inspection/app-inspection.apk)，SHA-256 `125e160fafcaaa884f4f7020465b263d74675cf48113fcc2e065516e41684b68`。
 - 当前 unsigned Release APK：[app-release-unsigned.apk](/mnt/workspace/readgb/android/app/build/outputs/apk/release/app-release-unsigned.apk)，SHA-256 `e6fee63479ce9e08c4c3e73f5dd1eb63ccbee42cf3887eb8cbd3592554555b1b`。
 
+### 爬虫恢复与加速
+
+- 公开 API 当前会通过 `429`/`Retry-After` 施加服务端等待；项目继续保持单进程、缓存、checkpoint 和 `5` 秒本地最小间隔，不使用并发请求或绕过限流。
+- 新增 `scripts/recover_crawler_from_android_assets.py`：验证 APK 的 `541` 个年份 ID 是当前 `1405` 个公开年份的精确前缀，校验正文字段和唯一 ID 后，将 `4552` 条既有记录恢复到服务端临时库，并原子推进 checkpoint。
+- 恢复前 checkpoint 为 `266/1405`，恢复后从 `541/1405` 继续；本次核对时已推进到 `544/1405`。APK 内的 `offline_content.ndjson.gz`、目录和百科资产没有修改，也没有把临时数据库导入 APK。
+- 恢复前的 checkpoint 保存在 `service/data/tongjian-progress.before-asset-recovery.json`，便于审计和回退核对。
+
 ### GitHub Release 状态
 
-- GitHub CLI 已安装，但当前环境没有 GitHub 登录会话、`GITHUB_TOKEN` 或 `GH_TOKEN`；因此本轮 APK 已完成，GitHub Release `v0.1.13` 尚未上传，不能将其标记为已发布。
-- 认证后应从仓库根目录提交本轮变更、推送 `main`，再创建 `v0.1.13` 并上传 Debug APK 或配置正式签名后的 Release APK；本轮不应把当前 `253/1405` 临时爬取数据导入发布包。
+- 本轮变更 commit `92a7d5b` 和 tag `v0.1.13` 已推送到 `main`；GitHub Release `v0.1.13` 已创建并上传 Debug APK：<https://github.com/kxxhhh/readgb/releases/tag/v0.1.13>。
+- Release 使用的 APK 仍保留既有 `4552` 条正文快照；当前临时爬虫数据库和后续新抓取内容尚未导入 Android 资产。

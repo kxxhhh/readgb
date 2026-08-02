@@ -16,6 +16,7 @@ service/data/*.sqlite
 service/data/*.sqlite3
 service/data/tongjian-cache/
 service/data/tongjian-progress.json
+service/data/tongjian-progress.*.json
 
 # Android / Gradle
 .gradle/
