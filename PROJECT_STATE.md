@@ -887,3 +887,42 @@ Android 工程已创建；当前锁定 AGP 9.0.0、Kotlin 2.4.10、Compose BOM 2
 - 最终 `window_dump.xml` 包含 `字号`、`100%`、`content-desc="增大字号"`、`content-desc="减小字号"`；`crash.log` 内容为 `No Fatal, AndroidRuntime, or NullPointer errors detected.`。
 - `./gradlew testDebugUnitTest`：`BUILD SUCCESSFUL`；无头模拟器闭环已覆盖安装、启动、详情导航、滚动和 Compose 控件渲染。
 - `app-autodev.apk`：`16,839,917` bytes，SHA-256 `f350dce6bdc104662b75166346b3c667f9ebaf1f370d1551e3bdc61de337e679`，包版本 `versionCode 5 / versionName 0.1.4`，APK v2 签名有效。
+
+## 增量迭代更新：古籍阅读工具集、闭环验证与应用图标（2026-08-02）
+
+### 远端同步与图标
+
+- 已执行 `git pull --ff-only`，远端快进到 `98b9c28`，同步得到设计源 `1785654469420~2.png`；该文件实际为 `741x741` JPEG，保留在仓库根目录作为原始设计源。
+- 新增 `android/app/src/main/res/drawable/app_icon.jpg`，并在 Manifest 的 `android:icon` 与 `android:roundIcon` 中引用；`aapt dump badging` 已确认 APK 图标资源为 `res/kl.jpg`。
+- 应用版本递增为 `versionCode 6`、`versionName 0.1.5`，用于区分已发布的 `v0.1.5` 阶段性内容 APK。
+
+### 本轮选择并实现的 15 项阅读能力
+
+1. 首页最近阅读条目恢复卡片。
+2. 首页精选条目“换一批”轮换，状态由 ViewModel 管理。
+3. 首页正文搜索与一键清除。
+4. 首页分类筛选。
+5. 书架收藏列表。
+6. 书架最近阅读列表。
+7. 目录卷册/年代/条目层级浏览。
+8. 目录当前层级筛选与清除。
+9. 百科关键词搜索与一键清除。
+10. 百科分类筛选及分类结果计数。
+11. 详情页收藏。
+12. 原文、白话、注释和对照四种阅读模式。
+13. 详情页 `80%..130%` 动态字号调节。
+14. 详情页阅读进度、回到顶部和滚动阅读反馈。
+15. 篇内检索、复制当前文本、分享史料、主题标签、沙盘态势和决策卡。
+
+### 构建与闭环证据
+
+- `./gradlew :app:testDebugUnitTest :app:compileInspectionKotlin`：`BUILD SUCCESSFUL`；新增精选轮换 ViewModel 单元测试通过。
+- 已按要求再次执行 `./run_codex_autodev.sh`：Inspection 构建成功，模拟器安装返回 `Success`，首页进入真实正文详情页并完成滚动截图。
+- `build/ui_checks/01_home.png` 显示首页、分类筛选、`1606` 篇内容和“换一批”；`02_detail.png` 显示真实长标题、导读和正文；`03_scroll.png` 显示四种模式、字号、阅读进度、篇内搜索、复制和分享。
+- `window_dump.xml` 包含 `阅读进度`、`复制当前文本`、`分享`、`content-desc="回到顶部"`、`content-desc="增大字号"` 和 `content-desc="减小字号"`；额外点击增大字号后 `window_dump_after_font.xml` 显示 `110%`。
+- `build/ui_checks/crash.log` 为 `No Fatal, AndroidRuntime, or NullPointer errors detected.`；点击字号后再次检查错误级 Logcat，未发现 Fatal、AndroidRuntime 或 NullPointer。
+- APK 已导出至 [app-autodev.apk](/workspaces/-app/build/outputs/app-autodev.apk)，大小 `16,958,125` bytes，SHA-256 `0c9a9cd66c1b794d2a439521d104730d28a246cd19fef8549d455cb957dfd705`，包版本 `versionCode 6 / versionName 0.1.5`，`apksigner` 已确认 APK v2 签名有效。
+
+### 爬虫状态
+
+- 全本同步进程 PID `114706` 仍在运行，当前 checkpoint 为 `298/1405`，约 `21.2%`；本轮 APK 仍是已完成阶段性内容快照，不宣称为完整全本。

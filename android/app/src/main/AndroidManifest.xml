@@ -5,7 +5,9 @@
     <application
         android:name=".DutongjianApplication"
         android:allowBackup="true"
+        android:icon="@drawable/app_icon"
         android:label="读通鉴"
+        android:roundIcon="@drawable/app_icon"
         android:usesCleartextTraffic="true"
         android:supportsRtl="true"
         android:theme="@style/Theme.Dutongjian">

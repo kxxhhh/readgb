@@ -2,11 +2,13 @@
 
 package com.dutongjian.app.ui
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Intent
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -22,26 +24,28 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
+import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.SettingsBrightness
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedCard
@@ -63,11 +67,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -77,6 +82,7 @@ import com.dutongjian.app.domain.model.LibrarySection
 import com.dutongjian.app.domain.model.ReadingItem
 import com.dutongjian.app.domain.model.ReadingYear
 import com.dutongjian.app.domain.model.Volume
+import kotlinx.coroutines.launch
 
 private enum class AppTab(val label: String) {
     HOME("首页"),
@@ -98,6 +104,7 @@ fun DutongjianApp(
     onRefresh: () -> Unit,
     onSearch: (String) -> Unit,
     onCategorySelected: (String?) -> Unit,
+    onCycleFeatured: () -> Unit,
     onLibraryTabSelected: (LibraryTab) -> Unit,
     onFavoriteToggle: (ReadingItem) -> Unit,
     onOpen: (ReadingItem) -> Unit,
@@ -193,6 +200,7 @@ fun DutongjianApp(
                                     state = state,
                                     onSearch = onSearch,
                                     onCategorySelected = onCategorySelected,
+                                    onCycleFeatured = onCycleFeatured,
                                     onFavoriteToggle = onFavoriteToggle,
                                     onOpen = { item -> onOpen(item); selectedItem = item },
                                 )
@@ -231,6 +239,7 @@ private fun HomeScreen(
     state: ReadingUiState,
     onSearch: (String) -> Unit,
     onCategorySelected: (String?) -> Unit,
+    onCycleFeatured: () -> Unit,
     onFavoriteToggle: (ReadingItem) -> Unit,
     onOpen: (ReadingItem) -> Unit,
 ) {
@@ -238,6 +247,16 @@ private fun HomeScreen(
     val visibleItems = state.items.filter { item ->
         (state.selectedCategory == null || item.category == state.selectedCategory) &&
             (state.searchResultIds == null || item.id in state.searchResultIds)
+    }
+    val resumeItem = state.items
+        .filter { it.lastOpenedAt != null }
+        .maxByOrNull { it.lastOpenedAt ?: 0L }
+    val featuredItems = if (visibleItems.isEmpty()) {
+        emptyList()
+    } else {
+        visibleItems.take(minOf(5, visibleItems.size)).mapIndexed { index, _ ->
+            visibleItems[(state.featuredOffset + index) % visibleItems.size]
+        }
     }
 
     LazyColumn(
@@ -259,8 +278,29 @@ private fun HomeScreen(
                 singleLine = true,
                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                 placeholder = { Text("搜索人物、事件或卷名") },
+                trailingIcon = {
+                    if (query.isNotBlank()) {
+                        IconButton(onClick = { query = ""; onSearch("") }) {
+                            Icon(Icons.Default.Clear, contentDescription = "清除搜索")
+                        }
+                    }
+                },
                 shape = RoundedCornerShape(16.dp),
             )
+        }
+        resumeItem?.let { resumeEntry ->
+            item {
+                ElevatedCard(
+                    modifier = Modifier.fillMaxWidth().clickable { onOpen(resumeEntry) },
+                    shape = RoundedCornerShape(16.dp),
+                ) {
+                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("继续阅读", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                        Text(resumeEntry.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        Text("从最近读过的条目重新进入", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
         }
         item {
             CategoryRow(
@@ -289,9 +329,10 @@ private fun HomeScreen(
                     Text("精选条目", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
                     Spacer(Modifier.weight(1f))
                     Text("${visibleItems.size} 篇", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                    TextButton(onClick = onCycleFeatured, enabled = visibleItems.size > 1) { Text("换一批") }
                 }
             }
-            items(visibleItems, key = { it.id }) { item ->
+            items(featuredItems, key = { it.id }) { item ->
                 ReadingCard(item, onFavoriteToggle, onOpen)
             }
         }
@@ -360,6 +401,7 @@ private fun CatalogScreen(
     onFavoriteToggle: (ReadingItem) -> Unit,
     onOpen: (ReadingItem) -> Unit,
 ) {
+    var catalogQuery by rememberSaveable { mutableStateOf("") }
     val title = when (state.catalogLevel) {
         CatalogLevel.SECTIONS -> "阅读目录"
         CatalogLevel.VOLUMES -> "选择卷册"
@@ -377,6 +419,24 @@ private fun CatalogScreen(
                 Text(title, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
                 Text("主站的卷、纪、年阅读结构", color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
+        }
+        if (state.catalogLevel != CatalogLevel.SECTIONS) {
+            OutlinedTextField(
+                value = catalogQuery,
+                onValueChange = { catalogQuery = it },
+                modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                singleLine = true,
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                trailingIcon = {
+                    if (catalogQuery.isNotBlank()) {
+                        IconButton(onClick = { catalogQuery = "" }) {
+                            Icon(Icons.Default.Clear, contentDescription = "清除目录搜索")
+                        }
+                    }
+                },
+                placeholder = { Text("筛选当前卷册、年代或条目") },
+                shape = RoundedCornerShape(16.dp),
+            )
         }
         if (state.isCatalogLoading) {
             LoadingState()
@@ -403,6 +463,7 @@ private fun CatalogScreen(
                         values = state.volumes,
                         title = { it.title },
                         subtitle = { it.dynasty },
+                        query = catalogQuery,
                         onClick = onVolumeSelected,
                     )
                 }
@@ -411,6 +472,7 @@ private fun CatalogScreen(
                         values = state.years,
                         title = { it.title },
                         subtitle = { it.era },
+                        query = catalogQuery,
                         onClick = onYearSelected,
                     )
                 }
@@ -418,8 +480,11 @@ private fun CatalogScreen(
                     if (state.catalogItems.isEmpty()) {
                         EmptyState("这一年还没有条目", "同步服务接入真实公开内容后会显示在这里")
                     } else {
+                        val filteredItems = state.catalogItems.filter { item ->
+                            catalogQuery.isBlank() || item.title.contains(catalogQuery, ignoreCase = true) || item.summary.contains(catalogQuery, ignoreCase = true)
+                        }
                         LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(vertical = 16.dp)) {
-                            items(state.catalogItems, key = { it.id }) { item ->
+                            items(filteredItems, key = { it.id }) { item ->
                                 ReadingCard(item, onFavoriteToggle, onOpen)
                             }
                         }
@@ -435,10 +500,14 @@ private fun <T> CatalogList(
     values: List<T>,
     title: (T) -> String,
     subtitle: (T) -> String,
+    query: String,
     onClick: (T) -> Unit,
 ) {
+    val filteredValues = values.filter { value ->
+        query.isBlank() || title(value).contains(query, ignoreCase = true) || subtitle(value).contains(query, ignoreCase = true)
+    }
     LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(vertical = 16.dp)) {
-        items(values) { value ->
+        items(filteredValues) { value ->
             ElevatedCard(
                 modifier = Modifier.fillMaxWidth().clickable { onClick(value) },
                 shape = RoundedCornerShape(14.dp),
@@ -473,8 +542,16 @@ private fun KnowledgeScreen(
             singleLine = true,
             leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
             placeholder = { Text("搜索百科条目") },
+            trailingIcon = {
+                if (query.isNotBlank()) {
+                    IconButton(onClick = { query = ""; onSearch("") }) {
+                        Icon(Icons.Default.Clear, contentDescription = "清除百科搜索")
+                    }
+                }
+            },
             shape = RoundedCornerShape(16.dp),
         )
+        Text("${state.knowledge.size} 条结果", modifier = Modifier.padding(top = 4.dp), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(vertical = 12.dp)) {
             item {
                 FilterChip(selected = state.selectedKnowledgeCategory == null, onClick = { onCategorySelected(null) }, label = { Text("全部") })
@@ -483,7 +560,7 @@ private fun KnowledgeScreen(
                 FilterChip(
                     selected = state.selectedKnowledgeCategory == category,
                     onClick = { onCategorySelected(category) },
-                    label = { Text(category) },
+                    label = { Text("$category ${state.knowledgeCategoryCounts[category] ?: 0}") },
                 )
             }
         }
@@ -543,8 +620,26 @@ private fun ReadingCard(item: ReadingItem, onFavoriteToggle: (ReadingItem) -> Un
 private fun DetailScreen(item: ReadingItem, onBack: () -> Unit, onFavoriteToggle: () -> Unit) {
     var mode by rememberSaveable { mutableStateOf(ReadingMode.PARALLEL) }
     var fontScale by rememberSaveable { mutableStateOf(1f) }
+    var articleQuery by rememberSaveable { mutableStateOf("") }
     var showSandbox by rememberSaveable { mutableStateOf(false) }
     var showDecisionCard by rememberSaveable { mutableStateOf(false) }
+    val listState = rememberLazyListState()
+    val coroutineScope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val original = item.original.ifBlank { item.content }
+    val translation = item.translation.ifBlank { item.content }
+    val notes = item.notes.ifBlank { "当前条目暂无独立注释，先使用导读和主题标签阅读。" }
+    val currentText = when (mode) {
+        ReadingMode.PARALLEL -> "原文\n$original\n\n白话\n$translation"
+        ReadingMode.ORIGINAL -> original
+        ReadingMode.TRANSLATION -> translation
+        ReadingMode.NOTES -> notes
+    }
+    val matchCount = countOccurrences(currentText, articleQuery)
+    val totalItems = listState.layoutInfo.totalItemsCount
+    val progress = if (totalItems <= 1) 0f else {
+        (listState.firstVisibleItemIndex.toFloat() / (totalItems - 1).toFloat()).coerceIn(0f, 1f)
+    }
     val bodyFontSize = (18f * fontScale).sp
     val bodyLineHeight = (30f * fontScale).sp
     Scaffold(
@@ -554,6 +649,11 @@ private fun DetailScreen(item: ReadingItem, onBack: () -> Unit, onFavoriteToggle
                 title = { Text(item.title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回") } },
                 actions = {
+                    if (listState.firstVisibleItemIndex > 0) {
+                        IconButton(onClick = { coroutineScope.launch { listState.animateScrollToItem(0) } }) {
+                            Icon(Icons.Default.KeyboardArrowUp, contentDescription = "回到顶部")
+                        }
+                    }
                     IconButton(onClick = onFavoriteToggle) {
                         Icon(if (item.isFavorite) Icons.Default.Bookmark else Icons.Default.BookmarkBorder, contentDescription = "收藏")
                     }
@@ -563,6 +663,7 @@ private fun DetailScreen(item: ReadingItem, onBack: () -> Unit, onFavoriteToggle
     ) { padding ->
         LazyColumn(
             modifier = Modifier.padding(padding).fillMaxSize(),
+            state = listState,
             contentPadding = PaddingValues(horizontal = 24.dp, vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(18.dp),
         ) {
@@ -602,9 +703,61 @@ private fun DetailScreen(item: ReadingItem, onBack: () -> Unit, onFavoriteToggle
                 }
             }
             item {
-                val original = item.original.ifBlank { item.content }
-                val translation = item.translation.ifBlank { item.content }
-                val notes = item.notes.ifBlank { "当前条目暂无独立注释，先使用导读和主题标签阅读。" }
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("阅读进度", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(Modifier.weight(1f))
+                        Text("${(progress * 100).toInt()}%", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                    }
+                    LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth())
+                }
+            }
+            item {
+                OutlinedTextField(
+                    value = articleQuery,
+                    onValueChange = { articleQuery = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                    trailingIcon = {
+                        if (articleQuery.isNotBlank()) {
+                            IconButton(onClick = { articleQuery = "" }) {
+                                Icon(Icons.Default.Clear, contentDescription = "清除篇内搜索")
+                            }
+                        }
+                    },
+                    supportingText = {
+                        Text(if (articleQuery.isBlank()) "检索当前阅读模式的文本" else "命中 $matchCount 处")
+                    },
+                    placeholder = { Text("在本篇中查找字词") },
+                    shape = RoundedCornerShape(16.dp),
+                )
+            }
+            item {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    AssistChip(
+                        onClick = {
+                            val clipboard = context.getSystemService(ClipboardManager::class.java)
+                            clipboard?.setPrimaryClip(ClipData.newPlainText(item.title, currentText))
+                        },
+                        label = { Text("复制当前文本") },
+                        leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(16.dp)) },
+                    )
+                    AssistChip(
+                        onClick = {
+                            val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                type = "text/plain"
+                                putExtra(Intent.EXTRA_SUBJECT, item.title)
+                                putExtra(Intent.EXTRA_TEXT, currentText)
+                            }
+                            context.startActivity(Intent.createChooser(shareIntent, "分享史料"))
+                        },
+                        label = { Text("分享") },
+                        leadingIcon = { Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(16.dp)) },
+                    )
+                }
+            }
+            item {
                 Surface(color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f), shape = RoundedCornerShape(16.dp)) {
                     Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         when (mode) {
@@ -617,9 +770,9 @@ private fun DetailScreen(item: ReadingItem, onBack: () -> Unit, onFavoriteToggle
                             ReadingMode.ORIGINAL -> Text(original, style = MaterialTheme.typography.bodyLarge, fontSize = bodyFontSize, lineHeight = bodyLineHeight)
                             ReadingMode.TRANSLATION -> Text(translation, style = MaterialTheme.typography.bodyLarge, fontSize = bodyFontSize, lineHeight = bodyLineHeight)
                             ReadingMode.NOTES -> Text(notes, style = MaterialTheme.typography.bodyLarge, fontSize = bodyFontSize, lineHeight = bodyLineHeight)
+                            }
                         }
                     }
-                }
             }
             item {
                 if (item.tags.isNotEmpty()) {
@@ -716,5 +869,17 @@ private fun EmptyState(title: String, subtitle: String) {
             Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
+    }
+}
+
+private fun countOccurrences(text: String, query: String): Int {
+    if (query.isBlank()) return 0
+    var startIndex = 0
+    var matches = 0
+    while (true) {
+        val matchIndex = text.indexOf(query, startIndex, ignoreCase = true)
+        if (matchIndex < 0) return matches
+        matches += 1
+        startIndex = matchIndex + query.length
     }
 }

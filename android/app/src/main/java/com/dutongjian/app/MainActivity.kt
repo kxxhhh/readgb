@@ -36,6 +36,7 @@ class MainActivity : ComponentActivity() {
                         onRefresh = viewModel::refresh,
                         onSearch = viewModel::search,
                         onCategorySelected = viewModel::selectCategory,
+                        onCycleFeatured = viewModel::cycleFeatured,
                         onLibraryTabSelected = viewModel::selectLibraryTab,
                         onFavoriteToggle = viewModel::toggleFavorite,
                         onOpen = viewModel::open,

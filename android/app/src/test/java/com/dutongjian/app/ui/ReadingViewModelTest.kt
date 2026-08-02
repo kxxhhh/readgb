@@ -78,6 +78,17 @@ class ReadingViewModelTest {
         assertEquals(listOf(realVolume), viewModel.state.value.volumes)
     }
 
+    @Test
+    fun cycleFeaturedMovesTheHomeWindowWithoutChangingTheItemFeed() = runTest {
+        val items = (0 until 6).map { index -> item("item-$index", "条目$index") }
+        val viewModel = ReadingViewModel(FakeRepository(items, emptyList()))
+
+        viewModel.cycleFeatured()
+
+        assertEquals(5, viewModel.state.value.featuredOffset)
+        assertEquals(items, viewModel.state.value.items)
+    }
+
     private fun item(id: String, title: String) = ReadingItem(
         id = id,
         title = title,

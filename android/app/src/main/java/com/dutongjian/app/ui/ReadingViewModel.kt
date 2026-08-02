@@ -26,6 +26,7 @@ data class ReadingUiState(
     val query: String = "",
     val searchResultIds: Set<String>? = null,
     val selectedCategory: String? = null,
+    val featuredOffset: Int = 0,
     val categories: List<String> = OfflineSeed.categories,
     val isLoading: Boolean = false,
     val isRefreshing: Boolean = false,
@@ -41,6 +42,7 @@ data class ReadingUiState(
     val selectedYearId: String? = null,
     val knowledge: List<KnowledgeEntry> = OfflineSeed.knowledge,
     val knowledgeCategories: List<String> = OfflineSeed.knowledge.map(KnowledgeEntry::category).distinct().sorted(),
+    val knowledgeCategoryCounts: Map<String, Int> = OfflineSeed.knowledge.groupingBy(KnowledgeEntry::category).eachCount(),
     val knowledgeQuery: String = "",
     val selectedKnowledgeCategory: String? = null,
     val isCatalogLoading: Boolean = false,
@@ -58,6 +60,7 @@ class ReadingViewModel @Inject constructor(
             sections = OfflineSeed.sections,
             knowledge = OfflineSeed.knowledge,
             knowledgeCategories = OfflineSeed.knowledge.map(KnowledgeEntry::category).distinct().sorted(),
+            knowledgeCategoryCounts = OfflineSeed.knowledge.groupingBy(KnowledgeEntry::category).eachCount(),
             isLoading = false,
         ),
     )
@@ -66,7 +69,12 @@ class ReadingViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             repository.observeItems().collectLatest { items ->
-                _state.update { it.copy(items = items) }
+                _state.update {
+                    it.copy(
+                        items = items,
+                        featuredOffset = if (items.isEmpty()) 0 else it.featuredOffset % items.size,
+                    )
+                }
             }
         }
         refresh()
@@ -110,6 +118,13 @@ class ReadingViewModel @Inject constructor(
 
     fun selectCategory(category: String?) { _state.update { it.copy(selectedCategory = category) } }
     fun selectLibraryTab(tab: LibraryTab) { _state.update { it.copy(libraryTab = tab) } }
+
+    fun cycleFeatured() {
+        _state.update { current ->
+            if (current.items.size <= 1) current
+            else current.copy(featuredOffset = (current.featuredOffset + 5) % current.items.size)
+        }
+    }
 
     fun toggleFavorite(item: ReadingItem) = viewModelScope.launch {
         repository.setFavorite(item.id, !item.isFavorite)
@@ -208,6 +223,7 @@ class ReadingViewModel @Inject constructor(
                 it.copy(
                     knowledge = entries,
                     knowledgeCategories = entries.map(KnowledgeEntry::category).distinct().sorted(),
+                    knowledgeCategoryCounts = entries.groupingBy(KnowledgeEntry::category).eachCount(),
                     isKnowledgeLoading = false,
                 )
             }
