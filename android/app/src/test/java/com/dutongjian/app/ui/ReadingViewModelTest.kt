@@ -17,6 +17,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
@@ -45,6 +46,15 @@ class ReadingViewModelTest {
         assertEquals(setOf("match"), viewModel.state.value.searchResultIds)
         viewModel.search(" ")
         assertEquals(null, viewModel.state.value.searchResultIds)
+    }
+
+    @Test
+    fun uiStateStartsWithOfflineReadingContent() {
+        val state = ReadingUiState()
+
+        assertEquals("三家分晋", state.items.first().title)
+        assertTrue(state.sections.isNotEmpty())
+        assertTrue(state.knowledge.isNotEmpty())
     }
 
     private fun item(id: String, title: String) = ReadingItem(
