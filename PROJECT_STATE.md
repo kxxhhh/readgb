@@ -747,3 +747,22 @@ Android 工程已创建；当前锁定 AGP 9.0.0、Kotlin 2.4.10、Compose BOM 2
 - `JAVA_HOME=/usr/local/sdkman/candidates/java/21.0.10-ms ./gradlew testDebugUnitTest assembleRelease`：通过；Release 继续显式关闭 R8 和资源收缩。
 - unsigned Release APK 位于 `android/app/build/outputs/apk/release/app-release-unsigned.apk`，SHA-256 为 `2d0dbced56b583320a6b0c04cca8e7fc5a4deecaa466eb505b165742be3bb883`。
 - 本次观察时同步 checkpoint 已推进到 `100/1405`，真实 `zztj-*` 正文为 `323` 条；同步进程仍在独立 session 中运行。
+
+## 增量阶段更新：离线资产字段校验与安装检查 APK（2026-08-02）
+
+### 导出校验
+
+- 新增 RED 测试：不完整正文必须被 Android 资产导出拒绝，且不能覆盖已有目标文件；测试 checkpoint 为 `88a44c7`。
+- 修复 `service/app/export_android.py`：读取完整分类记录，校验标题、正文、来源、卷/纪年层级、原文和译文等必填字段后才写入 gzip NDJSON；GREEN 修复提交为 `864e95f`。
+- 后端回归结果为 `19 passed`，`python3 -m compileall -q service/app` 通过。
+
+### APK 编译
+
+- `JAVA_HOME=/usr/local/sdkman/candidates/java/21.0.10-ms ./gradlew clean assembleDebug`：`BUILD SUCCESSFUL`。
+- 可安装 Debug APK：`android/app/build/outputs/apk/debug/app-debug.apk`，大小约 `19 MB`。
+- Debug APK SHA-256：`3b5484904710c6cc10b1dc7b41e7b038ba011b3d2ef93614220fab2e8516560c`。
+- 当前容器没有 `adb`，未执行设备安装；该 APK 仍是全本同步完成前的 OfflineSeed/本地缓存版本，不包含完整 `30989` 条正文。
+
+### 同步快照
+
+- 本次记录时 checkpoint 为 `115/1405`，真实 `zztj-*` 正文为 `375` 条；同步进程仍以 `--min-interval 5` 在独立 session 中运行。
