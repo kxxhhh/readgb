@@ -1,8 +1,10 @@
 package com.dutongjian.app.data.local
 
 import androidx.room.Dao
+import androidx.room.RawQuery
 import androidx.room.Query
 import androidx.room.Upsert
+import androidx.sqlite.db.SupportSQLiteQuery
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -21,6 +23,9 @@ interface ItemDao {
 
     @Query("SELECT COUNT(*) FROM reading_items WHERE id LIKE 'zztj-%'")
     suspend fun fullContentCount(): Int
+
+    @RawQuery
+    suspend fun searchFts(query: SupportSQLiteQuery): List<ItemEntity>
 
     @Upsert
     suspend fun upsertAll(items: List<ItemEntity>)

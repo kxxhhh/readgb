@@ -1103,3 +1103,38 @@ Android 工程已创建；当前锁定 AGP 9.0.0、Kotlin 2.4.10、Compose BOM 2
 - 最终 APK [app-autodev.apk](/workspaces/-app/build/outputs/app-autodev.apk)：`24,369,577` bytes，SHA-256 `d6d5db2a88e93b6444cf527383c236105520da9ab1ed07de1b694e94f6fa4fb5`，版本 `versionCode 10 / versionName 0.1.9`。APK 内未发现 Sherpa、ONNX、`model.onnx` 或 `.far` 文件，相比上一版约 `118 MB` 明显缩小。
 - GitHub Release `v0.1.12`：https://github.com/kxxhhh/-app/releases/tag/v0.1.12，已上传上述 APK。
 - 当前没有实体 Android 设备，无法验证真实扬声器输出；本轮只验证了本地 TTS 选项、目录/年表渲染、安装和 Runtime 日志。
+
+## 功能升级与现有内容快照构建（2026-08-03）
+
+### 内容边界
+
+- 用户确认当前 APK 中已有的 `4552` 条正文来自此前另一终端已经打包的内容；本轮不能用当前临时爬虫数据库覆盖这部分资产。
+- 当前 APK 继续使用 `android/app/src/main/assets/offline_content.ndjson.gz` 的既有快照：正文 `4552` 条、目录 `1` 个 section、`53` 卷、`541` 个年、百科关联 `10167` 条；`ReadingRepositoryImpl` 保持 `2026-08-02-541-raw-crawled-2` 版本标识。
+- 本轮新启动的公开 API 同步任务是独立断点任务，截至记录时完成 `253/1405` 个纪年，运行于 zellij 会话 `readgb-crawler`，未导入 Android 资产；它只写入 `service/data` 的临时数据库、缓存和 checkpoint。
+
+### 环境与自动化
+
+- 已安装 OpenJDK 21、Android SDK 35（platform-tools、build-tools、emulator、API 35 system image）、Python 虚拟环境、zellij `0.44.3` 和 GitHub CLI `2.4.0`。
+- 已安装 Playwright skill；当前没有可用 KVM，因此无法在本环境启动 x86_64 Android Emulator 做运行期截图验证。
+- `/etc/systemd/system/readgb-crawler.service` 已通过 `systemd-analyze verify` 并已 enable；当前容器 PID1 不是 systemd，因此本次运行由 zellij 中的唯一同步进程保持，不能在容器内启动第二个 systemd 实例。
+- `android/app/build.gradle.kts` 支持 `KEYSTORE_FILE`、`KEY_ALIAS`、`STORE_PASSWORD`、`KEY_PASSWORD` 环境变量签名；环境变量不完整时会直接失败，未配置时仍可生成 unsigned Release 供本地验证。
+
+### 功能升级
+
+- 新增研读工作台：阅读统计、近 7/30 日趋势、赋税/兵制/科举/货币专题、朝代篇幅柱形图、门阀谱系和每日金句。
+- Room 增加 FTS5 本地全文检索及触发器，FTS5 不可用时自动回退 Room 全字段过滤；服务端搜索同时覆盖原文、译文和标签。
+- 阅读器新增简体/繁体/异体字展示映射、句级 TTS 高亮与自动跟随、15/30 分钟睡眠定时和本篇结束停止；原始数据库文本不被视图映射改写。
+- 新增本地阅读统计存储、每日金句桌面 Widget、历史注释点击详情；AI 增加历史角色对话、反事实推演和古文语法拆解任务，并保留原有总结、翻译和词语对照。
+
+### 本轮验证与产物
+
+- 后端：`21 passed`，`python -m compileall -q service/app` 通过。
+- Android：`clean testDebugUnitTest lintDebug assembleDebug assembleInspection assembleRelease`，`BUILD SUCCESSFUL`；仅保留现有 `ClickableText` 弃用警告。
+- 当前 Debug APK：[app-debug.apk](/mnt/workspace/readgb/android/app/build/outputs/apk/debug/app-debug.apk)，`33,414,669` bytes，SHA-256 `8a209d4a34b7c9cc1defbd0e83d5073fa3747d2c97892dd269b9113949bcc1e1`，版本 `versionCode 11 / versionName 0.1.10`。
+- 当前 Inspection APK：[app-inspection.apk](/mnt/workspace/readgb/android/app/build/outputs/apk/inspection/app-inspection.apk)，SHA-256 `125e160fafcaaa884f4f7020465b263d74675cf48113fcc2e065516e41684b68`。
+- 当前 unsigned Release APK：[app-release-unsigned.apk](/mnt/workspace/readgb/android/app/build/outputs/apk/release/app-release-unsigned.apk)，SHA-256 `e6fee63479ce9e08c4c3e73f5dd1eb63ccbee42cf3887eb8cbd3592554555b1b`。
+
+### GitHub Release 状态
+
+- GitHub CLI 已安装，但当前环境没有 GitHub 登录会话、`GITHUB_TOKEN` 或 `GH_TOKEN`；因此本轮 APK 已完成，GitHub Release `v0.1.13` 尚未上传，不能将其标记为已发布。
+- 认证后应从仓库根目录提交本轮变更、推送 `main`，再创建 `v0.1.13` 并上传 Debug APK 或配置正式签名后的 Release APK；本轮不应把当前 `253/1405` 临时爬取数据导入发布包。

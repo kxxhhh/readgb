@@ -230,9 +230,9 @@ class ContentStore:
             clauses.append("category = ?")
             values.append(category)
         if query:
-            clauses.append("(title LIKE ? OR summary LIKE ? OR content LIKE ? OR dynasty LIKE ?)")
+            clauses.append("(title LIKE ? OR summary LIKE ? OR content LIKE ? OR original LIKE ? OR translation LIKE ? OR dynasty LIKE ? OR tags LIKE ?)")
             needle = f"%{query.strip()}%"
-            values.extend([needle] * 4)
+            values.extend([needle] * 7)
         if year_id:
             clauses.append("year_id = ?")
             values.append(year_id)

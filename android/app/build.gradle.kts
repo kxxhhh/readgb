@@ -1,6 +1,20 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 val apiBaseUrl = providers.gradleProperty("apiBaseUrl").orElse("http://10.0.2.2:8000/").get()
+val keystorePath = providers.environmentVariable("KEYSTORE_FILE").orNull
+val releaseKeyAlias = providers.environmentVariable("KEY_ALIAS").orNull
+val releaseStorePassword = providers.environmentVariable("STORE_PASSWORD").orNull
+val releaseKeyPassword = providers.environmentVariable("KEY_PASSWORD").orNull ?: releaseStorePassword
+val signingValues = listOf(keystorePath, releaseKeyAlias, releaseStorePassword, releaseKeyPassword)
+val hasReleaseSigningInput = signingValues.any { !it.isNullOrBlank() }
+val hasCompleteReleaseSigningInput = signingValues.all { !it.isNullOrBlank() }
+
+if (hasReleaseSigningInput && !hasCompleteReleaseSigningInput) {
+    throw GradleException(
+        "Release signing requires KEYSTORE_FILE, KEY_ALIAS, STORE_PASSWORD, and KEY_PASSWORD " +
+            "(KEY_PASSWORD may reuse STORE_PASSWORD).",
+    )
+}
 
 plugins {
     id("com.android.application")
@@ -18,13 +32,24 @@ android {
         applicationId = "com.dutongjian.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 10
-        versionName = "0.1.9"
+        versionCode = 11
+        versionName = "0.1.10"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
         ndk { abiFilters += listOf("arm64-v8a", "x86_64") }
         buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
+    }
+
+    signingConfigs {
+        if (hasCompleteReleaseSigningInput) {
+            create("environment") {
+                storeFile = file(requireNotNull(keystorePath))
+                storePassword = requireNotNull(releaseStorePassword)
+                keyAlias = requireNotNull(releaseKeyAlias)
+                keyPassword = requireNotNull(releaseKeyPassword)
+            }
+        }
     }
 
     buildTypes {
@@ -37,6 +62,9 @@ android {
             isMinifyEnabled = false
             isShrinkResources = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            if (hasCompleteReleaseSigningInput) {
+                signingConfig = signingConfigs.getByName("environment")
+            }
         }
         create("inspection") {
             initWith(getByName("release"))

@@ -5,8 +5,11 @@ import androidx.room.Room
 import com.dutongjian.app.BuildConfig
 import com.dutongjian.app.data.ReadingRepositoryImpl
 import com.dutongjian.app.data.AiRepositoryImpl
+import com.dutongjian.app.data.ReadingStatsRecorder
+import com.dutongjian.app.data.ReadingStatsStore
 import com.dutongjian.app.data.local.AppDatabase
 import com.dutongjian.app.data.local.ItemDao
+import com.dutongjian.app.data.local.ReadingSearchIndex
 import com.dutongjian.app.data.network.DutongjianApi
 import com.dutongjian.app.domain.repository.AiRepository
 import com.dutongjian.app.domain.repository.ReadingRepository
@@ -18,6 +21,8 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import androidx.room.RoomDatabase
+import androidx.sqlite.db.SupportSQLiteDatabase
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -113,7 +118,13 @@ object DatabaseModule {
         context,
         AppDatabase::class.java,
         "dutongjian.db",
-    ).addMigrations(MIGRATION_1_2, MIGRATION_2_4).build()
+    ).addMigrations(MIGRATION_1_2, MIGRATION_2_4)
+        .addCallback(object : RoomDatabase.Callback() {
+            override fun onOpen(db: SupportSQLiteDatabase) {
+                ReadingSearchIndex.ensure(db)
+            }
+        })
+        .build()
 
     @Provides
     fun provideItemDao(database: AppDatabase): ItemDao = database.itemDao()
@@ -139,4 +150,8 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindTtsPlayer(impl: TtsController): TtsPlayer
+
+    @Binds
+    @Singleton
+    abstract fun bindReadingStatsRecorder(impl: ReadingStatsStore): ReadingStatsRecorder
 }

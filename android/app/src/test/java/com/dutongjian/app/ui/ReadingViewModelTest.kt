@@ -9,7 +9,9 @@ import com.dutongjian.app.domain.model.LibrarySection
 import com.dutongjian.app.domain.model.Note
 import com.dutongjian.app.domain.model.ReadingItem
 import com.dutongjian.app.domain.model.ReadingYear
+import com.dutongjian.app.domain.model.ReadingStats
 import com.dutongjian.app.domain.model.Volume
+import com.dutongjian.app.data.ReadingStatsRecorder
 import com.dutongjian.app.domain.repository.ReadingRepository
 import com.dutongjian.app.domain.repository.AiRepository
 import com.dutongjian.app.domain.tts.TtsPlaybackState
@@ -50,7 +52,7 @@ class ReadingViewModelTest {
     fun searchTracksServerMatchesAndClearsForShortQuery() = runTest {
         val match = item("match", "三家分晋")
         val other = item("other", "赤壁之战")
-        val viewModel = ReadingViewModel(FakeRepository(listOf(match, other), listOf(match)), FakeAiRepository(), FakeTtsPlayer())
+        val viewModel = ReadingViewModel(FakeRepository(listOf(match, other), listOf(match)), FakeAiRepository(), FakeTtsPlayer(), FakeReadingStatsRecorder())
 
         viewModel.search("三家")
 
@@ -72,7 +74,7 @@ class ReadingViewModelTest {
     fun catalogDoesNotExposeSeedVolumesWhileRealCatalogIsLoading() = runTest {
         val gate = CompletableDeferred<List<Volume>>()
         val realVolume = Volume("real-volume", "zizhi", "卷第一", "周纪", 1)
-        val viewModel = ReadingViewModel(FakeRepository(listOf(item("item", "正文")), emptyList(), gate), FakeAiRepository(), FakeTtsPlayer())
+        val viewModel = ReadingViewModel(FakeRepository(listOf(item("item", "正文")), emptyList(), gate), FakeAiRepository(), FakeTtsPlayer(), FakeReadingStatsRecorder())
 
         viewModel.selectSection(com.dutongjian.app.domain.model.OfflineSeed.sections.first())
 
@@ -89,7 +91,7 @@ class ReadingViewModelTest {
     @Test
     fun cycleFeaturedMovesTheHomeWindowWithoutChangingTheItemFeed() = runTest {
         val items = (0 until 6).map { index -> item("item-$index", "条目$index") }
-        val viewModel = ReadingViewModel(FakeRepository(items, emptyList()), FakeAiRepository(), FakeTtsPlayer())
+        val viewModel = ReadingViewModel(FakeRepository(items, emptyList()), FakeAiRepository(), FakeTtsPlayer(), FakeReadingStatsRecorder())
 
         viewModel.cycleFeatured()
 
@@ -165,5 +167,21 @@ private class FakeTtsPlayer : TtsPlayer {
     override fun pause() = Unit
     override fun resume() = Unit
     override fun stop() = Unit
+    override fun startSleepTimer(minutes: Int) = Unit
+    override fun stopAfterCurrentItem() = Unit
+    override fun cancelSleepTimer() = Unit
     override fun release() = Unit
+}
+
+private class FakeReadingStatsRecorder : ReadingStatsRecorder {
+    private var current = ReadingStats()
+    override fun snapshot() = current
+    override fun open(item: ReadingItem): ReadingStats {
+        current = current.copy(
+            openedItems = current.openedItems + 1,
+            readCharacters = current.readCharacters + item.content.length,
+        )
+        return current
+    }
+    override fun close() = current
 }

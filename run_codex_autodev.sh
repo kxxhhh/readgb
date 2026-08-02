@@ -4,7 +4,7 @@ set -e
 PACKAGE_NAME="com.dutongjian.app"
 OUTPUT_DIR="build/ui_checks"
 
-export ANDROID_HOME=${ANDROID_HOME:-/home/codespace/android-sdk}
+export ANDROID_HOME=${ANDROID_HOME:-/opt/android-sdk}
 export PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$PATH
 
 echo "[1/6] 检查无头模拟器状态..."

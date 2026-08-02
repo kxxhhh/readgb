@@ -10,6 +10,7 @@ import com.dutongjian.app.domain.model.LibrarySection
 import com.dutongjian.app.domain.model.OfflineSeed
 import com.dutongjian.app.domain.model.ReadingItem
 import com.dutongjian.app.domain.model.ReadingYear
+import com.dutongjian.app.domain.model.ReadingStats
 import com.dutongjian.app.domain.model.Note
 import com.dutongjian.app.domain.model.TtsEngineType
 import com.dutongjian.app.domain.model.Volume
@@ -17,6 +18,7 @@ import com.dutongjian.app.domain.repository.ReadingRepository
 import com.dutongjian.app.domain.repository.AiRepository
 import com.dutongjian.app.domain.tts.TtsPlaybackState
 import com.dutongjian.app.domain.tts.TtsPlayer
+import com.dutongjian.app.data.ReadingStatsRecorder
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -71,6 +73,7 @@ data class ReadingUiState(
     val selectedKnowledgeCategory: String? = null,
     val notes: List<Note> = emptyList(),
     val places: List<HistoricalPlace> = emptyList(),
+    val stats: ReadingStats = ReadingStats(),
     val isCatalogLoading: Boolean = false,
     val isKnowledgeLoading: Boolean = false,
     val tts: TtsPlaybackState = TtsPlaybackState(),
@@ -82,6 +85,7 @@ class ReadingViewModel @Inject constructor(
     private val repository: ReadingRepository,
     private val aiRepository: AiRepository,
     private val ttsController: TtsPlayer,
+    private val statsStore: ReadingStatsRecorder,
 ) : ViewModel() {
     private var knowledgeCache = OfflineSeed.knowledge
     private var knowledgeRequest: Job? = null
@@ -124,6 +128,7 @@ class ReadingViewModel @Inject constructor(
         viewModelScope.launch {
             ttsController.state.collectLatest { tts -> _state.update { it.copy(tts = tts) } }
         }
+        _state.update { it.copy(stats = statsStore.snapshot()) }
         refresh()
         loadSections()
         viewModelScope.launch {
@@ -183,7 +188,14 @@ class ReadingViewModel @Inject constructor(
         repository.setFavorite(item.id, !item.isFavorite)
     }
 
-    fun open(item: ReadingItem) = viewModelScope.launch { repository.recordOpened(item.id) }
+    fun open(item: ReadingItem) = viewModelScope.launch {
+        repository.recordOpened(item.id)
+        _state.update { it.copy(stats = statsStore.open(item)) }
+    }
+
+    fun stopReadingSession() {
+        _state.update { it.copy(stats = statsStore.close()) }
+    }
 
     fun selectTtsEngine(engine: TtsEngineType) = ttsController.selectEngine(engine)
 
@@ -194,6 +206,12 @@ class ReadingViewModel @Inject constructor(
     fun resumeTts() = ttsController.resume()
 
     fun stopTts() = ttsController.stop()
+
+    fun startTtsSleepTimer(minutes: Int) = ttsController.startSleepTimer(minutes)
+
+    fun stopTtsAfterCurrentItem() = ttsController.stopAfterCurrentItem()
+
+    fun cancelTtsSleepTimer() = ttsController.cancelSleepTimer()
 
     fun saveNote(note: Note) = viewModelScope.launch { repository.saveNote(note) }
 
@@ -398,6 +416,7 @@ class ReadingViewModel @Inject constructor(
     }
 
     override fun onCleared() {
+        statsStore.close()
         ttsController.stop()
         ttsController.release()
         super.onCleared()

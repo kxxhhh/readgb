@@ -12,6 +12,8 @@ data class TtsPlaybackState(
     val currentSentence: Int = 0,
     val sentenceCount: Int = 0,
     val progress: Int = 0,
+    val sleepRemainingSeconds: Long = 0L,
+    val stopAfterCurrentItem: Boolean = false,
     val error: String? = null,
 )
 
@@ -22,5 +24,8 @@ interface TtsPlayer {
     fun pause()
     fun resume()
     fun stop()
+    fun startSleepTimer(minutes: Int)
+    fun stopAfterCurrentItem()
+    fun cancelSleepTimer()
     fun release()
 }

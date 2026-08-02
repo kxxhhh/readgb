@@ -73,6 +73,7 @@ import com.dutongjian.app.domain.model.Note
 import com.dutongjian.app.domain.model.ReadingYear
 import com.dutongjian.app.domain.model.ReadingItem
 import com.dutongjian.app.domain.model.TimelineEvent
+import com.dutongjian.app.domain.tts.TtsPlaybackState
 import androidx.compose.ui.text.TextStyle
 import java.util.UUID
 
@@ -380,6 +381,7 @@ internal fun ReadingAnnotatedText(
     lineHeight: androidx.compose.ui.unit.TextUnit,
     highlightedSavedNoteId: String?,
     highlightedNotePosition: Int? = null,
+    modifier: Modifier = Modifier,
     onPlaceClick: (HistoricalPlace) -> Unit,
     onHistoricalNoteClick: (ReadableHistoricalNote) -> Unit = {},
     onSavedNoteClick: (Note) -> Unit = {},
@@ -397,7 +399,7 @@ internal fun ReadingAnnotatedText(
     }
     ClickableText(
         text = annotated,
-        modifier = Modifier
+        modifier = modifier
             .drawBehind {
                 val layout = layoutResult ?: return@drawBehind
                 noteRanges.forEach { (start, end) ->
@@ -535,6 +537,34 @@ internal fun TtsControlRow(
         if (isPlaying && !isPaused) TextButton(onClick = onPause) { Text("暂停") }
         if (isPaused) TextButton(onClick = onResume) { Text("继续") }
         if (isPlaying) TextButton(onClick = onStop) { Text("停止") }
+    }
+}
+
+@Composable
+internal fun TtsSleepTimerRow(
+    state: TtsPlaybackState,
+    onStartSleepTimer: (Int) -> Unit,
+    onStopAfterCurrentItem: () -> Unit,
+    onCancel: () -> Unit,
+) {
+    val hasTimer = state.sleepRemainingSeconds > 0L || state.stopAfterCurrentItem
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 6.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("定时停止", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (state.sleepRemainingSeconds > 0L) {
+                val minutes = state.sleepRemainingSeconds / 60
+                val seconds = state.sleepRemainingSeconds % 60
+                Text("${minutes}:${seconds.toString().padStart(2, '0')}", color = MaterialTheme.colorScheme.primary)
+            } else if (state.stopAfterCurrentItem) {
+                Text("本篇结束", color = MaterialTheme.colorScheme.primary)
+            }
+        }
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            item { FilterChip(selected = state.sleepRemainingSeconds == 15 * 60L, onClick = { onStartSleepTimer(15) }, label = { Text("15 分钟") }) }
+            item { FilterChip(selected = state.sleepRemainingSeconds == 30 * 60L, onClick = { onStartSleepTimer(30) }, label = { Text("30 分钟") }) }
+            item { FilterChip(selected = state.stopAfterCurrentItem, onClick = onStopAfterCurrentItem, label = { Text("本篇结束") }) }
+            if (hasTimer) item { FilterChip(selected = false, onClick = onCancel, label = { Text("取消") }) }
+        }
     }
 }
 

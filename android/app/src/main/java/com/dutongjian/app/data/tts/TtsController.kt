@@ -10,6 +10,14 @@ import com.dutongjian.app.domain.tts.TtsPlayer
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.cancel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -24,8 +32,12 @@ class TtsController @Inject constructor(@ApplicationContext private val context:
     private var itemIndex = 0
     private var sentences: List<String> = emptyList()
     private var sentenceIndex = 0
+    private val timerScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private var sleepJob: Job? = null
+    private var stopAfterCurrent = false
 
     override fun selectEngine(type: TtsEngineType) {
+        cancelSleepTimer()
         settings.write(type)
         engine.release()
         engine = createEngine(type)
@@ -54,10 +66,47 @@ class TtsController @Inject constructor(@ApplicationContext private val context:
     override fun stop() {
         engine.stop()
         queue = emptyList()
+        sleepJob?.cancel()
+        sleepJob = null
+        stopAfterCurrent = false
         _state.value = TtsPlaybackState(engine = settings.read())
     }
 
-    override fun release() = engine.release()
+    override fun startSleepTimer(minutes: Int) {
+        val seconds = minutes.coerceAtLeast(1) * 60L
+        sleepJob?.cancel()
+        stopAfterCurrent = false
+        _state.value = _state.value.copy(sleepRemainingSeconds = seconds, stopAfterCurrentItem = false)
+        sleepJob = timerScope.launch {
+            var remaining = seconds
+            while (isActive && remaining > 0L) {
+                delay(1000L)
+                remaining -= 1L
+                _state.value = _state.value.copy(sleepRemainingSeconds = remaining)
+            }
+            if (isActive) stop()
+        }
+    }
+
+    override fun stopAfterCurrentItem() {
+        sleepJob?.cancel()
+        sleepJob = null
+        stopAfterCurrent = true
+        _state.value = _state.value.copy(sleepRemainingSeconds = 0L, stopAfterCurrentItem = true)
+    }
+
+    override fun cancelSleepTimer() {
+        sleepJob?.cancel()
+        sleepJob = null
+        stopAfterCurrent = false
+        _state.value = _state.value.copy(sleepRemainingSeconds = 0L, stopAfterCurrentItem = false)
+    }
+
+    override fun release() {
+        sleepJob?.cancel()
+        timerScope.coroutineContext.cancel()
+        engine.release()
+    }
 
     private fun startItem() {
         val item = queue.getOrNull(itemIndex)
@@ -92,6 +141,10 @@ class TtsController @Inject constructor(@ApplicationContext private val context:
             onProgress = { progress -> _state.value = _state.value.copy(progress = progress) },
             onComplete = {
                 sentenceIndex += 1
+                if (sentenceIndex >= sentences.size && stopAfterCurrent) {
+                    stop()
+                    return@speak
+                }
                 _state.value = _state.value.copy(currentSentence = sentenceIndex)
                 speakCurrentSentence()
             },

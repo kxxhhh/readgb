@@ -36,6 +36,7 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -99,8 +100,10 @@ import com.dutongjian.app.domain.model.LibrarySection
 import com.dutongjian.app.domain.model.Note
 import com.dutongjian.app.domain.model.ReadingItem
 import com.dutongjian.app.domain.model.ReadingYear
+import com.dutongjian.app.domain.model.TextScript
 import com.dutongjian.app.domain.model.TtsEngineType
 import com.dutongjian.app.domain.model.Volume
+import com.dutongjian.app.domain.text.ClassicalScriptMapper
 import com.dutongjian.app.domain.tts.TtsPlaybackState
 import kotlinx.coroutines.delay
 private enum class AppTab(val label: String) {
@@ -108,6 +111,7 @@ private enum class AppTab(val label: String) {
     CATALOG("目录"),
     KNOWLEDGE("百科"),
     TIMELINE("年表"),
+    STUDY("研读"),
     LIBRARY("书架"),
 }
 
@@ -116,6 +120,30 @@ private enum class ReadingMode(val label: String) {
     ORIGINAL("原文"),
     TRANSLATION("白话"),
 }
+
+private data class SentenceSegment(
+    val index: Int,
+    val start: Int,
+    val end: Int,
+    val text: String,
+)
+
+private fun sentenceSegments(text: String): List<SentenceSegment> =
+    Regex("[^。；？！]*[。；？！]|[^。；？！]+")
+        .findAll(text)
+        .mapIndexedNotNull { index, match ->
+            val raw = match.value
+            val leading = raw.indexOfFirst { !it.isWhitespace() }
+            if (leading < 0) return@mapIndexedNotNull null
+            val trailing = raw.indexOfLast { !it.isWhitespace() } + 1
+            SentenceSegment(
+                index = index,
+                start = match.range.first + leading,
+                end = match.range.first + trailing,
+                text = raw.substring(leading, trailing),
+            )
+        }
+        .toList()
 
 @Composable
 fun DutongjianApp(
@@ -146,6 +174,10 @@ fun DutongjianApp(
     onPauseTts: () -> Unit,
     onResumeTts: () -> Unit,
     onStopTts: () -> Unit,
+    onStartTtsSleepTimer: (Int) -> Unit,
+    onStopTtsAfterCurrentItem: () -> Unit,
+    onCancelTtsSleepTimer: () -> Unit,
+    onStopReadingSession: () -> Unit,
     onSaveNote: (Note) -> Unit,
     onDeleteNote: (Note) -> Unit,
     onDarkModeToggle: () -> Unit,
@@ -183,6 +215,7 @@ fun DutongjianApp(
         when {
             showAiSettings -> showAiSettings = false
             selectedItem != null -> {
+                onStopReadingSession()
                 selectedItem = null
                 selectedNoteId = null
             }
@@ -231,7 +264,7 @@ fun DutongjianApp(
             targetItem != null -> {
                 DetailScreen(
                     item = targetItem,
-                    onBack = { selectedItem = null },
+                    onBack = { onStopReadingSession(); selectedItem = null },
                     onFavoriteToggle = { onFavoriteToggle(targetItem) },
                     aiState = aiState,
                     onAiGenerate = onAiGenerate,
@@ -244,6 +277,9 @@ fun DutongjianApp(
                     onPauseTts = onPauseTts,
                     onResumeTts = onResumeTts,
                     onStopTts = onStopTts,
+                    onStartTtsSleepTimer = onStartTtsSleepTimer,
+                    onStopTtsAfterCurrentItem = onStopTtsAfterCurrentItem,
+                    onCancelTtsSleepTimer = onCancelTtsSleepTimer,
                     onSaveNote = onSaveNote,
                     onDeleteNote = onDeleteNote,
                 )
@@ -289,6 +325,12 @@ fun DutongjianApp(
                             onClick = { tab = AppTab.TIMELINE },
                             icon = { Icon(Icons.Default.Timeline, contentDescription = null) },
                             label = { Text(AppTab.TIMELINE.label) },
+                        )
+                        NavigationBarItem(
+                            selected = tab == AppTab.STUDY,
+                            onClick = { tab = AppTab.STUDY },
+                            icon = { Icon(Icons.Default.History, contentDescription = null) },
+                            label = { Text(AppTab.STUDY.label) },
                         )
                         NavigationBarItem(
                             selected = tab == AppTab.CATALOG,
@@ -350,6 +392,10 @@ fun DutongjianApp(
                                 AppTab.TIMELINE -> TimelineScreen(
                                     items = state.items,
                                     catalogYears = state.timelineYears,
+                                    onOpen = { item -> onOpen(item); selectedItem = item; selectedNoteId = null },
+                                )
+                                AppTab.STUDY -> StudyScreen(
+                                    state = state,
                                     onOpen = { item -> onOpen(item); selectedItem = item; selectedNoteId = null },
                                 )
                                 AppTab.LIBRARY -> LibraryScreen(
@@ -801,10 +847,14 @@ private fun DetailScreen(
     onPauseTts: () -> Unit,
     onResumeTts: () -> Unit,
     onStopTts: () -> Unit,
+    onStartTtsSleepTimer: (Int) -> Unit,
+    onStopTtsAfterCurrentItem: () -> Unit,
+    onCancelTtsSleepTimer: () -> Unit,
     onSaveNote: (Note) -> Unit,
     onDeleteNote: (Note) -> Unit,
 ) {
     var mode by rememberSaveable { mutableStateOf(ReadingMode.PARALLEL) }
+    var script by rememberSaveable(item.id) { mutableStateOf(TextScript.SIMPLIFIED) }
     var fontPercent by rememberSaveable(item.id) { androidx.compose.runtime.mutableIntStateOf(100) }
     var showSandbox by rememberSaveable { mutableStateOf(false) }
     var showDecisionCard by rememberSaveable { mutableStateOf(false) }
@@ -814,6 +864,7 @@ private fun DetailScreen(
     var showMap by rememberSaveable(item.id) { mutableStateOf(false) }
     var showNoteEditor by rememberSaveable(item.id) { mutableStateOf(false) }
     var notePendingDeletion by remember { mutableStateOf<Note?>(null) }
+    var selectedHistoricalNote by remember { mutableStateOf<ReadableHistoricalNote?>(null) }
     var swipeOffset by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
     var swipeBack by rememberSaveable(item.id) { mutableStateOf(false) }
     val animatedSwipeOffset by animateFloatAsState(
@@ -831,12 +882,22 @@ private fun DetailScreen(
     val fontScale = fontPercent / 100f
     val original = item.original.ifBlank { item.content }
     val translation = item.translation.ifBlank { item.content }
+    val displayOriginal = remember(original, script) { ClassicalScriptMapper.transform(original, script) }
+    val displayTranslation = remember(translation, script) { ClassicalScriptMapper.transform(translation, script) }
+    val originalSegments = remember(displayOriginal) { sentenceSegments(displayOriginal) }
+    val historicalNotes = remember(item.notes, displayOriginal) { formatHistoricalNotes(item.notes) }
+    val detailListState = rememberLazyListState()
+    LaunchedEffect(item.id, ttsState.currentItemId, ttsState.currentSentence, originalSegments.size) {
+        if (ttsState.currentItemId == item.id && ttsState.currentSentence in originalSegments.indices) {
+            detailListState.animateScrollToItem(2 + ttsState.currentSentence)
+        }
+    }
     val localContext = parseHistoricalContext(item.notes)
     val decisionOptions = localDecisionOptions(item, localContext)
     val currentText = when (mode) {
-        ReadingMode.PARALLEL -> "原文\n$original\n\n白话\n$translation"
-        ReadingMode.ORIGINAL -> original
-        ReadingMode.TRANSLATION -> translation
+        ReadingMode.PARALLEL -> "原文\n$displayOriginal\n\n白话\n$displayTranslation"
+        ReadingMode.ORIGINAL -> displayOriginal
+        ReadingMode.TRANSLATION -> displayTranslation
     }
     val bodyFontSize = (18f * fontScale).sp
     val bodyLineHeight = (30f * fontScale).sp
@@ -855,6 +916,7 @@ private fun DetailScreen(
         },
     ) { padding ->
         LazyColumn(
+            state = detailListState,
             modifier = Modifier
                 .padding(padding)
                 .fillMaxSize()
@@ -893,25 +955,57 @@ private fun DetailScreen(
             }
             item {
                 Text("原文", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.height(6.dp))
-                SelectionContainer {
-                    ReadingAnnotatedText(
-                        text = original,
-                        places = places,
-                        historicalNotes = emptyList(),
-                        savedNotes = savedNotes,
-                        fontSize = bodyFontSize,
-                        lineHeight = bodyLineHeight,
-                        highlightedSavedNoteId = highlightedSavedNoteId,
-                        onPlaceClick = { place -> selectedPlace = place },
-                        onSavedNoteClick = { note -> notePendingDeletion = note },
-                    )
+            }
+            items(originalSegments, key = { segment -> "${item.id}-sentence-${segment.index}" }) { segment ->
+                val segmentNotes = historicalNotes
+                    .filter { it.position in segment.start until segment.end }
+                    .map { it.copy(position = it.position - segment.start) }
+                val segmentSavedNotes = savedNotes
+                    .filter { it.startIndex < segment.end && it.endIndex > segment.start }
+                    .map { note ->
+                        note.copy(
+                            startIndex = (note.startIndex - segment.start).coerceAtLeast(0),
+                            endIndex = (note.endIndex - segment.start).coerceAtMost(segment.text.length),
+                        )
+                    }
+                val active = ttsState.currentItemId == item.id && ttsState.currentSentence == segment.index && ttsState.isPlaying
+                Surface(
+                    color = if (active) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface,
+                    shape = RoundedCornerShape(8.dp),
+                ) {
+                    SelectionContainer {
+                        ReadingAnnotatedText(
+                            text = segment.text,
+                            places = places,
+                            historicalNotes = segmentNotes,
+                            savedNotes = segmentSavedNotes,
+                            fontSize = bodyFontSize,
+                            lineHeight = bodyLineHeight,
+                            highlightedSavedNoteId = highlightedSavedNoteId,
+                            onPlaceClick = { place -> selectedPlace = place },
+                            onSavedNoteClick = { note -> notePendingDeletion = note },
+                            onHistoricalNoteClick = { note -> selectedHistoricalNote = note },
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        )
+                    }
                 }
             }
             item {
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(ReadingMode.entries.toList(), key = { it.name }) { candidate ->
                         FilterChip(selected = mode == candidate, onClick = { mode = candidate }, label = { Text(candidate.label) })
+                    }
+                }
+            }
+            item {
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    item { Text("字形", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                    items(TextScript.entries.toList(), key = { it.name }) { candidate ->
+                        FilterChip(
+                            selected = script == candidate,
+                            onClick = { script = candidate },
+                            label = { Text(candidate.label) },
+                        )
                     }
                 }
             }
@@ -954,6 +1048,12 @@ private fun DetailScreen(
                 if (ttsState.currentItemId == item.id && ttsState.isPlaying) {
                     Text("第 ${ttsState.currentSentence + 1} / ${ttsState.sentenceCount} 句 · ${ttsState.progress}%", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
+                TtsSleepTimerRow(
+                    state = ttsState,
+                    onStartSleepTimer = onStartTtsSleepTimer,
+                    onStopAfterCurrentItem = onStopTtsAfterCurrentItem,
+                    onCancel = onCancelTtsSleepTimer,
+                )
                 ttsState.error?.takeIf { ttsState.currentItemId == item.id }?.let { error ->
                     Text(error, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
                 }
@@ -1001,10 +1101,10 @@ private fun DetailScreen(
                         when (mode) {
                             ReadingMode.PARALLEL -> {
                                 Text("白话", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-                                Text(translation, style = MaterialTheme.typography.bodyLarge, fontSize = bodyFontSize, lineHeight = bodyLineHeight)
+                                Text(displayTranslation, style = MaterialTheme.typography.bodyLarge, fontSize = bodyFontSize, lineHeight = bodyLineHeight)
                             }
                             ReadingMode.ORIGINAL -> Spacer(Modifier.height(1.dp))
-                            ReadingMode.TRANSLATION -> Text(translation, style = MaterialTheme.typography.bodyLarge, fontSize = bodyFontSize, lineHeight = bodyLineHeight)
+                            ReadingMode.TRANSLATION -> Text(displayTranslation, style = MaterialTheme.typography.bodyLarge, fontSize = bodyFontSize, lineHeight = bodyLineHeight)
                             }
                         }
                     }
@@ -1024,6 +1124,9 @@ private fun DetailScreen(
                     item { AssistChip(onClick = { onAiGenerate(item, AiTask.SUMMARY) }, label = { Text("AI总结") }) }
                     item { AssistChip(onClick = { onAiGenerate(item, AiTask.CLASSICAL_TRANSLATION) }, label = { Text("AI逐句对照") }) }
                     item { AssistChip(onClick = { onAiGenerate(item, AiTask.WORD_GLOSSARY) }, label = { Text("AI词语对照") }) }
+                    item { AssistChip(onClick = { onAiGenerate(item, AiTask.ROLE_DIALOGUE) }, label = { Text("历史角色") }) }
+                    item { AssistChip(onClick = { onAiGenerate(item, AiTask.COUNTERFACTUAL) }, label = { Text("反事实") }) }
+                    item { AssistChip(onClick = { onAiGenerate(item, AiTask.GRAMMAR_ANALYSIS) }, label = { Text("语法拆解") }) }
                 }
             }
             if (showSandbox) {
@@ -1119,6 +1222,23 @@ private fun DetailScreen(
     selectedPlace?.let { place ->
         if (showMap) MapSheet(places, place) { showMap = false; selectedPlace = null }
         else PlaceBottomSheet(place, onDismiss = { selectedPlace = null }, onShowMap = { showMap = true })
+    }
+    selectedHistoricalNote?.let { note ->
+        AlertDialog(
+            onDismissRequest = { selectedHistoricalNote = null },
+            title = { Text("原文注释") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("原文位置 ${note.position}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                    Text(note.text, style = MaterialTheme.typography.bodyLarge, lineHeight = 26.sp)
+                    val links = (note.people + note.places).distinct()
+                    if (links.isNotEmpty()) {
+                        Text("关联：${links.joinToString("、")}", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { selectedHistoricalNote = null }) { Text("知道了") } },
+        )
     }
     if (showNoteEditor) {
         NoteEditorDialog(

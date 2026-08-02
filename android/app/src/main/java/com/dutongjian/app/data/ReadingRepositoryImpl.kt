@@ -26,6 +26,7 @@ import com.dutongjian.app.domain.model.ReadingYear
 import com.dutongjian.app.domain.model.Volume
 import com.dutongjian.app.domain.repository.ReadingRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
+import androidx.sqlite.db.SimpleSQLiteQuery
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -269,13 +270,43 @@ class ReadingRepositoryImpl @Inject constructor(
     private suspend fun localItems(query: String? = null, yearId: String? = null): List<ReadingItem> {
         ensureLocalSeed()
         val needle = query?.trim()?.lowercase()?.takeIf(String::isNotBlank)
-        return dao.observeAll().first()
+        val indexed = if (needle == null) {
+            emptyList()
+        } else {
+            runCatching {
+                dao.searchFts(
+                    SimpleSQLiteQuery(
+                        "SELECT reading_items.* FROM reading_items JOIN reading_items_fts ON reading_items_fts.id = reading_items.id " +
+                            "WHERE reading_items_fts MATCH ? ORDER BY reading_items.updatedAt DESC, reading_items.title ASC",
+                        arrayOf(ftsQuery(needle)),
+                    ),
+                )
+            }.getOrDefault(emptyList())
+        }
+        val source = if (indexed.isNotEmpty()) indexed else dao.observeAll().first()
+        return source
             .map(ItemEntity::toDomain)
             .filter { item ->
                 (yearId == null || item.yearId == yearId) &&
-                    (needle == null || listOf(item.title, item.summary, item.content, item.dynasty).any { it.lowercase().contains(needle) })
+                    (needle == null || listOf(
+                        item.title,
+                        item.summary,
+                        item.content,
+                        item.original,
+                        item.translation,
+                        item.dynasty,
+                        item.tags.joinToString(" "),
+                    ).any { it.lowercase().contains(needle) })
             }
     }
+
+    private fun ftsQuery(value: String): String = value
+        .split(Regex("\\s+"))
+        .filter(String::isNotBlank)
+        .joinToString(" AND ") { token ->
+            val clean = token.filter { it.isLetterOrDigit() }
+            "$clean*"
+        }
 
     private suspend fun ItemDao.observeAllOnce(): Map<String, ItemEntity> = observeAll().first().associateBy { it.id }
 
@@ -332,7 +363,7 @@ private const val CONTENT_ASSET = "offline_content.ndjson"
 private const val LEGACY_CONTENT_ASSET = "offline_content.ndjson.gz"
 private const val OFFLINE_CATALOG_ASSET = "offline_catalog.json"
 private const val OFFLINE_KNOWLEDGE_ASSET = "offline_knowledge.json"
-private const val OFFLINE_CONTENT_RECORD_COUNT = 2_107
+private const val OFFLINE_CONTENT_RECORD_COUNT = 4_552
 private const val OFFLINE_ASSET_VERSION = "2026-08-02-541-raw-crawled-2"
 private const val OFFLINE_ASSET_PREFERENCES = "offline_assets"
 private const val OFFLINE_ASSET_VERSION_KEY = "content_version"

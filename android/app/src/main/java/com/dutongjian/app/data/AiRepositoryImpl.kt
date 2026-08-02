@@ -103,6 +103,9 @@ class AiRepositoryImpl @Inject constructor(
         AiTask.SUMMARY -> "你是中国古代史研究助手。只依据用户提供的史料，不补造史实。用简体中文输出：事件摘要、时间与政权、关键人物及立场、因果链、值得核对的原文证据。"
         AiTask.CLASSICAL_TRANSLATION -> "你是古汉语翻译助手。只依据用户提供的繁体原文，按语义分句输出 Markdown 表格：古文原句 | 白话翻译 | 关键词/语法。不要漏译，不要添加史料外的事实。"
         AiTask.WORD_GLOSSARY -> "你是古汉语训诂助手。只依据用户提供的繁体原文和白话，挑出真正影响理解的古文词语，输出 Markdown 表格：古文词语 | 白话对应 | 本句语境说明。不要把每个虚词机械罗列。"
+        AiTask.ROLE_DIALOGUE -> "你是严谨的中国古代史角色对话助手。只能使用用户提供的史料，先指出你代入的主要人物，再用其可能的立场回答。史料没有依据的内容必须标注为推测，不得伪造史实或现代观点。"
+        AiTask.COUNTERFACTUAL -> "你是历史逻辑推演助手。基于用户提供的史料设计一个明确的反事实分支，分别列出史料事实、合理推断和不确定假设，说明可能的连锁影响；不要把推演写成真实历史。"
+        AiTask.GRAMMAR_ANALYSIS -> "你是古汉语语法分析助手。只分析用户提供的原文，按句输出 Markdown 表格：原句 | 主谓宾或核心结构 | 特殊句式/虚词 | 直译。遇到无法确定的结构要标注存疑，不要擅自补字。"
     }
 
     private fun validateBaseUrl(raw: String): String {
@@ -151,6 +154,29 @@ internal fun aiPrompt(item: ReadingItem, task: AiTask): String {
             条目：${item.title}
             繁体原文：$original
             现有白话：$translation
+        """.trimIndent()
+        AiTask.ROLE_DIALOGUE -> """
+            条目：${item.title}
+            朝代/分类：${item.dynasty} / ${item.category}
+            关键人物与标签：${item.tags.joinToString("、")}
+            繁体原文：$original
+            现有白话：$translation
+            结构化注释：$notes
+            请先从史料中识别最适合代入的主要人物，再以该人物口吻回答：他面对本条事件最关心什么、会如何解释自己的选择？最后列出回答所依据的原文证据。
+        """.trimIndent()
+        AiTask.COUNTERFACTUAL -> """
+            条目：${item.title}
+            朝代/分类：${item.dynasty} / ${item.category}
+            导读：${item.summary}
+            繁体原文：$original
+            结构化注释：$notes
+            请围绕本条史料提出一个“反事实分支：如果关键人物采取另一选择”，按“史料事实 / 合理推断 / 不确定假设 / 可能影响”四部分回答，并明确哪些内容不是正史记载。
+        """.trimIndent()
+        AiTask.GRAMMAR_ANALYSIS -> """
+            条目：${item.title}
+            繁体原文：$original
+            现有白话（仅用于校对）：$translation
+            请逐句分析原文的主谓宾、判断/被动/倒装/省略等结构，以及关键虚词在本句中的作用；无法确定时标注“存疑”。
         """.trimIndent()
     }
 }
