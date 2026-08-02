@@ -838,3 +838,4 @@ Android 工程已创建；当前锁定 AGP 9.0.0、Kotlin 2.4.10、Compose BOM 2
 - 新 Inspection APK SHA-256：`8a75791e445c689d69ed96e7b94c35391d6c2b1efad843c48c2f7dfa1c533e3d`；`apksigner verify` 已确认 v2 签名有效。
 - 新 APK 内部资源仍核对为 `529` 条正文、`162` 个年份目录；Release 变体成功编译但仍为 unsigned，不作为设备安装包。
 - 当前爬虫 checkpoint 已推进到 `166/1405`；APK 是本次导出时的 `162` 年快照，后续抓取内容需要重新导出并重新编译才会进入 APK。
+- GitHub 预发布已创建：<https://github.com/kxxhhh/-app/releases/tag/v0.1.3>；只上传签名有效的 `app-inspection.apk`，避免用户误装 unsigned Release APK。
