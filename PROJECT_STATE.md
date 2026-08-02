@@ -854,3 +854,5 @@ Android 工程已创建；当前锁定 AGP 9.0.0、Kotlin 2.4.10、Compose BOM 2
 - 导入失败不再静默吞掉：会通过 `ReadingRepository` 错误日志记录异常，同时继续保留离线 fallback。
 - 新增 `AssetContentReaderTest`，覆盖普通 NDJSON 和 gzip NDJSON 两种输入；专门测试和完整 Android 单元测试均通过。
 - 修复版版本为 `versionCode 4`、`versionName 0.1.3`；需重新安装新 APK，不能覆盖判断为旧版本的缓存结果。
+- 修复版 GitHub 预发布已创建：<https://github.com/kxxhhh/-app/releases/tag/v0.1.4>；`app-inspection.apk` SHA-256 为 `36783b130bd1cff58a6ba2ca779e20198653e1fac7fbf673f487053c256ee4ab`。
+- 修复版执行 `./gradlew clean testDebugUnitTest lintDebug assembleDebug assembleInspection assembleRelease`：`BUILD SUCCESSFUL`；当前环境无模拟器/实体设备，仍未进行 Runtime 安装验证。
