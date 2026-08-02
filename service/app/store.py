@@ -256,6 +256,42 @@ class ContentStore:
         with self._lock, self._connect() as connection:
             return [ReadingYear(**dict(row)) for row in connection.execute("SELECT * FROM years WHERE volume_id = ? ORDER BY sort_order", (volume_id,)).fetchall()]
 
+    def upsert_volumes(self, volumes: list[Volume]) -> None:
+        with self._lock, self._connect() as connection:
+            connection.executemany(
+                """INSERT OR REPLACE INTO volumes
+                (id, section_id, title, dynasty, sort_order)
+                VALUES (:id, :section_id, :title, :dynasty, :sort_order)""",
+                [volume.to_dict() for volume in volumes],
+            )
+
+    def upsert_years(self, years: list[ReadingYear]) -> None:
+        with self._lock, self._connect() as connection:
+            connection.executemany(
+                """INSERT OR REPLACE INTO years
+                (id, volume_id, title, era, sort_order)
+                VALUES (:id, :volume_id, :title, :era, :sort_order)""",
+                [year.to_dict() for year in years],
+            )
+
+    def count_items(self, category: str | None = None) -> int:
+        sql = "SELECT COUNT(*) FROM items"
+        values: tuple[Any, ...] = ()
+        if category:
+            sql += " WHERE category = ?"
+            values = (category,)
+        with self._lock, self._connect() as connection:
+            return int(connection.execute(sql, values).fetchone()[0])
+
+    def remove_seed_items(self, prefix: str = "zizhi-tongjian-") -> None:
+        with self._lock, self._connect() as connection:
+            connection.execute("DELETE FROM items WHERE id LIKE ?", (f"{prefix}%",))
+
+    def remove_seed_catalog(self) -> None:
+        with self._lock, self._connect() as connection:
+            connection.execute("DELETE FROM years WHERE id LIKE 'zizhi-year-%'")
+            connection.execute("DELETE FROM volumes WHERE id LIKE 'zizhi-volume-%'")
+
     def knowledge(self, category: str | None = None, query: str | None = None, limit: int = 20) -> list[KnowledgeEntry]:
         sql = "SELECT * FROM knowledge_entries"
         values: list[Any] = []

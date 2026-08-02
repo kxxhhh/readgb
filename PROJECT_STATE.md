@@ -644,3 +644,38 @@ Android 工程已创建；当前锁定 AGP 9.0.0、Kotlin 2.4.10、Compose BOM 2
 2. 在确认 robots/公开权限边界后，实现可恢复、限速、缓存、去重和断点续传的全本同步器。
 3. 将同步结果导入预置 SQLite/Room 数据库，接入 Android 启动时离线读取和用户主动同步。
 4. 以真实数据规模、解析失败数、重复数和测试结果为依据持续更新本文件。
+
+## 增量进度更新：公开 API 同步器 GREEN（2026-08-02）
+
+### 已完成
+
+- 已复核公开目录接口：`资治通鉴` 共 `294` 卷、`1405` 个纪年节点；结构文件声明内容 ID 连续范围为 `1..30989`。
+- 已确认纪年接口返回原文 `content`、简体原文 `content_jianti_auto`、译文 `content_fanyi`，以及胡三省注、章注、人物、地点、官职、主题等关联字段。
+- 新增 `service/app/tongjian_sync.py`：只访问公开未登录 API，默认每次请求间隔 1 秒，带重试退避、磁盘缓存、原子 checkpoint、断点续传和去重 ID。
+- 同步完成后会写入真实卷/纪年目录，并移除本地演示种子目录和演示条目；同步中断时不会执行清理。
+- 新增同步器测试，覆盖完整字段保留和断点重跑；后端测试当前为 `15 passed`。
+- RED 测试 checkpoint 已提交并 push：`73c9b06 test(service): define resumable tongjian import contract`。
+
+### 当前问题与边界
+
+- 真实全本尚未抓取完成；当前数据库仍是演示数据加同步器代码，不能声称已经拥有 `30989` 段离线正文。
+- 目标站点的 robots/sitemap 路径返回前端 HTML，未提供可解析的标准许可声明。同步命令因此要求显式 `--allow-public-api`，并且只使用已经确认可公开访问的 JSON 接口，不访问登录、付费或私有路径。
+- Android 当前已经离线优先显示演示种子并把网络超时缩短；全本数据仍需同步完成后再生成 Room 预置数据库并构建新 APK。
+
+### 下一步执行
+
+1. 用 `--allow-public-api` 启动限速同步，持续记录已完成纪年、内容数、失败节点和缓存位置。
+2. 校验最终内容 ID 集合、卷/年计数及文本字段完整性，再导出 Android 可读取的 Room 数据库。
+3. 运行 Android 全量验证，提交、push，并按默认流程上传 APK Release 附件。
+
+### 实际抓取进度（启动后）
+
+- 已启动命令：`PYTHONPATH=service python -m app.tongjian_sync --allow-public-api --database service/data/dutongjian.db --cache-dir service/data/tongjian-cache --checkpoint service/data/tongjian-progress.json --min-interval 1.0`。
+- 当前观测：`8/1405` 个纪年节点已完成，节点请求均成功；SQLite 当前 `47` 条资治通鉴条目，其中 `5` 条是待最终清理的演示种子。
+- 缓存和 checkpoint 写入 `service/data/tongjian-cache/`、`service/data/tongjian-progress.json`，均为本地生成文件，不进入 Git。
+
+### 限流复盘
+
+- 抓取曾推进到 `51/1405`，随后站点返回 HTTP `429`；同步器已按 `Retry-After` 退避并安全停止，重启后 checkpoint 推进到 `54/1405`。
+- 已检查前端 bundle：正文请求只有按单个 `reign_tongjian_id` 调用的 `/api/reign`，没有发现批量正文接口；公开 `zztj_df/index.json` 仅是专题图片清单。
+- 为降低再次触发站点限流，后续实际运行参数调整为每 5 秒最多一个新请求；已有缓存节点仍直接读取本地文件。

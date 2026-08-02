@@ -19,6 +19,9 @@ interface ItemDao {
     @Query("SELECT * FROM reading_items WHERE lastOpenedAt IS NOT NULL ORDER BY lastOpenedAt DESC")
     fun observeHistory(): Flow<List<ItemEntity>>
 
+    @Query("SELECT COUNT(*) FROM reading_items WHERE id LIKE 'zztj-%'")
+    suspend fun fullContentCount(): Int
+
     @Upsert
     suspend fun upsertAll(items: List<ItemEntity>)
 

@@ -1,0 +1,31 @@
+import gzip
+import json
+
+from app.export_android import export_content
+from app.models import Item
+from app.store import ContentStore
+
+
+def test_export_android_requires_verified_full_count_and_writes_ndjson(tmp_path):
+    database = tmp_path / "content.db"
+    store = ContentStore(database)
+    store.upsert_items(
+        [
+            Item(
+                id="zztj-content-1",
+                title="正文",
+                category="资治通鉴",
+                dynasty="周紀一",
+                summary="摘要",
+                content="正文",
+                source_url="https://www.dutongjian.com/api/reign",
+                updated_at="2026-08-02",
+            )
+        ]
+    )
+
+    output = tmp_path / "offline_content.ndjson.gz"
+    assert export_content(database, output, expected_count=1) == 1
+
+    with gzip.open(output, "rt", encoding="utf-8") as stream:
+        assert json.loads(stream.readline())["id"] == "zztj-content-1"

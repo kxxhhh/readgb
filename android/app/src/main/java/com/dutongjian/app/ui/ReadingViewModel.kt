@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dutongjian.app.domain.model.KnowledgeEntry
 import com.dutongjian.app.domain.model.LibrarySection
+import com.dutongjian.app.domain.model.OfflineSeed
 import com.dutongjian.app.domain.model.ReadingItem
 import com.dutongjian.app.domain.model.ReadingYear
 import com.dutongjian.app.domain.model.Volume
@@ -21,16 +22,16 @@ enum class LibraryTab { FAVORITES, HISTORY }
 enum class CatalogLevel { SECTIONS, VOLUMES, YEARS, ITEMS }
 
 data class ReadingUiState(
-    val items: List<ReadingItem> = emptyList(),
+    val items: List<ReadingItem> = OfflineSeed.items,
     val query: String = "",
     val searchResultIds: Set<String>? = null,
     val selectedCategory: String? = null,
-    val categories: List<String> = emptyList(),
-    val isLoading: Boolean = true,
+    val categories: List<String> = OfflineSeed.categories,
+    val isLoading: Boolean = false,
     val isRefreshing: Boolean = false,
     val error: String? = null,
     val libraryTab: LibraryTab = LibraryTab.FAVORITES,
-    val sections: List<LibrarySection> = emptyList(),
+    val sections: List<LibrarySection> = OfflineSeed.sections,
     val volumes: List<Volume> = emptyList(),
     val years: List<ReadingYear> = emptyList(),
     val catalogItems: List<ReadingItem> = emptyList(),
@@ -38,8 +39,8 @@ data class ReadingUiState(
     val selectedSectionId: String? = null,
     val selectedVolumeId: String? = null,
     val selectedYearId: String? = null,
-    val knowledge: List<KnowledgeEntry> = emptyList(),
-    val knowledgeCategories: List<String> = emptyList(),
+    val knowledge: List<KnowledgeEntry> = OfflineSeed.knowledge,
+    val knowledgeCategories: List<String> = OfflineSeed.knowledge.map(KnowledgeEntry::category).distinct().sorted(),
     val knowledgeQuery: String = "",
     val selectedKnowledgeCategory: String? = null,
     val isCatalogLoading: Boolean = false,
@@ -50,7 +51,16 @@ data class ReadingUiState(
 class ReadingViewModel @Inject constructor(
     private val repository: ReadingRepository,
 ) : ViewModel() {
-    private val _state = MutableStateFlow(ReadingUiState())
+    private val _state = MutableStateFlow(
+        ReadingUiState(
+            items = OfflineSeed.items,
+            categories = OfflineSeed.categories,
+            sections = OfflineSeed.sections,
+            knowledge = OfflineSeed.knowledge,
+            knowledgeCategories = OfflineSeed.knowledge.map(KnowledgeEntry::category).distinct().sorted(),
+            isLoading = false,
+        ),
+    )
     val state: StateFlow<ReadingUiState> = _state.asStateFlow()
 
     init {
@@ -122,11 +132,11 @@ class ReadingViewModel @Inject constructor(
                 selectedSectionId = section.id,
                 selectedVolumeId = null,
                 selectedYearId = null,
-                volumes = emptyList(),
+                volumes = OfflineSeed.volumes.filter { it.sectionId == section.id },
                 years = emptyList(),
                 catalogItems = emptyList(),
                 catalogLevel = CatalogLevel.VOLUMES,
-                isCatalogLoading = true,
+                isCatalogLoading = false,
             )
         }
         repository.loadVolumes(section.id).onSuccess { volumes ->
@@ -141,10 +151,10 @@ class ReadingViewModel @Inject constructor(
             it.copy(
                 selectedVolumeId = volume.id,
                 selectedYearId = null,
-                years = emptyList(),
+                years = OfflineSeed.years.filter { it.volumeId == volume.id },
                 catalogItems = emptyList(),
                 catalogLevel = CatalogLevel.YEARS,
-                isCatalogLoading = true,
+                isCatalogLoading = false,
             )
         }
         repository.loadYears(volume.id).onSuccess { years ->
@@ -155,7 +165,14 @@ class ReadingViewModel @Inject constructor(
     }
 
     fun selectYear(year: ReadingYear) = viewModelScope.launch {
-        _state.update { it.copy(selectedYearId = year.id, catalogItems = emptyList(), catalogLevel = CatalogLevel.ITEMS, isCatalogLoading = true) }
+        _state.update {
+            it.copy(
+                selectedYearId = year.id,
+                catalogItems = OfflineSeed.items.filter { item -> item.yearId == year.id },
+                catalogLevel = CatalogLevel.ITEMS,
+                isCatalogLoading = false,
+            )
+        }
         repository.loadYearItems(year.id).onSuccess { items ->
             _state.update { it.copy(catalogItems = items, isCatalogLoading = false) }
         }.onFailure { failure ->

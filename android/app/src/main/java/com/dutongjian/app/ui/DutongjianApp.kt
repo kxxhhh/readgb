@@ -485,7 +485,7 @@ private fun KnowledgeScreen(
                 )
             }
         }
-        if (state.isKnowledgeLoading) {
+        if (state.isKnowledgeLoading && state.knowledge.isEmpty()) {
             LoadingState()
         } else if (state.knowledge.isEmpty()) {
             EmptyState("没有找到百科条目", "换一个人物、事件或地点关键词")
