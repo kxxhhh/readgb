@@ -1077,6 +1077,7 @@ Android 工程已创建；当前锁定 AGP 9.0.0、Kotlin 2.4.10、Compose BOM 2
 - `./gradlew :app:connectedDebugAndroidTest`：`BUILD SUCCESSFUL`，模拟器上的 `TTSEngineSelfTest` 通过。
 - `./run_codex_autodev.sh`：Inspection 编译成功、安装返回 `Success`，首页/详情/滚动截图、DOM 和 `crash.log` 均生成；`crash.log` 为 `No Fatal, AndroidRuntime, or NullPointer errors detected.`。
 - 最终 APK [app-autodev.apk](/workspaces/-app/build/outputs/app-autodev.apk)：`118,539,690` bytes，SHA-256 `96b9641002f804744bcc0e042cb9263e7248e553852be805bdca5f0d7bc701fe`，版本 `versionCode 9 / versionName 0.1.8`，APK v2 签名验证通过。
+- GitHub Release `v0.1.11`：<https://github.com/kxxhhh/-app/releases/tag/v0.1.11>，已上传上述 `app-autodev.apk`。
 - 模拟器手工检查：详情左边缘右滑返回首页成功；设置页显示默认 Android 本地 TTS；点击正文朗读后出现“重新朗读/暂停”和朗读悬浮球。当前环境无实体扬声器，以上是系统 TTS 调度和界面状态验证，不等同于实际听感验证。
 
 ### 当前边界
