@@ -28,7 +28,6 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -39,25 +38,26 @@ import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -67,7 +67,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -77,12 +76,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import com.dutongjian.app.domain.model.AiTask
 import com.dutongjian.app.domain.model.KnowledgeEntry
 import com.dutongjian.app.domain.model.LibrarySection
 import com.dutongjian.app.domain.model.ReadingItem
 import com.dutongjian.app.domain.model.ReadingYear
 import com.dutongjian.app.domain.model.Volume
-import kotlinx.coroutines.launch
 
 private enum class AppTab(val label: String) {
     HOME("首页"),
@@ -114,15 +114,34 @@ fun DutongjianApp(
     onCatalogBack: () -> Unit,
     onKnowledgeSearch: (String) -> Unit,
     onKnowledgeCategorySelected: (String?) -> Unit,
+    aiState: AiUiState,
+    onAiBaseUrlChanged: (String) -> Unit,
+    onAiModelChanged: (String) -> Unit,
+    onAiApiKeyChanged: (String) -> Unit,
+    onAiSettingsSave: () -> Unit,
+    onAiApiKeyClear: () -> Unit,
+    onAiGenerate: (ReadingItem, AiTask) -> Unit,
+    onAiResultClear: () -> Unit,
     onDarkModeToggle: () -> Unit,
 ) {
     var tab by rememberSaveable { mutableStateOf(AppTab.HOME) }
     var selectedItem by remember { mutableStateOf<ReadingItem?>(null) }
     var selectedKnowledge by remember { mutableStateOf<KnowledgeEntry?>(null) }
+    var showAiSettings by rememberSaveable { mutableStateOf(false) }
     val selectedItemId = selectedItem?.id
     val selectedKnowledgeId = selectedKnowledge?.id
 
-    AnimatedContent(
+    if (showAiSettings) {
+        AiSettingsScreen(
+            aiState = aiState,
+            onBack = { showAiSettings = false },
+            onBaseUrlChanged = onAiBaseUrlChanged,
+            onModelChanged = onAiModelChanged,
+            onApiKeyChanged = onAiApiKeyChanged,
+            onSave = onAiSettingsSave,
+            onClearApiKey = onAiApiKeyClear,
+        )
+    } else AnimatedContent(
         targetState = selectedItemId ?: selectedKnowledgeId,
         transitionSpec = { fadeIn() togetherWith fadeOut() },
         label = "detail-transition",
@@ -137,6 +156,9 @@ fun DutongjianApp(
                     item = targetItem,
                     onBack = { selectedItem = null },
                     onFavoriteToggle = { onFavoriteToggle(targetItem) },
+                    aiState = aiState,
+                    onAiGenerate = onAiGenerate,
+                    onAiResultClear = onAiResultClear,
                 )
             }
             targetKnowledge != null -> {
@@ -154,6 +176,9 @@ fun DutongjianApp(
                             }
                         },
                         actions = {
+                            IconButton(onClick = { showAiSettings = true }) {
+                                Icon(Icons.Default.Settings, contentDescription = "AI 设置")
+                            }
                             IconButton(onClick = onDarkModeToggle) {
                                 Icon(Icons.Default.DarkMode, contentDescription = "切换深色模式")
                             }
@@ -319,7 +344,7 @@ private fun HomeScreen(
                 }
             }
         }
-        if (state.isLoading && state.items.isEmpty()) {
+        if (state.isLoading) {
             item { LoadingState() }
         } else if (visibleItems.isEmpty()) {
             item { EmptyState("没有匹配的条目", "换个关键词或清除分类筛选") }
@@ -617,28 +642,32 @@ private fun ReadingCard(item: ReadingItem, onFavoriteToggle: (ReadingItem) -> Un
 }
 
 @Composable
-private fun DetailScreen(item: ReadingItem, onBack: () -> Unit, onFavoriteToggle: () -> Unit) {
+private fun DetailScreen(
+    item: ReadingItem,
+    onBack: () -> Unit,
+    onFavoriteToggle: () -> Unit,
+    aiState: AiUiState,
+    onAiGenerate: (ReadingItem, AiTask) -> Unit,
+    onAiResultClear: () -> Unit,
+) {
     var mode by rememberSaveable { mutableStateOf(ReadingMode.PARALLEL) }
-    var fontScale by rememberSaveable { mutableStateOf(1f) }
-    var articleQuery by rememberSaveable { mutableStateOf("") }
+    var fontPercent by rememberSaveable(item.id) { androidx.compose.runtime.mutableIntStateOf(100) }
     var showSandbox by rememberSaveable { mutableStateOf(false) }
     var showDecisionCard by rememberSaveable { mutableStateOf(false) }
-    val listState = rememberLazyListState()
-    val coroutineScope = rememberCoroutineScope()
+    var showOriginalEdition by rememberSaveable { mutableStateOf(false) }
+    var selectedDecision by rememberSaveable(item.id) { androidx.compose.runtime.mutableIntStateOf(0) }
     val context = LocalContext.current
+    val fontScale = fontPercent / 100f
     val original = item.original.ifBlank { item.content }
     val translation = item.translation.ifBlank { item.content }
     val notes = item.notes.ifBlank { "当前条目暂无独立注释，先使用导读和主题标签阅读。" }
+    val localContext = parseHistoricalContext(item.notes)
+    val decisionOptions = localDecisionOptions(item, localContext)
     val currentText = when (mode) {
         ReadingMode.PARALLEL -> "原文\n$original\n\n白话\n$translation"
         ReadingMode.ORIGINAL -> original
         ReadingMode.TRANSLATION -> translation
         ReadingMode.NOTES -> notes
-    }
-    val matchCount = countOccurrences(currentText, articleQuery)
-    val totalItems = listState.layoutInfo.totalItemsCount
-    val progress = if (totalItems <= 1) 0f else {
-        (listState.firstVisibleItemIndex.toFloat() / (totalItems - 1).toFloat()).coerceIn(0f, 1f)
     }
     val bodyFontSize = (18f * fontScale).sp
     val bodyLineHeight = (30f * fontScale).sp
@@ -649,11 +678,6 @@ private fun DetailScreen(item: ReadingItem, onBack: () -> Unit, onFavoriteToggle
                 title = { Text(item.title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回") } },
                 actions = {
-                    if (listState.firstVisibleItemIndex > 0) {
-                        IconButton(onClick = { coroutineScope.launch { listState.animateScrollToItem(0) } }) {
-                            Icon(Icons.Default.KeyboardArrowUp, contentDescription = "回到顶部")
-                        }
-                    }
                     IconButton(onClick = onFavoriteToggle) {
                         Icon(if (item.isFavorite) Icons.Default.Bookmark else Icons.Default.BookmarkBorder, contentDescription = "收藏")
                     }
@@ -663,19 +687,18 @@ private fun DetailScreen(item: ReadingItem, onBack: () -> Unit, onFavoriteToggle
     ) { padding ->
         LazyColumn(
             modifier = Modifier.padding(padding).fillMaxSize(),
-            state = listState,
             contentPadding = PaddingValues(horizontal = 24.dp, vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(18.dp),
         ) {
             item {
                 Text("${item.category}  ·  ${item.dynasty}", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
                 Spacer(Modifier.height(8.dp))
-                Text(item.title, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                Text(item.title, style = MaterialTheme.typography.headlineMedium, fontSize = (28f * fontScale).sp, fontWeight = FontWeight.Bold)
             }
             item {
                 Text("导读", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(6.dp))
-                Text(item.summary, style = MaterialTheme.typography.bodyLarge, lineHeight = 26.sp)
+                Text(item.summary, style = MaterialTheme.typography.bodyLarge, fontSize = (17f * fontScale).sp, lineHeight = (26f * fontScale).sp)
             }
             item {
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -688,73 +711,55 @@ private fun DetailScreen(item: ReadingItem, onBack: () -> Unit, onFavoriteToggle
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text("字号", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     IconButton(
-                        onClick = { fontScale = (fontScale - 0.1f).coerceAtLeast(0.8f) },
-                        enabled = fontScale > 0.8f,
+                        onClick = { fontPercent = (fontPercent - 10).coerceAtLeast(80) },
+                        enabled = fontPercent > 80,
                     ) {
                         Icon(Icons.Default.Remove, contentDescription = "减小字号")
                     }
-                    Text("${(fontScale * 100).toInt()}%", style = MaterialTheme.typography.labelLarge)
+                    Text("${fontPercent}%", style = MaterialTheme.typography.labelLarge)
                     IconButton(
-                        onClick = { fontScale = (fontScale + 0.1f).coerceAtMost(1.3f) },
-                        enabled = fontScale < 1.3f,
+                        onClick = { fontPercent = (fontPercent + 10).coerceAtMost(160) },
+                        enabled = fontPercent < 160,
                     ) {
                         Icon(Icons.Default.Add, contentDescription = "增大字号")
                     }
                 }
             }
             item {
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("阅读进度", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Spacer(Modifier.weight(1f))
-                        Text("${(progress * 100).toInt()}%", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-                    }
-                    LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth())
-                }
-            }
-            item {
-                OutlinedTextField(
-                    value = articleQuery,
-                    onValueChange = { articleQuery = it },
+                Slider(
+                    value = fontPercent.toFloat(),
+                    onValueChange = { fontPercent = it.toInt() },
+                    valueRange = 80f..160f,
+                    steps = 7,
                     modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                    trailingIcon = {
-                        if (articleQuery.isNotBlank()) {
-                            IconButton(onClick = { articleQuery = "" }) {
-                                Icon(Icons.Default.Clear, contentDescription = "清除篇内搜索")
-                            }
-                        }
-                    },
-                    supportingText = {
-                        Text(if (articleQuery.isBlank()) "检索当前阅读模式的文本" else "命中 $matchCount 处")
-                    },
-                    placeholder = { Text("在本篇中查找字词") },
-                    shape = RoundedCornerShape(16.dp),
                 )
             }
             item {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    AssistChip(
-                        onClick = {
-                            val clipboard = context.getSystemService(ClipboardManager::class.java)
-                            clipboard?.setPrimaryClip(ClipData.newPlainText(item.title, currentText))
-                        },
-                        label = { Text("复制当前文本") },
-                        leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(16.dp)) },
-                    )
-                    AssistChip(
-                        onClick = {
-                            val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                                type = "text/plain"
-                                putExtra(Intent.EXTRA_SUBJECT, item.title)
-                                putExtra(Intent.EXTRA_TEXT, currentText)
-                            }
-                            context.startActivity(Intent.createChooser(shareIntent, "分享史料"))
-                        },
-                        label = { Text("分享") },
-                        leadingIcon = { Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(16.dp)) },
-                    )
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    item {
+                        AssistChip(
+                            onClick = {
+                                val clipboard = context.getSystemService(ClipboardManager::class.java)
+                                clipboard?.setPrimaryClip(ClipData.newPlainText(item.title, currentText))
+                            },
+                            label = { Text("复制当前文本") },
+                            leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(16.dp)) },
+                        )
+                    }
+                    item {
+                        AssistChip(
+                            onClick = {
+                                val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                    type = "text/plain"
+                                    putExtra(Intent.EXTRA_SUBJECT, item.title)
+                                    putExtra(Intent.EXTRA_TEXT, currentText)
+                                }
+                                context.startActivity(Intent.createChooser(shareIntent, "分享史料"))
+                            },
+                            label = { Text("分享") },
+                            leadingIcon = { Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(16.dp)) },
+                        )
+                    }
                 }
             }
             item {
@@ -782,10 +787,13 @@ private fun DetailScreen(item: ReadingItem, onBack: () -> Unit, onFavoriteToggle
                 }
             }
             item {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    AssistChip(onClick = { showSandbox = !showSandbox }, label = { Text("沙盘态势") })
-                    AssistChip(onClick = { showDecisionCard = !showDecisionCard }, label = { Text("决策卡") })
-                    AssistChip(onClick = {}, label = { Text("古本") })
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    item { AssistChip(onClick = { showSandbox = !showSandbox }, label = { Text(if (showSandbox) "收起沙盘" else "沙盘态势") }) }
+                    item { AssistChip(onClick = { showDecisionCard = !showDecisionCard }, label = { Text(if (showDecisionCard) "收起决策" else "决策卡") }) }
+                    item { AssistChip(onClick = { showOriginalEdition = !showOriginalEdition }, label = { Text(if (showOriginalEdition) "收起古本" else "古本原文") }) }
+                    item { AssistChip(onClick = { onAiGenerate(item, AiTask.SUMMARY) }, label = { Text("AI总结") }) }
+                    item { AssistChip(onClick = { onAiGenerate(item, AiTask.CLASSICAL_TRANSLATION) }, label = { Text("AI逐句对照") }) }
+                    item { AssistChip(onClick = { onAiGenerate(item, AiTask.WORD_GLOSSARY) }, label = { Text("AI词语对照") }) }
                 }
             }
             if (showSandbox) {
@@ -793,10 +801,12 @@ private fun DetailScreen(item: ReadingItem, onBack: () -> Unit, onFavoriteToggle
                     Surface(color = MaterialTheme.colorScheme.primaryContainer, shape = RoundedCornerShape(16.dp)) {
                         Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Text("沙盘态势", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                            Text("事件背景", style = MaterialTheme.typography.labelLarge)
-                            Text(item.summary)
-                            Text("阅读路径", style = MaterialTheme.typography.labelLarge)
-                            Text("条目背景 → 原文证据 → 白话解释 → 主题标签", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("事件主线", style = MaterialTheme.typography.labelLarge)
+                            Text(item.summary, fontSize = (16f * fontScale).sp, lineHeight = (25f * fontScale).sp)
+                            ContextSection("关键人物", localContext.people)
+                            ContextSection("相关地点", localContext.places)
+                            ContextSection("官职与军政", localContext.officials)
+                            ContextSection("史料注释", localContext.annotations)
                         }
                     }
                 }
@@ -806,14 +816,150 @@ private fun DetailScreen(item: ReadingItem, onBack: () -> Unit, onFavoriteToggle
                     Surface(color = MaterialTheme.colorScheme.secondaryContainer, shape = RoundedCornerShape(16.dp)) {
                         Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Text("决策卡", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                            Text("如果你处在这段历史的关键节点，会优先考虑什么？")
-                            Text(item.tags.joinToString("、").ifBlank { "名分、人物、制度" }, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("选择一个策略，查看它对应的史料阅读角度。")
+                            decisionOptions.forEachIndexed { index, option ->
+                                FilterChip(
+                                    selected = selectedDecision == index,
+                                    onClick = { selectedDecision = index },
+                                    label = { Text(option.title) },
+                                )
+                            }
+                            Text(decisionOptions[selectedDecision.coerceIn(decisionOptions.indices)].detail, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
+                    }
+                }
+            }
+            if (showOriginalEdition) {
+                item {
+                    Surface(color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f), shape = RoundedCornerShape(16.dp)) {
+                        Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("古本原文", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                            Text("繁体原文与当前条目的底本来源", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                            Text(original, fontSize = bodyFontSize, lineHeight = bodyLineHeight)
+                            Text(item.sourceUrl, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+            }
+            if (aiState.isGenerating) {
+                item {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                        Text("AI 正在整理这篇史料…", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+            if (aiState.resultItemId == item.id && !aiState.result.isNullOrBlank()) {
+                item {
+                    Surface(color = MaterialTheme.colorScheme.tertiaryContainer, shape = RoundedCornerShape(16.dp)) {
+                        Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(aiState.task?.label ?: "AI结果", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                Spacer(Modifier.weight(1f))
+                                TextButton(onClick = onAiResultClear) { Text("清除") }
+                            }
+                            Text(aiState.result.orEmpty(), fontSize = bodyFontSize, lineHeight = bodyLineHeight)
+                        }
+                    }
+                }
+            }
+            if (aiState.resultItemId == item.id && !aiState.error.isNullOrBlank()) {
+                item {
+                    Surface(color = MaterialTheme.colorScheme.errorContainer, shape = RoundedCornerShape(16.dp)) {
+                        Text(aiState.error.orEmpty(), modifier = Modifier.padding(16.dp), color = MaterialTheme.colorScheme.onErrorContainer)
                     }
                 }
             }
             item {
                 Text("来源标记：${item.sourceUrl}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+}
+
+@Composable
+private fun ContextSection(title: String, values: List<String>) {
+    if (values.isNotEmpty()) {
+        Text(title, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+        Text(values.take(8).joinToString("、"), color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+private fun AiSettingsScreen(
+    aiState: AiUiState,
+    onBack: () -> Unit,
+    onBaseUrlChanged: (String) -> Unit,
+    onModelChanged: (String) -> Unit,
+    onApiKeyChanged: (String) -> Unit,
+    onSave: () -> Unit,
+    onClearApiKey: () -> Unit,
+) {
+    Scaffold(
+        modifier = Modifier.windowInsetsPadding(WindowInsets.safeDrawing),
+        topBar = {
+            TopAppBar(
+                title = { Text("AI 设置") },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回") } },
+            )
+        },
+    ) { padding ->
+        LazyColumn(
+            modifier = Modifier.padding(padding).fillMaxSize(),
+            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 18.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            item {
+                Text("连接 OpenAI Chat Completions 兼容接口", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text("可以填写 OpenAI、兼容网关或本机模型服务的 URL 与模型名。API Key 仅加密保存在本机。", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            item {
+                OutlinedTextField(
+                    value = aiState.baseUrl,
+                    onValueChange = onBaseUrlChanged,
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    label = { Text("API URL") },
+                    placeholder = { Text("https://api.openai.com/v1") },
+                    supportingText = { Text("可填写到 /v1，也可直接填写 /chat/completions") },
+                )
+            }
+            item {
+                OutlinedTextField(
+                    value = aiState.model,
+                    onValueChange = onModelChanged,
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    label = { Text("模型") },
+                    placeholder = { Text("gpt-4o-mini") },
+                )
+            }
+            item {
+                OutlinedTextField(
+                    value = aiState.apiKeyInput,
+                    onValueChange = onApiKeyChanged,
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    label = { Text("API Key") },
+                    placeholder = { Text(if (aiState.settings.hasApiKey) "已保存，留空表示保持不变" else "本机输入，不写入源码") },
+                    visualTransformation = PasswordVisualTransformation(),
+                )
+            }
+            item {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Button(onClick = onSave, enabled = !aiState.isSaving) {
+                        if (aiState.isSaving) CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                        else Text("保存设置")
+                    }
+                    if (aiState.settings.hasApiKey) TextButton(onClick = onClearApiKey) { Text("清除 Key") }
+                }
+            }
+            aiState.error?.takeIf(String::isNotBlank)?.let { message ->
+                item {
+                    Surface(color = MaterialTheme.colorScheme.errorContainer, shape = RoundedCornerShape(12.dp)) {
+                        Text(message, modifier = Modifier.padding(14.dp), color = MaterialTheme.colorScheme.onErrorContainer)
+                    }
+                }
             }
         }
     }
@@ -869,17 +1015,5 @@ private fun EmptyState(title: String, subtitle: String) {
             Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-    }
-}
-
-private fun countOccurrences(text: String, query: String): Int {
-    if (query.isBlank()) return 0
-    var startIndex = 0
-    var matches = 0
-    while (true) {
-        val matchIndex = text.indexOf(query, startIndex, ignoreCase = true)
-        if (matchIndex < 0) return matches
-        matches += 1
-        startIndex = matchIndex + query.length
     }
 }

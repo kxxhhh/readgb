@@ -4,9 +4,11 @@ import android.content.Context
 import androidx.room.Room
 import com.dutongjian.app.BuildConfig
 import com.dutongjian.app.data.ReadingRepositoryImpl
+import com.dutongjian.app.data.AiRepositoryImpl
 import com.dutongjian.app.data.local.AppDatabase
 import com.dutongjian.app.data.local.ItemDao
 import com.dutongjian.app.data.network.DutongjianApi
+import com.dutongjian.app.domain.repository.AiRepository
 import com.dutongjian.app.domain.repository.ReadingRepository
 import dagger.Binds
 import dagger.Module
@@ -21,6 +23,7 @@ import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.kotlinx.serialization.asConverterFactory
 import java.util.concurrent.TimeUnit
+import javax.inject.Named
 import javax.inject.Singleton
 
 private val MIGRATION_1_2 = object : androidx.room.migration.Migration(1, 2) {
@@ -49,6 +52,16 @@ object NetworkModule {
         .readTimeout(5, TimeUnit.SECONDS)
         .callTimeout(8, TimeUnit.SECONDS)
         .addInterceptor(HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.BASIC })
+        .build()
+
+    @Provides
+    @Singleton
+    @Named("ai")
+    fun provideAiOkHttp(): OkHttpClient = OkHttpClient.Builder()
+        .connectTimeout(10, TimeUnit.SECONDS)
+        .readTimeout(120, TimeUnit.SECONDS)
+        .writeTimeout(30, TimeUnit.SECONDS)
+        .callTimeout(150, TimeUnit.SECONDS)
         .build()
 
     @Provides
@@ -82,4 +95,8 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindReadingRepository(impl: ReadingRepositoryImpl): ReadingRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindAiRepository(impl: AiRepositoryImpl): AiRepository
 }

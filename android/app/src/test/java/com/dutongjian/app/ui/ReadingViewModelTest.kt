@@ -1,5 +1,7 @@
 package com.dutongjian.app.ui
 
+import com.dutongjian.app.domain.model.AiSettings
+import com.dutongjian.app.domain.model.AiTask
 import com.dutongjian.app.domain.model.HomeFeed
 import com.dutongjian.app.domain.model.KnowledgeEntry
 import com.dutongjian.app.domain.model.LibrarySection
@@ -7,6 +9,7 @@ import com.dutongjian.app.domain.model.ReadingItem
 import com.dutongjian.app.domain.model.ReadingYear
 import com.dutongjian.app.domain.model.Volume
 import com.dutongjian.app.domain.repository.ReadingRepository
+import com.dutongjian.app.domain.repository.AiRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.CompletableDeferred
@@ -42,7 +45,7 @@ class ReadingViewModelTest {
     fun searchTracksServerMatchesAndClearsForShortQuery() = runTest {
         val match = item("match", "三家分晋")
         val other = item("other", "赤壁之战")
-        val viewModel = ReadingViewModel(FakeRepository(listOf(match, other), listOf(match)))
+        val viewModel = ReadingViewModel(FakeRepository(listOf(match, other), listOf(match)), FakeAiRepository())
 
         viewModel.search("三家")
 
@@ -64,7 +67,7 @@ class ReadingViewModelTest {
     fun catalogDoesNotExposeSeedVolumesWhileRealCatalogIsLoading() = runTest {
         val gate = CompletableDeferred<List<Volume>>()
         val realVolume = Volume("real-volume", "zizhi", "卷第一", "周纪", 1)
-        val viewModel = ReadingViewModel(FakeRepository(listOf(item("item", "正文")), emptyList(), gate))
+        val viewModel = ReadingViewModel(FakeRepository(listOf(item("item", "正文")), emptyList(), gate), FakeAiRepository())
 
         viewModel.selectSection(com.dutongjian.app.domain.model.OfflineSeed.sections.first())
 
@@ -81,7 +84,7 @@ class ReadingViewModelTest {
     @Test
     fun cycleFeaturedMovesTheHomeWindowWithoutChangingTheItemFeed() = runTest {
         val items = (0 until 6).map { index -> item("item-$index", "条目$index") }
-        val viewModel = ReadingViewModel(FakeRepository(items, emptyList()))
+        val viewModel = ReadingViewModel(FakeRepository(items, emptyList()), FakeAiRepository())
 
         viewModel.cycleFeatured()
 
@@ -127,4 +130,14 @@ private class FakeRepository(
     override suspend fun loadYearItems(yearId: String) = Result.success(emptyList<ReadingItem>())
 
     override suspend fun loadKnowledge(query: String?, category: String?) = Result.success(emptyList<KnowledgeEntry>())
+}
+
+private class FakeAiRepository : AiRepository {
+    override suspend fun loadSettings() = Result.success(AiSettings())
+
+    override suspend fun saveSettings(baseUrl: String, model: String, apiKey: String?) = Result.success(AiSettings(baseUrl, model, apiKey != null))
+
+    override suspend fun clearApiKey() = Result.success(AiSettings())
+
+    override suspend fun generate(item: ReadingItem, task: AiTask) = Result.success("AI result")
 }

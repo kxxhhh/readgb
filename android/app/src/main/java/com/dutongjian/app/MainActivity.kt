@@ -46,6 +46,14 @@ class MainActivity : ComponentActivity() {
                         onCatalogBack = viewModel::catalogBack,
                         onKnowledgeSearch = viewModel::searchKnowledge,
                         onKnowledgeCategorySelected = viewModel::selectKnowledgeCategory,
+                        aiState = state.ai,
+                        onAiBaseUrlChanged = viewModel::updateAiBaseUrl,
+                        onAiModelChanged = viewModel::updateAiModel,
+                        onAiApiKeyChanged = viewModel::updateAiApiKey,
+                        onAiSettingsSave = viewModel::saveAiSettings,
+                        onAiApiKeyClear = viewModel::clearAiApiKey,
+                        onAiGenerate = viewModel::generateAi,
+                        onAiResultClear = viewModel::clearAiResult,
                         onDarkModeToggle = { darkMode = !darkMode },
                     )
                 }

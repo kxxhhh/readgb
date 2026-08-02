@@ -46,6 +46,7 @@ class ReadingRepositoryImpl @Inject constructor(
     private var localContentReady = false
     private var bundledCatalog: OfflineCatalogAsset? = null
     private var bundledKnowledge: List<KnowledgeEntry>? = null
+    private val assetPreferences = context.getSharedPreferences(OFFLINE_ASSET_PREFERENCES, Context.MODE_PRIVATE)
 
     override fun observeItems(): Flow<List<ReadingItem>> = flow {
         ensureLocalSeed()
@@ -155,13 +156,17 @@ class ReadingRepositoryImpl @Inject constructor(
             if (missing.isNotEmpty()) {
                 dao.upsertAll(missing.map { it.toEntity() })
             }
-            importBundledContent()
+            val importedVersion = assetPreferences.getString(OFFLINE_ASSET_VERSION_KEY, null)
+            if (importedVersion != OFFLINE_ASSET_VERSION || dao.fullContentCount() < OFFLINE_CONTENT_RECORD_COUNT) {
+                if (importBundledContent()) {
+                    assetPreferences.edit().putString(OFFLINE_ASSET_VERSION_KEY, OFFLINE_ASSET_VERSION).apply()
+                }
+            }
             localContentReady = true
         }
     }
 
-    private suspend fun importBundledContent() {
-        if (dao.fullContentCount() >= FULL_CONTENT_COUNT) return
+    private suspend fun importBundledContent(): Boolean {
         try {
             withContext(Dispatchers.IO) {
                 openBundledContentAsset().use { input ->
@@ -180,11 +185,13 @@ class ReadingRepositoryImpl @Inject constructor(
                     }
                 }
             }
+            return true
         } catch (error: IOException) {
             Log.e(LOG_TAG, "Offline content asset is unavailable; keeping Room fallback", error)
         } catch (error: Exception) {
             Log.e(LOG_TAG, "Offline content asset import failed; keeping Room fallback", error)
         }
+        return false
     }
 
     private fun openBundledContentAsset() = try {
@@ -296,7 +303,10 @@ private const val CONTENT_ASSET = "offline_content.ndjson"
 private const val LEGACY_CONTENT_ASSET = "offline_content.ndjson.gz"
 private const val OFFLINE_CATALOG_ASSET = "offline_catalog.json"
 private const val OFFLINE_KNOWLEDGE_ASSET = "offline_knowledge.json"
-private const val FULL_CONTENT_COUNT = 30_989
+private const val OFFLINE_CONTENT_RECORD_COUNT = 2_107
+private const val OFFLINE_ASSET_VERSION = "2026-08-02-329"
+private const val OFFLINE_ASSET_PREFERENCES = "offline_assets"
+private const val OFFLINE_ASSET_VERSION_KEY = "content_version"
 private const val ASSET_BATCH_SIZE = 500
 private const val LOG_TAG = "ReadingRepository"
 

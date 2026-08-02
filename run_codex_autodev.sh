@@ -53,7 +53,8 @@ echo "[4/6] 唤醒 App 并进行 UI 采样截图..."
 mkdir -p "$OUTPUT_DIR"
 adb shell am force-stop "$PACKAGE_NAME"
 adb shell monkey -p "$PACKAGE_NAME" -c android.intent.category.LAUNCHER 1
-sleep 3
+# Allow the offline asset importer to finish before sampling the home screen.
+sleep 8
 
 # 1. 首页截图
 adb shell screencap -p /sdcard/01_home.png

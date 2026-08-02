@@ -927,3 +927,36 @@ Android 工程已创建；当前锁定 AGP 9.0.0、Kotlin 2.4.10、Compose BOM 2
 ### 爬虫状态
 
 - 全本同步进程 PID `114706` 仍在运行，当前 checkpoint 为 `298/1405`，约 `21.2%`；本轮 APK 仍是已完成阶段性内容快照，不宣称为完整全本。
+
+## 增量修复更新：当前爬虫快照导入、短篇阅读与可配置 AI（2026-08-02）
+
+### 当前内容导入
+
+- 在 checkpoint `329/1405` 时重新导出 Android 阶段性资产：`2107` 条正文、`26` 卷、`329` 个纪年、`4987` 条百科关联。
+- 更新了 `offline_content.ndjson.gz`、`offline_catalog.json` 和 `offline_knowledge.json`；Repository 增加离线资产版本标记 `2026-08-02-329`，旧 Room 数据库升级后会重新导入，不再只按总数跳过更新。
+- 首页在资产导入完成前显示加载态，不再把 5 条 OfflineSeed 当作已完成正文；最终延迟采样显示 `2112` 条，即当前资产 `2107` 条加离线兜底种子 `5` 条。
+- 本次 APK 是 `329/1405` 的内容快照；爬虫随后继续推进，记录时 checkpoint 为 `333/1405`，进程 PID `114706` 仍在运行。
+
+### 阅读体验修复
+
+- 字号改为按条目保存的 `80%..160%` 整数档位，并增加 Slider；字号同时作用于标题、导读、原文、白话、注释、沙盘和 AI 结果。无头模拟器点击后 DOM 已从 `100%` 变为 `110%`。
+- 删除短篇场景中价值有限的篇内查找和阅读进度条，保留原文/白话/注释/对照、复制和分享。
+- “沙盘态势”现在解析正文结构化注释，展示事件主线、关键人物、地点、官职和史料注释。
+- “决策卡”提供可选择的先观其变、主动出击、稳守边境策略；若来源有决策关系则优先展示来源关系。
+- “古本原文”现在展开真实繁体原文和来源 URL，不再是无动作按钮。
+
+### AI 接入
+
+- 新增 `AiRepository`、OpenAI Chat Completions 兼容客户端和 Hilt wiring，支持自定义 API URL、模型和 API Key。
+- AI 设置页面支持 URL、模型、Key 保存；Key 使用 Android Keystore 的 AES/GCM 加密后写入本机 SharedPreferences，不进入源码、Logcat 或普通 UI 文本。
+- URL 校验要求 HTTPS；本机调试允许 `localhost`、`127.0.0.1`、`10.0.2.2`。未配置 Key 的远程接口会明确提示，不会静默失败。
+- 详情页新增 `AI总结`、`AI逐句对照`、`AI词语对照`：分别输出人物/事件/因果、古文与白话分句表、古文词语与白话对应表。请求限制输入长度并使用明确的“只依据史料”提示词。
+- 本轮只验证了 AI 设置页面、配置校验和客户端编译；没有使用真实 API Key，因此没有虚报第三方 AI 网络请求已成功。填写配置后可在详情页触发请求。
+
+### 构建与运行验证
+
+- `./gradlew clean testDebugUnitTest lintDebug assembleDebug assembleInspection`：`BUILD SUCCESSFUL`；新增 `HistoricalContextTest` 通过。
+- 再次执行 `./run_codex_autodev.sh`：Inspection 构建成功、模拟器安装 `Success`、等待离线导入后首页/详情/滚动截图完成，`crash.log` 为 `No Fatal, AndroidRuntime, or NullPointer errors detected.`。
+- `01_home.png` 显示 `2112` 条内容和设置入口；`02_detail.png` 显示真实正文；`03_scroll.png` 显示四种模式、字号 Slider、原文/白话短篇排版。
+- 交互检查确认：字号 `100% -> 110%`；AI 设置页显示 API URL、模型、API Key 和保存按钮；沙盘展开后 DOM 包含事件主线、关键人物、相关地点；全程未发现 Fatal、AndroidRuntime 或 NullPointer。
+- APK 已导出至 [app-autodev.apk](/workspaces/-app/build/outputs/app-autodev.apk)，大小 `18,412,697` bytes，SHA-256 `fd746c74c5006ab52126ed269fba7ab8ca5d0f8e0536e179def24258ad4a3c07`，版本 `versionCode 7 / versionName 0.1.6`；`apksigner` 已确认 APK v2 签名有效。
