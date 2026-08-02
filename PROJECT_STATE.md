@@ -1010,3 +1010,13 @@ Android 工程已创建；当前锁定 AGP 9.0.0、Kotlin 2.4.10、Compose BOM 2
 - 首次 `./gradlew :app:compileDebugKotlin --stacktrace` 未进入 Kotlin 编译：JitPack 产物 POM 声明版本为 `master-SNAPSHOT`，而当前坐标使用 `master-116a44e72c-1`，Gradle 报 `inconsistent module metadata`。
 - 因此当前不能宣称 APK 已包含 Sherpa JNI，也不能宣称新 UI 或 TTS 已通过运行验证；需要先修正依赖坐标，再执行完整构建和模拟器闭环。
 - 爬虫 PID `114706` 仍在运行，最近 checkpoint 为 `361/1405`；本阶段仍使用现有内容快照，抓取进度与本次 Sherpa/UI 修复互不覆盖。
+
+### 本轮完成与发布结果
+
+- 官方 Sherpa AAR 已成功解析并验证内容：包含 `libsherpa-onnx-jni.so`、`libsherpa-onnx-c-api.so`、`libsherpa-onnx-cxx-api.so` 和 ONNX Runtime；应用 APK 同时包含 `model.onnx`、`lexicon.txt`、`rule.far` 等中文模型资产。当前锁定 JitPack 上游构建 `master-116a44e72c-1`，可用 `scripts/update_sherpa_onnx.sh` 查询更新。
+- `./gradlew clean assembleDebug`：`BUILD SUCCESSFUL`；APK 检查确认 native JNI 与模型均已打包。
+- `./run_codex_autodev.sh`：Inspection 构建成功、模拟器安装返回 `Success`、首页/详情/滚动截图和 DOM dump 已生成；`crash.log` 为 `No Fatal, AndroidRuntime, or NullPointer errors detected.`。
+- 最新模拟器截图已提交至 `build/ui_checks/01_home.png`、`build/ui_checks/02_detail.png`、`build/ui_checks/03_scroll.png`；详情截图确认顶部只保留“原文”，注释标记按词语显示虚线下划线。
+- 代码、截图和 LFS 模型已提交并推送：`54eb515 feat(android): integrate sherpa onnx reading controls`。Sherpa 模型 9 个 LFS 对象已上传。
+- APK 已导出至 [app-autodev.apk](/workspaces/-app/build/outputs/app-autodev.apk)，SHA-256 `3f9d1d6540456a97a3b261d02905e8a0c80129b6790912dd7c598870c7a050c8`，并发布 GitHub 预发布 [v0.1.9](https://github.com/kxxhhh/-app/releases/tag/v0.1.9)。
+- 当前闭环验证覆盖编译、安装、启动、详情导航、滚动、Compose 渲染和错误日志；自动脚本没有主动触发一次完整 Sherpa 音频播放，因此真实设备上的扬声器输出仍需安装 APK 后检查。Edge-TTS 仍依赖网络，连接失败会显示错误，不会回退系统 TTS。
