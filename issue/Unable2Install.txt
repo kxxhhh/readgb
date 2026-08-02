@@ -1,0 +1,201 @@
+Issue: Android APK installation fails with Binder null reference
+===============================================================
+
+Status
+------
+
+Open. Static diagnosis completed. Runtime root cause is not confirmed.
+
+Reported symptom
+----------------
+
+Installing the Android APK fails with:
+
+    Attempt to invoke interface method 'android.os.IBinder android.os.IInterface.asBinder()' on a null object reference
+
+The error was reported during installation. It has not been established whether
+the failure occurs in the device PackageInstaller, system_server, or application
+startup.
+
+Environment limitation
+----------------------
+
+There is currently no Android emulator and no connected physical Android device
+in the development environment.
+
+Therefore:
+
+    当前没有模拟器/实体设备，因此无法完成 Runtime 验证。
+
+The app was not launched during this diagnosis. A successful Gradle build is not
+treated as a successful install or runtime test.
+
+Static search performed
+-----------------------
+
+The entire tracked project was searched for:
+
+    asBinder()
+    IInterface
+    IBinder
+    ServiceConnection
+    bindService
+    onServiceConnected
+    onServiceDisconnected
+
+No direct project-source matches were found.
+
+Additional searches covered:
+
+    getSystemService
+    registerReceiver / unregisterReceiver
+    startService / stopService
+    startForegroundService
+    bindServiceAsUser / bindIsolatedService
+    Messenger / Binder / Parcel
+    ContentProvider / JobService / WorkManager / Service
+
+No project-owned Binder or Service implementation was found.
+
+Relevant project code
+---------------------
+
+The Android app uses these integrations:
+
+    - Hilt for dependency injection.
+    - Room for the local SQLite database.
+    - Retrofit and OkHttp for optional local Backend connectivity.
+    - Jetpack Compose for the UI.
+
+The app-owned Application class only contains @HiltAndroidApp.
+MainActivity is a normal exported launcher Activity and does not bind to a
+service.
+
+The source AndroidManifest declares only:
+
+    - android.permission.INTERNET
+    - DutongjianApplication
+    - MainActivity
+
+The merged Manifest contains AndroidX-generated components:
+
+    - androidx.room.MultiInstanceInvalidationService
+    - androidx.startup.InitializationProvider
+    - androidx.profileinstaller.ProfileInstallReceiver
+
+These entries come from dependencies and are not custom Binder code in this
+project. No project code directly calls their Binder APIs.
+
+APK evidence
+------------
+
+The previously published v0.1.1 release contained:
+
+    - app-debug.apk
+    - app-release-unsigned.apk
+
+The unsigned Release APK is not a valid user-installable release artifact. An
+unsigned APK can cause device installation tools to fail, and some vendor
+installers may expose an unhelpful Binder null-reference error instead of a
+clear signature error.
+
+A signed inspection variant was subsequently added:
+
+    - Build variant: inspection
+    - APK: app-inspection.apk
+    - Package: com.dutongjian.app
+    - Version: 0.1.1, versionCode 2
+    - minSdkVersion: 26
+    - targetSdkVersion: 35
+    - APK v2 signature: verified locally
+    - SHA-256:
+      6271e57ba986075e2391425f249baddb77d516837c2219dd08969b07d3091b86
+
+The inspection variant uses the Android debug keystore for device inspection
+only. It is not a production-signed release APK.
+
+Build evidence
+--------------
+
+Command:
+
+    JAVA_HOME=/usr/local/sdkman/candidates/java/21.0.10-ms \
+      ./gradlew clean assembleDebug
+
+Result:
+
+    BUILD SUCCESSFUL
+
+The complete Gradle output did not contain:
+
+    Attempt to invoke interface method
+    IInterface.asBinder()
+    asBinder()
+    IBinder
+    ServiceConnection
+    bindService
+    onServiceConnected
+    onServiceDisconnected
+    null object reference
+
+This confirms the reported text is not a Gradle compilation error.
+
+What is confirmed
+-----------------
+
+    - No direct Binder API usage exists in project-owned source.
+    - No custom Android Service or ServiceConnection exists.
+    - The source Manifest has a normal launcher Activity.
+    - The signed inspection APK passes local APK v2 signature verification.
+    - clean assembleDebug succeeds.
+    - The reported exception does not appear in the complete build log.
+
+Possible causes
+---------------
+
+    1. The unsigned Release APK was selected for installation.
+    2. A device/vendor PackageInstaller or system_server Binder failure occurred.
+    3. An existing installation with the same package name or a different
+       signing key caused a package update/signature conflict.
+    4. A device Android version or vendor installer is incompatible with the
+       installation path.
+    5. An AndroidX startup or Room system component failed at runtime. This is
+       only a possibility; there is no device log proving it.
+
+What is not confirmed
+---------------------
+
+    - The exact device model and Android version.
+    - Whether app-debug.apk, app-release-unsigned.apk, or app-inspection.apk
+      was installed.
+    - Whether the exception was emitted by PackageInstaller, system_server,
+      installd, or the app process.
+    - Whether an older com.dutongjian.app installation was present.
+    - Whether the failure happens before package installation or after launch.
+
+Required next evidence
+----------------------
+
+Reproduce on an emulator or physical device using only app-inspection.apk.
+Before retrying, remove any older installation of com.dutongjian.app if the
+device permits it.
+
+Preferred adb checks:
+
+    adb devices
+    adb install -r app-inspection.apk
+    adb logcat -c
+    adb logcat -v threadtime -b all \
+      -s PackageInstaller PackageManager installd system_server AndroidRuntime
+
+If installation still fails, capture the complete output of adb install and the
+corresponding logcat window. Include:
+
+    - device model
+    - Android API level
+    - installer used
+    - exact APK filename
+    - whether an older app version was installed
+
+Do not suppress the exception with catch(Exception). The current evidence does
+not justify changing application code.
