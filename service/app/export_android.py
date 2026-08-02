@@ -5,14 +5,21 @@ import gzip
 import json
 from pathlib import Path
 
+from .models import Item
 from .store import ContentStore
 
 
 def export_content(database: str | Path, output: str | Path, *, expected_count: int = 30_989) -> int:
     store = ContentStore(database)
-    items = [item for item in store.list_items(category="资治通鉴", limit=expected_count + 100) if item.id.startswith("zztj-")]
+    category_count = store.count_items(category="资治通鉴")
+    items = [
+        item
+        for item in store.list_items(category="资治通鉴", limit=max(1, category_count))
+        if item.id.startswith("zztj-")
+    ]
     if len(items) != expected_count:
         raise ValueError(f"refusing Android export: expected {expected_count} real items, found {len(items)}")
+    _validate_content(items)
     destination = Path(output)
     temporary = destination.with_suffix(destination.suffix + ".tmp")
     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -22,6 +29,27 @@ def export_content(database: str | Path, output: str | Path, *, expected_count: 
             stream.write("\n")
     temporary.replace(destination)
     return len(items)
+
+
+def _validate_content(items: list[Item]) -> None:
+    required_fields = (
+        "title",
+        "dynasty",
+        "summary",
+        "content",
+        "source_url",
+        "updated_at",
+        "section",
+        "volume_id",
+        "year_id",
+        "original",
+        "translation",
+    )
+    for item in items:
+        missing = [field for field in required_fields if not str(getattr(item, field) or "").strip()]
+        if missing:
+            fields = ", ".join(missing)
+            raise ValueError(f"refusing Android export: incomplete item {item.id}: missing {fields}")
 
 
 def export_catalog(database: str | Path, output: str | Path, *, expected_volumes: int = 294, expected_years: int = 1405) -> dict[str, int]:
