@@ -110,22 +110,31 @@ fun DutongjianApp(
     var tab by rememberSaveable { mutableStateOf(AppTab.HOME) }
     var selectedItem by remember { mutableStateOf<ReadingItem?>(null) }
     var selectedKnowledge by remember { mutableStateOf<KnowledgeEntry?>(null) }
+    val selectedItemId = selectedItem?.id
+    val selectedKnowledgeId = selectedKnowledge?.id
 
     AnimatedContent(
-        targetState = selectedItem?.id ?: selectedKnowledge?.id,
+        targetState = selectedItemId ?: selectedKnowledgeId,
         transitionSpec = { fadeIn() togetherWith fadeOut() },
         label = "detail-transition",
-    ) {
-        if (selectedItem != null) {
-            DetailScreen(
-                item = selectedItem!!,
-                onBack = { selectedItem = null },
-                onFavoriteToggle = { onFavoriteToggle(selectedItem!!) },
-            )
-        } else if (selectedKnowledge != null) {
-            KnowledgeDetailScreen(entry = selectedKnowledge!!, onBack = { selectedKnowledge = null })
-        } else {
-            Scaffold(
+    ) { targetId ->
+        val targetItem = targetId?.let { id ->
+            state.items.firstOrNull { it.id == id } ?: selectedItem?.takeIf { it.id == id }
+        }
+        val targetKnowledge = selectedKnowledge?.takeIf { it.id == targetId }
+        when {
+            targetItem != null -> {
+                DetailScreen(
+                    item = targetItem,
+                    onBack = { selectedItem = null },
+                    onFavoriteToggle = { onFavoriteToggle(targetItem) },
+                )
+            }
+            targetKnowledge != null -> {
+                KnowledgeDetailScreen(entry = targetKnowledge, onBack = { selectedKnowledge = null })
+            }
+            else -> {
+                Scaffold(
                 modifier = Modifier.windowInsetsPadding(WindowInsets.safeDrawing),
                 topBar = {
                     TopAppBar(
@@ -174,38 +183,39 @@ fun DutongjianApp(
                         )
                     }
                 },
-            ) { padding ->
-                Column(modifier = Modifier.padding(padding).fillMaxSize()) {
-                    AnimatedContent(targetState = tab, label = "tab-transition") { currentTab ->
-                        when (currentTab) {
-                            AppTab.HOME -> HomeScreen(
-                                state = state,
-                                onSearch = onSearch,
-                                onCategorySelected = onCategorySelected,
-                                onFavoriteToggle = onFavoriteToggle,
-                                onOpen = { item -> onOpen(item); selectedItem = item },
-                            )
-                            AppTab.CATALOG -> CatalogScreen(
-                                state = state,
-                                onSectionSelected = onSectionSelected,
-                                onVolumeSelected = onVolumeSelected,
-                                onYearSelected = onYearSelected,
-                                onBack = onCatalogBack,
-                                onFavoriteToggle = onFavoriteToggle,
-                                onOpen = { item -> onOpen(item); selectedItem = item },
-                            )
-                            AppTab.KNOWLEDGE -> KnowledgeScreen(
-                                state = state,
-                                onSearch = onKnowledgeSearch,
-                                onCategorySelected = onKnowledgeCategorySelected,
-                                onOpen = { selectedKnowledge = it },
-                            )
-                            AppTab.LIBRARY -> LibraryScreen(
-                                state = state,
-                                onTabSelected = onLibraryTabSelected,
-                                onFavoriteToggle = onFavoriteToggle,
-                                onOpen = { item -> onOpen(item); selectedItem = item },
-                            )
+                ) { padding ->
+                    Column(modifier = Modifier.padding(padding).fillMaxSize()) {
+                        AnimatedContent(targetState = tab, label = "tab-transition") { currentTab ->
+                            when (currentTab) {
+                                AppTab.HOME -> HomeScreen(
+                                    state = state,
+                                    onSearch = onSearch,
+                                    onCategorySelected = onCategorySelected,
+                                    onFavoriteToggle = onFavoriteToggle,
+                                    onOpen = { item -> onOpen(item); selectedItem = item },
+                                )
+                                AppTab.CATALOG -> CatalogScreen(
+                                    state = state,
+                                    onSectionSelected = onSectionSelected,
+                                    onVolumeSelected = onVolumeSelected,
+                                    onYearSelected = onYearSelected,
+                                    onBack = onCatalogBack,
+                                    onFavoriteToggle = onFavoriteToggle,
+                                    onOpen = { item -> onOpen(item); selectedItem = item },
+                                )
+                                AppTab.KNOWLEDGE -> KnowledgeScreen(
+                                    state = state,
+                                    onSearch = onKnowledgeSearch,
+                                    onCategorySelected = onKnowledgeCategorySelected,
+                                    onOpen = { selectedKnowledge = it },
+                                )
+                                AppTab.LIBRARY -> LibraryScreen(
+                                    state = state,
+                                    onTabSelected = onLibraryTabSelected,
+                                    onFavoriteToggle = onFavoriteToggle,
+                                    onOpen = { item -> onOpen(item); selectedItem = item },
+                                )
+                            }
                         }
                     }
                 }
@@ -224,7 +234,8 @@ private fun HomeScreen(
 ) {
     var query by rememberSaveable { mutableStateOf(state.query) }
     val visibleItems = state.items.filter { item ->
-        state.selectedCategory == null || item.category == state.selectedCategory
+        (state.selectedCategory == null || item.category == state.selectedCategory) &&
+            (state.searchResultIds == null || item.id in state.searchResultIds)
     }
 
     LazyColumn(

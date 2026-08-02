@@ -23,6 +23,7 @@ enum class CatalogLevel { SECTIONS, VOLUMES, YEARS, ITEMS }
 data class ReadingUiState(
     val items: List<ReadingItem> = emptyList(),
     val query: String = "",
+    val searchResultIds: Set<String>? = null,
     val selectedCategory: String? = null,
     val categories: List<String> = emptyList(),
     val isLoading: Boolean = true,
@@ -73,12 +74,27 @@ class ReadingViewModel @Inject constructor(
     }
 
     fun search(value: String) {
-        _state.update { it.copy(query = value) }
-        if (value.trim().length < 2) return
+        val query = value.trim()
+        _state.update {
+            it.copy(
+                query = value,
+                searchResultIds = if (query.length < 2) null else it.searchResultIds,
+            )
+        }
+        if (query.length < 2) return
         viewModelScope.launch {
-            repository.search(value.trim()).onFailure { failure ->
-                _state.update { it.copy(error = failure.message ?: "搜索失败") }
-            }
+            repository.search(query)
+                .onSuccess { results ->
+                    _state.update {
+                        it.copy(
+                            searchResultIds = results.map(ReadingItem::id).toSet(),
+                            error = null,
+                        )
+                    }
+                }
+                .onFailure { failure ->
+                    _state.update { it.copy(error = failure.message ?: "搜索失败") }
+                }
         }
     }
 

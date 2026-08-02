@@ -567,3 +567,36 @@ Android 工程已创建；当前锁定 AGP 9.0.0、Kotlin 2.4.10、Compose BOM 2
 - 本地提交：`feat: extend native catalog and public sync`。
 - 提交内容包含本阶段全部已验证的 Android、Backend、公开 HTML parser/sync、文档和 CI 变更。
 - 该 checkpoint 已在本地创建；本轮没有新的远端 push，远端操作需由后续明确指令触发。
+
+## 增量验证更新：搜索状态修复与 Android 构建闭环（2026-08-02）
+
+### 本轮完成
+
+- 修复首页搜索展示逻辑：ViewModel 现在记录服务端命中的条目 ID 集合，首页只显示命中结果，并在查询少于两个字符时恢复完整 Room 缓存。
+- 修复详情页收藏状态滞后：详情过渡按目标 ID 解析实时 Room 条目，收藏切换后图标和内容状态能够随 StateFlow 更新。
+- 新增 `ReadingViewModelTest`，覆盖搜索命中集合和短查询清除行为；先验证了缺少状态字段的 RED，再完成 GREEN。
+- 为 `service/data/*.db`、SQLite 和 SQLite3 运行文件补充忽略规则，测试产生的本地数据库不进入提交。
+
+### 最终验证
+
+- Backend：`python3 -m pytest -q service/tests --cov=service/app --cov-report=term-missing`，13 passed，覆盖率 87%。
+- Android：JDK 21 下执行 `./gradlew clean test assembleDebug assembleRelease lintDebug`，全部通过。
+- Debug APK：`android/app/build/outputs/apk/debug/app-debug.apk`，约 19.6 MB。
+- unsigned Release APK：`android/app/build/outputs/apk/release/app-release-unsigned.apk`，约 12.9 MB。
+- `lintDebug` 已通过；构建过程中仅有 `libandroidx.graphics.path.so` 无法 strip 的打包提示，不影响 APK 生成。
+
+### 本轮根因记录
+
+- 搜索根因：首页此前只读取全量 `state.items`，Repository 虽然请求并写入搜索结果，但 UI 没有保存命中集合，因此搜索后仍显示所有缓存条目。
+- Lint 根因：外层 Compose `AnimatedContent` 未使用 target state 参数；已改为按目标 ID 解析条目/百科详情，使过渡内容与目标状态一致。
+
+### 当前限制
+
+- Release APK 仍为 unsigned 产物，正式发布需要由部署环境注入签名配置。
+- 真实目标站点的 robots、sitemap 和页面选择器仍需在可解析 `dutongjian.com` DNS 的环境中逐页确认；当前同步器保持人工指定路径和合规拒绝策略。
+- 尚未配置 Android 真机/模拟器 UI 运行测试；当前已覆盖 ViewModel JVM 测试、Backend 测试、编译、lint 和 APK 打包。
+
+### 提交状态
+
+- 本轮变更已完成验证，下一步创建本地 Git checkpoint commit。
+- 不执行远端 push。

@@ -11,6 +11,9 @@ venv/
 data/*.db
 data/*.sqlite
 data/*.sqlite3
+service/data/*.db
+service/data/*.sqlite
+service/data/*.sqlite3
 
 # Android / Gradle
 .gradle/
