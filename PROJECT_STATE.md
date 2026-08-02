@@ -866,3 +866,24 @@ Android 工程已创建；当前锁定 AGP 9.0.0、Kotlin 2.4.10、Compose BOM 2
 - 新版本为 `versionCode 5`、`versionName 0.1.4`；后续发布使用 `v0.1.5`，旧 `v0.1.4` 仍只有正文资产。
 - `v0.1.5` 已发布：<https://github.com/kxxhhh/-app/releases/tag/v0.1.5>；`app-inspection.apk` SHA-256 为 `c2f5acd93341282270960e1ecd9928a675237e74b445493b426645d9d6683859`。
 - 新 APK 执行 `./gradlew clean testDebugUnitTest lintDebug assembleDebug assembleInspection assembleRelease`：`BUILD SUCCESSFUL`；APK 内部核对正文 `1601`、目录纪年 `271`、百科 `3643`，并确认 APK v2 签名有效。
+
+## 增量验证更新：无头模拟器闭环与古籍字号控制（2026-08-02）
+
+### 首轮感知与评估
+
+- 已执行 `./run_codex_autodev.sh`：无头模拟器已运行，APK 安装成功，Inspection 构建成功，初始运行无 Crash。
+- 首轮 `01_home.png` 正常显示首页、搜索、分类筛选和底部导航；初始 `02_detail.png`/`03_scroll.png` 仍停留首页，原因是脚本使用了超出 `320x640` 屏幕的点击/滑动坐标。
+- 初始 `window_dump.xml` 确认 Compose 节点、首页正文卡片和四个底部导航项均存在；初始运行未生成 crash.log 文件，说明脚本只在发现错误时写文件。
+
+### 本次迭代
+
+- 在 [DutongjianApp.kt](/workspaces/-app/android/app/src/main/java/com/dutongjian/app/ui/DutongjianApp.kt) 的详情页新增字号控制：`80%..130%`，以 `- / +` 图标按钮调整，统一作用于原文、白话和注释，状态使用 `rememberSaveable` 保持旋转/重组期间稳定。
+- 修正 `run_codex_autodev.sh`：优先安装本轮刚构建的 `app-inspection.apk`，点击真实正文卡片坐标 `160,440`，使用 `160,580 -> 160,180` 的有效滑动坐标，并在无错误时生成明确的 `crash.log`。
+
+### 最终闭环验证
+
+- 再次执行 `./run_codex_autodev.sh`：`BUILD SUCCESSFUL`、模拟器安装 `Success`、运行无 Crash，已导出 [app-autodev.apk](/workspaces/-app/build/outputs/app-autodev.apk)。
+- 最终 `02_detail.png` 已进入实际正文详情页；最终 `03_scroll.png` 显示 `字号 - 100% +`、对照/原文/白话/注释切换和正文内容。
+- 最终 `window_dump.xml` 包含 `字号`、`100%`、`content-desc="增大字号"`、`content-desc="减小字号"`；`crash.log` 内容为 `No Fatal, AndroidRuntime, or NullPointer errors detected.`。
+- `./gradlew testDebugUnitTest`：`BUILD SUCCESSFUL`；无头模拟器闭环已覆盖安装、启动、详情导航、滚动和 Compose 控件渲染。
+- `app-autodev.apk`：`16,839,917` bytes，SHA-256 `f350dce6bdc104662b75166346b3c667f9ebaf1f370d1551e3bdc61de337e679`，包版本 `versionCode 5 / versionName 0.1.4`，APK v2 签名有效。

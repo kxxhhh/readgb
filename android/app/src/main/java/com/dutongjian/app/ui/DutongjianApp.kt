@@ -36,7 +36,9 @@ import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.automirrored.filled.MenuBook
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SettingsBrightness
@@ -540,8 +542,11 @@ private fun ReadingCard(item: ReadingItem, onFavoriteToggle: (ReadingItem) -> Un
 @Composable
 private fun DetailScreen(item: ReadingItem, onBack: () -> Unit, onFavoriteToggle: () -> Unit) {
     var mode by rememberSaveable { mutableStateOf(ReadingMode.PARALLEL) }
+    var fontScale by rememberSaveable { mutableStateOf(1f) }
     var showSandbox by rememberSaveable { mutableStateOf(false) }
     var showDecisionCard by rememberSaveable { mutableStateOf(false) }
+    val bodyFontSize = (18f * fontScale).sp
+    val bodyLineHeight = (30f * fontScale).sp
     Scaffold(
         modifier = Modifier.windowInsetsPadding(WindowInsets.safeDrawing),
         topBar = {
@@ -579,6 +584,24 @@ private fun DetailScreen(item: ReadingItem, onBack: () -> Unit, onFavoriteToggle
                 }
             }
             item {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("字号", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    IconButton(
+                        onClick = { fontScale = (fontScale - 0.1f).coerceAtLeast(0.8f) },
+                        enabled = fontScale > 0.8f,
+                    ) {
+                        Icon(Icons.Default.Remove, contentDescription = "减小字号")
+                    }
+                    Text("${(fontScale * 100).toInt()}%", style = MaterialTheme.typography.labelLarge)
+                    IconButton(
+                        onClick = { fontScale = (fontScale + 0.1f).coerceAtMost(1.3f) },
+                        enabled = fontScale < 1.3f,
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = "增大字号")
+                    }
+                }
+            }
+            item {
                 val original = item.original.ifBlank { item.content }
                 val translation = item.translation.ifBlank { item.content }
                 val notes = item.notes.ifBlank { "当前条目暂无独立注释，先使用导读和主题标签阅读。" }
@@ -587,13 +610,13 @@ private fun DetailScreen(item: ReadingItem, onBack: () -> Unit, onFavoriteToggle
                         when (mode) {
                             ReadingMode.PARALLEL -> {
                                 Text("原文", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-                                Text(original, style = MaterialTheme.typography.bodyLarge, lineHeight = 30.sp)
+                                Text(original, style = MaterialTheme.typography.bodyLarge, fontSize = bodyFontSize, lineHeight = bodyLineHeight)
                                 Text("白话", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-                                Text(translation, style = MaterialTheme.typography.bodyLarge, lineHeight = 30.sp)
+                                Text(translation, style = MaterialTheme.typography.bodyLarge, fontSize = bodyFontSize, lineHeight = bodyLineHeight)
                             }
-                            ReadingMode.ORIGINAL -> Text(original, style = MaterialTheme.typography.bodyLarge, lineHeight = 30.sp)
-                            ReadingMode.TRANSLATION -> Text(translation, style = MaterialTheme.typography.bodyLarge, lineHeight = 30.sp)
-                            ReadingMode.NOTES -> Text(notes, style = MaterialTheme.typography.bodyLarge, lineHeight = 30.sp)
+                            ReadingMode.ORIGINAL -> Text(original, style = MaterialTheme.typography.bodyLarge, fontSize = bodyFontSize, lineHeight = bodyLineHeight)
+                            ReadingMode.TRANSLATION -> Text(translation, style = MaterialTheme.typography.bodyLarge, fontSize = bodyFontSize, lineHeight = bodyLineHeight)
+                            ReadingMode.NOTES -> Text(notes, style = MaterialTheme.typography.bodyLarge, fontSize = bodyFontSize, lineHeight = bodyLineHeight)
                         }
                     }
                 }
