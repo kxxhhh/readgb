@@ -782,6 +782,14 @@ Android 工程已创建；当前锁定 AGP 9.0.0、Kotlin 2.4.10、Compose BOM 2
 - 该预发布包含当前 OfflineSeed、Room fallback 和原生阅读功能，不包含完整 `30,989` 条正文资产。
 - 全本同步仍在后台以单进程、5 秒最小间隔运行；本次记录时 checkpoint 为 `118/1405`，真实正文为 `381` 条。
 
+### v0.1.2 修复版 Release
+
+- 因 `v0.1.1` 同时提供 unsigned Release APK，新增并发布签名有效的设备检查版本：<https://github.com/kxxhhh/-app/releases/tag/v0.1.2>。
+- `app-inspection.apk` 使用 Android debug keystore 签名，仅用于设备安装检查；本地 `apksigner verify` 已确认 APK v2 有效。
+- Release 资产 SHA-256：`6271e57ba986075e2391425f249baddb77d516837c2219dd08969b07d3091b86`。
+- GitHub Actions 对 `5f0444d` 的 Backend 和 Android job 均通过；当前仓库 `main` 已推进至 `bf56640`。
+- 本次记录时全本同步 checkpoint 为 `129/1405`，真实 `zztj-*` 正文为 `410` 条。
+
 ## 增量修复更新：安装检查签名变体（2026-08-02）
 
 ### 安装问题分析
