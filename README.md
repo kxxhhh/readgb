@@ -143,7 +143,16 @@ PYTHONPATH=service python -m app.export_android \
   --catalog-output android/app/src/main/assets/offline_catalog.json
 ~~~
 
-导出脚本会拒绝不完整数据库，不会把部分抓取结果伪装成全本离线包。
+默认导出仍会拒绝不完整数据库，不会把部分抓取结果伪装成全本离线包。若要显式打包 checkpoint 已完成且已通过字段校验的章节快照，可使用：
+
+~~~bash
+PYTHONPATH=service python -m app.export_android \
+  --allow-partial \
+  --database service/data/dutongjian.db \
+  --checkpoint service/data/tongjian-progress.json \
+  --output android/app/src/main/assets/offline_content.ndjson.gz \
+  --catalog-output android/app/src/main/assets/offline_catalog.json
+~~~
 
 ## 🗂️ 项目结构
 
@@ -183,7 +192,7 @@ PYTHONPATH=service python -m app.export_android \
 
 - 公开目录已确认 294 卷、1,405 个纪年节点；目标结构声明内容范围为 1..30,989。
 - 全本同步是独立的长任务，当前进度和最近一次真实统计以 PROJECT_STATE.md 为准。
-- 在全本导入、字段校验和 APK 构建完成前，不把当前部分数据库或 APK 宣称为完整全本。
+- `--allow-partial` 只打包 checkpoint 已完成且字段完整的真实章节；在全本导入完成前，不把当前 APK 宣称为完整全本。
 - App 的核心阅读路径坚持离线优先；Backend 连接失败时应回退到本地内容，不因 10.0.2.2:8000 不可用而出现空壳首页。
 
 ## 🤝 贡献

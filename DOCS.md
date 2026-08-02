@@ -211,7 +211,11 @@ TongjianApiClient(
 
 - export_content(database, output, expected_count=30989) -> int：只导出数量严格匹配的 zztj-* 内容为 gzip NDJSON。
 - export_catalog(database, output, expected_volumes=294, expected_years=1405) -> dict[str, int]：只导出数量严格匹配的真实目录 JSON。
+- export_partial_content(database, output, checkpoint) -> int：只导出 checkpoint 中已完成纪年的真实 zztj-* 内容，并逐条校验正文、原文、译文和层级字段。
+- export_partial_catalog(database, output, checkpoint) -> dict[str, int]：只导出部分正文对应的卷/纪年目录，和同一次 CLI 调用中的内容快照保持一致。
 - 任一完整性校验失败都会抛出 ValueError，目标文件不会被替换。
+
+命令行默认执行严格全量导出；只有显式传入 `--allow-partial --checkpoint ...` 才允许生成阶段性 Android 资源。阶段性资源代表已完成内容快照，不代表 30,989 条全本已经完成。
 
 ### 2.5 Android ReadingRepository
 
@@ -315,7 +319,7 @@ find service/data/tongjian-cache/reigns -type f -name '*.json' | wc -l
 
 当前验证基线：
 
-- python3 -m pytest -q service/tests：18 passed。
+- python3 -m pytest -q service/tests：20 passed。
 - python3 -m compileall -q service/app：通过。
 - ./gradlew testDebugUnitTest：通过。
 - Release APK：默认 unsigned，签名属于发布环境责任。

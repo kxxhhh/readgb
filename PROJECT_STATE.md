@@ -804,3 +804,28 @@ Android 工程已创建；当前锁定 AGP 9.0.0、Kotlin 2.4.10、Compose BOM 2
 - `./gradlew clean testDebugUnitTest lintDebug assembleDebug assembleInspection assembleRelease`：通过。
 - `app-inspection.apk` 已通过 `apksigner verify`，APK v2 签名有效；SHA-256 为 `6271e57ba986075e2391425f249baddb77d516837c2219dd08969b07d3091b86`。
 - 新修复版 GitHub Release 使用 `v0.1.2`，只提供明确命名的 `app-inspection.apk`；安装检查时不要选择 unsigned Release APK。
+
+## 增量阶段更新：已完成章节验证并编入 APK（2026-08-02）
+
+### 阶段性内容审计
+
+- 已允许将当前 checkpoint 已完成内容显式编入 Android，不改变默认严格全量导出保护。
+- 导出快照时 checkpoint 为 `162/1405` 个纪年节点，生成 `529` 条真实 `zztj-*` 正文，覆盖 `6` 卷、`162` 个纪年；目录资源包含 `1` 个 section、`6` 个 volume、`162` 个 year。
+- 529 条记录的标题、正文、来源 URL、卷/纪年关联、原文和译文必填字段均完整；正文长度为 `4..1005` 字。
+- 内容中未发现“暂无”“待补”“未抓”“placeholder”“示例”“框架”“内容为空”“敬请期待”等占位模式；已确认不是只有目录或空壳框架。
+- Android 资源文件为 `android/app/src/main/assets/offline_content.ndjson.gz` 和 `offline_catalog.json`。Android 打包后实际资源条目为 `offline_content.ndjson`，APK 内读取校验仍得到 `529` 条记录和 `162` 个纪年目录。
+
+### 编译与静态验证
+
+- `PYTHONPATH=service python -m pytest -q service/tests`：`20 passed`。
+- `python3 -m compileall -q service/app`：通过；`git diff --check`：通过。
+- `./gradlew clean testDebugUnitTest lintDebug assembleDebug assembleInspection assembleRelease`：`BUILD SUCCESSFUL`。
+- Debug APK：`android/app/build/outputs/apk/debug/app-debug.apk`，SHA-256 `a1a5640e40ec8da21da577aa933a42894fd31520bda0daaa4062da42a542432f`。
+- 安装检查 APK：`android/app/build/outputs/apk/inspection/app-inspection.apk`，SHA-256 `8cb7a9439bfca0c49d57577503dc578e4d58cd1beb8a18533ca6c05d43f9bf23`；`apksigner verify` 已确认 APK v2 签名有效。
+- Debug 和 Inspection APK 均已从 APK 内部读取并核对上述 `529` 条正文和 `162` 个目录节点；Release 变体也已成功编译，但仍是 unsigned 输出。
+
+### 当前进度与边界
+
+- 记录本节时爬虫 checkpoint 已继续推进到 `164/1405`，同步进程仍以单进程、5 秒最小间隔运行；不要删除 checkpoint/cache，也不要启动并行抓取。
+- 当前 APK 是“已完成章节快照 + OfflineSeed fallback”，不是完整 `30,989` 条全本；后续每次重新导出前仍需重复字段和占位内容校验。
+- 当前环境没有模拟器/实体设备，因此无法完成 Runtime 验证；本轮只完成了资源、构建和 APK 签名的静态验证。
