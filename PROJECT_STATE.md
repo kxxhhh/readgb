@@ -839,3 +839,18 @@ Android 工程已创建；当前锁定 AGP 9.0.0、Kotlin 2.4.10、Compose BOM 2
 - 新 APK 内部资源仍核对为 `529` 条正文、`162` 个年份目录；Release 变体成功编译但仍为 unsigned，不作为设备安装包。
 - 当前爬虫 checkpoint 已推进到 `166/1405`；APK 是本次导出时的 `162` 年快照，后续抓取内容需要重新导出并重新编译才会进入 APK。
 - GitHub 预发布已创建：<https://github.com/kxxhhh/-app/releases/tag/v0.1.3>；只上传签名有效的 `app-inspection.apk`，避免用户误装 unsigned Release APK。
+
+## 增量修复更新：APK 正文导入失败（2026-08-02）
+
+### 已确认根因
+
+- APK 内实际资源条目是 `assets/offline_content.ndjson`，且 Android 打包后内容已是普通 NDJSON；源码此前固定打开 `offline_content.ndjson.gz` 并使用 `GZIPInputStream`。
+- 该资源名不匹配和格式不匹配导致导入失败；旧代码捕获异常后静默回退到 OfflineSeed/Room，所以用户能看到目录标题，但很多正文只有标题。
+- 从 APK 静态读取确认资源仍有 `529` 条记录，529/529 条的正文、原文、译文均非空；问题不在爬取数据内容。
+
+### 修复与验证
+
+- Repository 现在优先读取 Android 实际条目 `offline_content.ndjson`，兼容回退到旧 `.gz` 名称，并按 gzip magic header 自动选择解码器。
+- 导入失败不再静默吞掉：会通过 `ReadingRepository` 错误日志记录异常，同时继续保留离线 fallback。
+- 新增 `AssetContentReaderTest`，覆盖普通 NDJSON 和 gzip NDJSON 两种输入；专门测试和完整 Android 单元测试均通过。
+- 修复版版本为 `versionCode 4`、`versionName 0.1.3`；需重新安装新 APK，不能覆盖判断为旧版本的缓存结果。

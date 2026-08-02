@@ -1,6 +1,7 @@
 package com.dutongjian.app.data
 
 import android.content.Context
+import android.util.Log
 import com.dutongjian.app.data.local.ItemDao
 import com.dutongjian.app.data.local.ItemEntity
 import com.dutongjian.app.data.local.toDomain
@@ -29,7 +30,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
-import java.util.zip.GZIPInputStream
+import java.io.IOException
 import javax.inject.Inject
 
 class ReadingRepositoryImpl @Inject constructor(
@@ -159,8 +160,8 @@ class ReadingRepositoryImpl @Inject constructor(
         if (dao.fullContentCount() >= FULL_CONTENT_COUNT) return
         try {
             withContext(Dispatchers.IO) {
-                context.assets.open(FULL_CONTENT_ASSET).use { input ->
-                    GZIPInputStream(input).bufferedReader().use { reader ->
+                openBundledContentAsset().use { input ->
+                    contentAssetReader(input).use { reader ->
                         val batch = ArrayList<ItemEntity>(ASSET_BATCH_SIZE)
                         while (true) {
                             val line = reader.readLine() ?: break
@@ -175,9 +176,17 @@ class ReadingRepositoryImpl @Inject constructor(
                     }
                 }
             }
-        } catch (_: Exception) {
-            // A build without the generated asset remains usable through OfflineSeed and Room cache.
+        } catch (error: IOException) {
+            Log.e(LOG_TAG, "Offline content asset is unavailable; keeping Room fallback", error)
+        } catch (error: Exception) {
+            Log.e(LOG_TAG, "Offline content asset import failed; keeping Room fallback", error)
         }
+    }
+
+    private fun openBundledContentAsset() = try {
+        context.assets.open(CONTENT_ASSET)
+    } catch (_: IOException) {
+        context.assets.open(LEGACY_CONTENT_ASSET)
     }
 
     private suspend fun bundledCatalog(): OfflineCatalogAsset = catalogMutex.withLock {
@@ -260,10 +269,12 @@ class ReadingRepositoryImpl @Inject constructor(
     )
 }
 
-private const val FULL_CONTENT_ASSET = "offline_content.ndjson.gz"
+private const val CONTENT_ASSET = "offline_content.ndjson"
+private const val LEGACY_CONTENT_ASSET = "offline_content.ndjson.gz"
 private const val OFFLINE_CATALOG_ASSET = "offline_catalog.json"
 private const val FULL_CONTENT_COUNT = 30_989
 private const val ASSET_BATCH_SIZE = 500
+private const val LOG_TAG = "ReadingRepository"
 
 @kotlinx.serialization.Serializable
 private data class OfflineCatalogAsset(

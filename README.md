@@ -64,7 +64,7 @@ cd android
 
 输出：android/app/build/outputs/apk/debug/app-debug.apk。安装后无需启动 Backend，也无需配置远程 API。
 
-应用启动时会先显示 OfflineSeed，然后从 Room 观察本地内容；如果 APK 含有 offline_content.ndjson.gz，Repository 会按批次导入正文；如果资产不存在，则继续使用种子和已有缓存。
+应用启动时会先显示 OfflineSeed，然后从 Room 观察本地内容；如果 APK 含有打包后的 `offline_content.ndjson`，Repository 会按批次导入正文；如果资产不存在，则继续使用种子和已有缓存。导出源文件仍以 gzip NDJSON 形式保存为 `offline_content.ndjson.gz`，Android 构建时可能将其展开并规范化资源名。
 
 ### 2. 可选：启动本地 Backend
 

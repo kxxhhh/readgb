@@ -70,7 +70,7 @@ Android 依赖方向为 ui -> domain <- data：
 
 1. ReadingUiState() 默认携带 OfflineSeed，所以无网络启动不会出现空状态。
 2. ReadingRepositoryImpl.observeItems() 确保种子存在，再观察 Room。
-3. 若 APK 内含 offline_content.ndjson.gz，首次准备本地内容时按 500 条批量 upsert。
+3. 若 APK 内含打包后的 `offline_content.ndjson`，首次准备本地内容时按 500 条批量 upsert；Repository 同时兼容未被 Android 打包工具展开的 `offline_content.ndjson.gz`。
 4. 若资产缺失或导入失败，保留种子和已有 Room 缓存，不阻塞应用启动。
 5. 目录 fallback 优先读取 offline_catalog.json；资产缺失时退回 OfflineSeed 的少量目录。
 6. Retrofit 默认地址是 http://10.0.2.2:8000/，只用于本地联调；连接失败后 Repository 返回本地数据。
