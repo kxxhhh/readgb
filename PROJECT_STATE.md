@@ -781,3 +781,18 @@ Android 工程已创建；当前锁定 AGP 9.0.0、Kotlin 2.4.10、Compose BOM 2
 
 - 该预发布包含当前 OfflineSeed、Room fallback 和原生阅读功能，不包含完整 `30,989` 条正文资产。
 - 全本同步仍在后台以单进程、5 秒最小间隔运行；本次记录时 checkpoint 为 `118/1405`，真实正文为 `381` 条。
+
+## 增量修复更新：安装检查签名变体（2026-08-02）
+
+### 安装问题分析
+
+- 已验证原 `app-debug.apk` 的 APK v2 签名有效，包名为 `com.dutongjian.app`，`minSdkVersion` 为 `26`，Manifest 入口正常。
+- `app-release-unsigned.apk` 确实没有签名；设备安装器对 unsigned APK 可能只返回 Binder NPE，不能作为用户安装包。
+- 本地环境没有已连接 Android 设备，未能通过 adb 复现该设备侧安装异常。
+
+### 修复结果
+
+- 新增 `inspection` 构建变体：沿用 Release 配置，但使用 Debug keystore 签名，专门用于当前设备安装检查；正式 `release` 仍保持 unsigned，避免将测试签名误当生产签名。
+- `./gradlew clean testDebugUnitTest lintDebug assembleDebug assembleInspection assembleRelease`：通过。
+- `app-inspection.apk` 已通过 `apksigner verify`，APK v2 签名有效；SHA-256 为 `6271e57ba986075e2391425f249baddb77d516837c2219dd08969b07d3091b86`。
+- GitHub Release `v0.1.1` 后续改为提供明确命名的 `app-inspection.apk`，安装检查时不要选择 unsigned Release APK。
