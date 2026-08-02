@@ -9,14 +9,17 @@ import com.dutongjian.app.domain.model.Volume
 import com.dutongjian.app.domain.repository.ReadingRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -57,6 +60,24 @@ class ReadingViewModelTest {
         assertTrue(state.knowledge.isNotEmpty())
     }
 
+    @Test
+    fun catalogDoesNotExposeSeedVolumesWhileRealCatalogIsLoading() = runTest {
+        val gate = CompletableDeferred<List<Volume>>()
+        val realVolume = Volume("real-volume", "zizhi", "卷第一", "周纪", 1)
+        val viewModel = ReadingViewModel(FakeRepository(listOf(item("item", "正文")), emptyList(), gate))
+
+        viewModel.selectSection(com.dutongjian.app.domain.model.OfflineSeed.sections.first())
+
+        assertTrue(viewModel.state.value.isCatalogLoading)
+        assertTrue(viewModel.state.value.volumes.isEmpty())
+
+        gate.complete(listOf(realVolume))
+        advanceUntilIdle()
+
+        assertFalse(viewModel.state.value.isCatalogLoading)
+        assertEquals(listOf(realVolume), viewModel.state.value.volumes)
+    }
+
     private fun item(id: String, title: String) = ReadingItem(
         id = id,
         title = title,
@@ -72,6 +93,7 @@ class ReadingViewModelTest {
 private class FakeRepository(
     initialItems: List<ReadingItem>,
     private val searchResults: List<ReadingItem>,
+    private val volumesGate: CompletableDeferred<List<Volume>>? = null,
 ) : ReadingRepository {
     private val items = MutableStateFlow(initialItems)
 
@@ -87,7 +109,7 @@ private class FakeRepository(
 
     override suspend fun loadSections() = Result.success(emptyList<LibrarySection>())
 
-    override suspend fun loadVolumes(sectionId: String) = Result.success(emptyList<Volume>())
+    override suspend fun loadVolumes(sectionId: String) = Result.success(volumesGate?.await() ?: emptyList())
 
     override suspend fun loadYears(volumeId: String) = Result.success(emptyList<ReadingYear>())
 

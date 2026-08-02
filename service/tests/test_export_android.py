@@ -3,7 +3,13 @@ import json
 
 import pytest
 
-from app.export_android import export_catalog, export_content, export_partial_catalog, export_partial_content
+from app.export_android import (
+    export_catalog,
+    export_content,
+    export_partial_catalog,
+    export_partial_content,
+    export_partial_knowledge,
+)
 from app.models import Item, ReadingYear, Volume
 from app.store import ContentStore
 
@@ -136,3 +142,46 @@ def test_partial_export_only_includes_completed_checkpoint_years(tmp_path):
     exported_catalog = json.loads(catalog_output.read_text(encoding="utf-8"))
     assert [year["id"] for year in exported_catalog["years"]] == ["completed-year"]
     assert [volume["id"] for volume in exported_catalog["volumes"]] == ["partial-volume"]
+
+
+def test_partial_knowledge_export_extracts_completed_relations(tmp_path):
+    database = tmp_path / "knowledge.db"
+    store = ContentStore(database)
+    store.upsert_items(
+        [
+            Item(
+                id="zztj-completed",
+                title="三家分晋",
+                category="资治通鉴",
+                dynasty="周纪",
+                summary="已完成摘要",
+                content="已完成正文",
+                source_url="https://www.dutongjian.com/api/reign?reign_tongjian_id=completed-year",
+                updated_at="2026-08-02",
+                volume_id="partial-volume",
+                year_id="completed-year",
+                original="已完成原文",
+                translation="已完成译文",
+                notes=json.dumps(
+                    {
+                        "ExtRef_Children_people": [{"people_name_jianti_auto": "魏斯"}],
+                        "ExtRef_Children_places": [{"place_name_jianti_auto": "晋"}],
+                        "ExtRef_Children_officials": [{"official_name": "大将军", "official_note": "汉代官职"}],
+                        "ExtRef_Children_topics": [{"title": "三家分晋"}],
+                    },
+                    ensure_ascii=False,
+                ),
+            )
+        ]
+    )
+    checkpoint = tmp_path / "progress.json"
+    checkpoint.write_text(json.dumps({"completed_reign_ids": ["completed-year"]}), encoding="utf-8")
+    output = tmp_path / "offline_knowledge.json"
+
+    assert export_partial_knowledge(database, output, checkpoint) == {"entries": 4}
+    entries = json.loads(output.read_text(encoding="utf-8"))
+
+    assert {entry["title"] for entry in entries} == {"魏斯", "晋", "大将军", "三家分晋"}
+    official = next(entry for entry in entries if entry["title"] == "大将军")
+    assert official["category"] == "官职"
+    assert "汉代官职" in official["content"]
