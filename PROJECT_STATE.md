@@ -713,3 +713,31 @@ Android 工程已创建；当前锁定 AGP 9.0.0、Kotlin 2.4.10、Compose BOM 2
 - 全本同步进程仍在运行，checkpoint 当前为 `82/1405`，缓存 `82` 个纪年 JSON。
 - SQLite 当前查询到 `266` 条正文、`84` 个纪年关联，其中额外记录来自尚未完成前保留的演示种子；同步完成后才执行演示清理。
 - 当前没有生成 Android 全量资产，也没有把部分数据库或 APK 宣称为完整全本。
+
+## 增量验证更新：远端整合、Android 构建与同步续跑（2026-08-02）
+
+### Git 状态
+
+- 已执行 `git add -A`；工作树原本没有未提交改动，最新本地文档提交为 `32b7b84`。
+- 远端 `main` 当时包含删除 `README.md` 和 `DOCS.md` 的两个提交；已通过普通 merge 保留指南要求的两份文档，合并提交为 `44b093c`。
+- `44b093c` 已推送到 `origin/main`，当前本地与远端分支一致；没有使用 force push 或改写共享历史。
+
+### 本轮验证
+
+- `PYTHONPATH=service python -m pytest -q service/tests`：`18 passed`。
+- `python3 -m compileall -q service/app`：通过。
+- `JAVA_HOME=/usr/local/sdkman/candidates/java/21.0.10-ms ./gradlew clean testDebugUnitTest lintDebug assembleDebug`：通过。
+- Debug APK 已生成于 `android/app/build/outputs/apk/debug/app-debug.apk`；构建仅有 `libandroidx.graphics.path.so` 无法 strip 的已知非阻塞提示。
+- `git diff --check`：通过。
+
+### 实际同步进度
+
+- 已用独立 session 重新启动单进程公开 API 同步，参数保持 `--allow-public-api`、`--min-interval 5`、磁盘 cache 和原子 checkpoint。
+- 本次记录时 checkpoint 为 `98/1405`，缓存为 `98` 个纪年 JSON，真实 `zztj-*` 正文为 `318` 条；SQLite 总正文为 `323` 条，其中 `5` 条为同步完成前保留的演示种子。
+- 当前同步进程仍在运行；遇到 HTTP 429 时继续保留 checkpoint/cache 并按 Retry-After 退避，不改为并发请求。
+
+### 当前问题与下一步
+
+- 全本尚未完成，不能执行完整 Android 内容资产导出，也不能将当前 Debug APK 宣称为包含 `30989` 条正文的离线版本。
+- 继续监控同步至 `1405/1405`，随后校验正文 ID、字段完整性、卷/纪年数量和演示数据清理结果。
+- 完整校验通过后生成 `offline_content.ndjson.gz` 与 `offline_catalog.json`，再运行 Android Debug/Release 全量验证并记录 APK SHA-256。
