@@ -741,3 +741,9 @@ Android 工程已创建；当前锁定 AGP 9.0.0、Kotlin 2.4.10、Compose BOM 2
 - 全本尚未完成，不能执行完整 Android 内容资产导出，也不能将当前 Debug APK 宣称为包含 `30989` 条正文的离线版本。
 - 继续监控同步至 `1405/1405`，随后校验正文 ID、字段完整性、卷/纪年数量和演示数据清理结果。
 - 完整校验通过后生成 `offline_content.ndjson.gz` 与 `offline_catalog.json`，再运行 Android Debug/Release 全量验证并记录 APK SHA-256。
+
+## 增量验证更新：Release 变体通过（2026-08-02）
+
+- `JAVA_HOME=/usr/local/sdkman/candidates/java/21.0.10-ms ./gradlew testDebugUnitTest assembleRelease`：通过；Release 继续显式关闭 R8 和资源收缩。
+- unsigned Release APK 位于 `android/app/build/outputs/apk/release/app-release-unsigned.apk`，SHA-256 为 `2d0dbced56b583320a6b0c04cca8e7fc5a4deecaa466eb505b165742be3bb883`。
+- 本次观察时同步 checkpoint 已推进到 `100/1405`，真实 `zztj-*` 正文为 `323` 条；同步进程仍在独立 session 中运行。
