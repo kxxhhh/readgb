@@ -22,18 +22,28 @@ else
 fi
 
 echo "[2/6] 执行 Gradle 编译 Inspection/Debug 变体..."
+BUILD_VARIANT="inspection"
 if [ -f "./gradlew" ]; then
-    ./gradlew assembleInspection || ./gradlew assembleDebug
+    if ! ./gradlew assembleInspection; then
+        BUILD_VARIANT="debug"
+        ./gradlew assembleDebug
+    fi
 elif [ -f "android/gradlew" ]; then
-    cd android && ./gradlew assembleInspection || ./gradlew assembleDebug && cd ..
+    if ! (cd android && ./gradlew assembleInspection); then
+        BUILD_VARIANT="debug"
+        (cd android && ./gradlew assembleDebug)
+    fi
 else
-    gradle assembleInspection || gradle assembleDebug
+    if ! gradle assembleInspection; then
+        BUILD_VARIANT="debug"
+        gradle assembleDebug
+    fi
 fi
 
 # Prefer the variant compiled by this script; do not accidentally install a stale Debug APK.
-if [ -f "./android/app/build/outputs/apk/inspection/app-inspection.apk" ]; then
+if [ "$BUILD_VARIANT" = "inspection" ] && [ -f "./android/app/build/outputs/apk/inspection/app-inspection.apk" ]; then
     APK_PATH="./android/app/build/outputs/apk/inspection/app-inspection.apk"
-elif [ -f "./android/app/build/outputs/apk/debug/app-debug.apk" ]; then
+elif [ "$BUILD_VARIANT" = "debug" ] && [ -f "./android/app/build/outputs/apk/debug/app-debug.apk" ]; then
     APK_PATH="./android/app/build/outputs/apk/debug/app-debug.apk"
 else
     APK_PATH=$(find . -name "*.apk" | grep -E "inspection|debug" | head -n 1)

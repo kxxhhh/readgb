@@ -1054,3 +1054,32 @@ Android 工程已创建；当前锁定 AGP 9.0.0、Kotlin 2.4.10、Compose BOM 2
 ### 当前边界
 
 - 当前没有实体 Android 设备，无法完成真实扬声器听感和 Edge-TTS 网络可用性验证；安装后若 Edge 仍返回 403，应使用 Sherpa-onnx 离线引擎或提供可用网络环境。
+
+## 内容恢复纠正（2026-08-02）
+
+- 用户确认需要以爬取资产为准，撤销条目标号清洗及任何简繁替换加工；`ReadingRepositoryImpl` 现在原样导入 `content`、`original` 和 `translation`。
+- 离线资产版本更新为 `2026-08-02-329-raw-crawled-1`，已有 Room 数据会重导入原始抓取字段。正文中出现的数字前缀将按爬取文本保留，不再擅自判断或删除。
+- 已重新执行 Debug/Inspection 编译和无头模拟器闭环，DOM 确认正文恢复为抓取字段，`5烏孫...` 按原始资产保留；详情顶部标题已统一为“原文”。
+
+## 本轮交互与朗读修复（2026-08-02）
+
+### 已完成
+
+- 默认朗读引擎切回 Android 本地 `TextToSpeech`，通过 SharedPreferences 一次性迁移旧的 Sherpa 默认值；设置页仍保留 Edge-TTS 和 Sherpa-onnx 手动切换项。
+- 空选区不再生成覆盖全文的划线；正文中的已有划线可以点击并确认删除，书架笔记列表继续支持删除。
+- 增加标签页按前进/后退方向的横向淡入淡出转场；详情页增加左边缘右滑返回，跟随手指平移并以弹簧动画完成退出，避免抢占正文滚动和横向控件；朗读悬浮球增加展开/收起的淡入、缩放和位移动画。
+- 详情正文唯一标题改为“原文”，抓取资产的原始数字前缀不再被导入层擅自清洗。
+- 修正 `run_codex_autodev.sh` 的变体回退逻辑，避免 Inspection 构建失败后误复制旧 Inspection APK。
+
+### 验证结果
+
+- `./gradlew :app:testDebugUnitTest :app:assembleDebug`：`BUILD SUCCESSFUL`。
+- `./gradlew :app:connectedDebugAndroidTest`：`BUILD SUCCESSFUL`，模拟器上的 `TTSEngineSelfTest` 通过。
+- `./run_codex_autodev.sh`：Inspection 编译成功、安装返回 `Success`，首页/详情/滚动截图、DOM 和 `crash.log` 均生成；`crash.log` 为 `No Fatal, AndroidRuntime, or NullPointer errors detected.`。
+- 最终 APK [app-autodev.apk](/workspaces/-app/build/outputs/app-autodev.apk)：`118,539,690` bytes，SHA-256 `96b9641002f804744bcc0e042cb9263e7248e553852be805bdca5f0d7bc701fe`，版本 `versionCode 9 / versionName 0.1.8`，APK v2 签名验证通过。
+- 模拟器手工检查：详情左边缘右滑返回首页成功；设置页显示默认 Android 本地 TTS；点击正文朗读后出现“重新朗读/暂停”和朗读悬浮球。当前环境无实体扬声器，以上是系统 TTS 调度和界面状态验证，不等同于实际听感验证。
+
+### 当前边界
+
+- Sherpa-onnx 和 Edge-TTS 仍可由设置手动选择，但本轮默认使用 Android 本地 TTS；Edge-TTS 是否可用取决于网络端点，Sherpa 听感取决于模型和设备音频输出。
+- 当前没有实体 Android 设备，无法完成真实扬声器音量、音色和硬件兼容性验证。

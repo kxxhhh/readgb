@@ -11,6 +11,9 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.togetherWith
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
@@ -78,6 +81,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -239,6 +245,7 @@ fun DutongjianApp(
                     onResumeTts = onResumeTts,
                     onStopTts = onStopTts,
                     onSaveNote = onSaveNote,
+                    onDeleteNote = onDeleteNote,
                 )
             }
             targetKnowledge != null -> {
@@ -305,7 +312,18 @@ fun DutongjianApp(
                 },
                 ) { padding ->
                     Column(modifier = Modifier.padding(padding).fillMaxSize()) {
-                        when (tab) {
+                        AnimatedContent(
+                            targetState = tab,
+                            transitionSpec = {
+                                if (targetState.ordinal >= initialState.ordinal) {
+                                    (slideInHorizontally { it / 5 } + fadeIn()) togetherWith (slideOutHorizontally { -it / 5 } + fadeOut())
+                                } else {
+                                    (slideInHorizontally { -it / 5 } + fadeIn()) togetherWith (slideOutHorizontally { it / 5 } + fadeOut())
+                                }
+                            },
+                            label = "tab-transition",
+                        ) { selectedTab ->
+                        when (selectedTab) {
                                 AppTab.HOME -> HomeScreen(
                                     state = state,
                                     onSearch = onSearch,
@@ -341,6 +359,7 @@ fun DutongjianApp(
                                     onOpenNote = { item, note -> onOpen(item); selectedItem = item; selectedNoteId = note.id },
                                     onDeleteNote = onDeleteNote,
                                 )
+                        }
                         }
                     }
                 }
@@ -769,6 +788,7 @@ private fun DetailScreen(
     onResumeTts: () -> Unit,
     onStopTts: () -> Unit,
     onSaveNote: (Note) -> Unit,
+    onDeleteNote: (Note) -> Unit,
 ) {
     var mode by rememberSaveable { mutableStateOf(ReadingMode.PARALLEL) }
     var fontPercent by rememberSaveable(item.id) { androidx.compose.runtime.mutableIntStateOf(100) }
@@ -779,6 +799,20 @@ private fun DetailScreen(
     var selectedPlace by remember { mutableStateOf<HistoricalPlace?>(null) }
     var showMap by rememberSaveable(item.id) { mutableStateOf(false) }
     var showNoteEditor by rememberSaveable(item.id) { mutableStateOf(false) }
+    var notePendingDeletion by remember { mutableStateOf<Note?>(null) }
+    var swipeOffset by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
+    var swipeBack by rememberSaveable(item.id) { mutableStateOf(false) }
+    val animatedSwipeOffset by animateFloatAsState(
+        targetValue = if (swipeBack) 360f else swipeOffset,
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        label = "detail-swipe",
+    )
+    LaunchedEffect(swipeBack) {
+        if (swipeBack) {
+            delay(180)
+            onBack()
+        }
+    }
     val context = LocalContext.current
     val fontScale = fontPercent / 100f
     val original = item.original.ifBlank { item.content }
@@ -807,7 +841,34 @@ private fun DetailScreen(
         },
     ) { padding ->
         LazyColumn(
-            modifier = Modifier.padding(padding).fillMaxSize(),
+            modifier = Modifier
+                .padding(padding)
+                .fillMaxSize()
+                .graphicsLayer {
+                    translationX = animatedSwipeOffset
+                    alpha = (1f - (animatedSwipeOffset / 900f)).coerceIn(.72f, 1f)
+                }
+                .pointerInput(item.id) {
+                    var startedAtEdge = false
+                    detectHorizontalDragGestures(
+                        onDragStart = { startPoint ->
+                            startedAtEdge = startPoint.x <= 72.dp.toPx()
+                        },
+                        onHorizontalDrag = { _, dragAmount ->
+                            if (startedAtEdge && !swipeBack && dragAmount > 0f) {
+                                swipeOffset = (swipeOffset + dragAmount).coerceAtMost(360f)
+                            }
+                        },
+                        onDragEnd = {
+                            if (startedAtEdge && swipeOffset > 120f) swipeBack = true else swipeOffset = 0f
+                            startedAtEdge = false
+                        },
+                        onDragCancel = {
+                            startedAtEdge = false
+                            swipeOffset = 0f
+                        },
+                    )
+                },
             contentPadding = PaddingValues(horizontal = 24.dp, vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(18.dp),
         ) {
@@ -817,7 +878,7 @@ private fun DetailScreen(
                 Text(item.title, style = MaterialTheme.typography.headlineMedium, fontSize = (28f * fontScale).sp, fontWeight = FontWeight.Bold)
             }
             item {
-                Text("导语", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text("原文", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(6.dp))
                 SelectionContainer {
                     ReadingAnnotatedText(
@@ -829,6 +890,7 @@ private fun DetailScreen(
                         lineHeight = bodyLineHeight,
                         highlightedSavedNoteId = highlightedSavedNoteId,
                         onPlaceClick = { place -> selectedPlace = place },
+                        onSavedNoteClick = { note -> notePendingDeletion = note },
                     )
                 }
             }
@@ -1054,6 +1116,20 @@ private fun DetailScreen(
             onSave = onSaveNote,
         )
     }
+    notePendingDeletion?.let { note ->
+        AlertDialog(
+            onDismissRequest = { notePendingDeletion = null },
+            title = { Text("删除划线？") },
+            text = { Text("将删除“${note.selectedText.take(80)}”及其笔记。") },
+            confirmButton = {
+                TextButton(onClick = {
+                    onDeleteNote(note)
+                    notePendingDeletion = null
+                }) { Text("删除") }
+            },
+            dismissButton = { TextButton(onClick = { notePendingDeletion = null }) { Text("取消") } },
+        )
+    }
 }
 
 @Composable
@@ -1107,7 +1183,7 @@ private fun AiSettingsScreen(
                         )
                     }
                 }
-                Text("Sherpa 模型与 JNI 已随应用打包；Edge-TTS 需要网络，连接失败会直接提示错误，不会静默切换系统语音。", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 6.dp))
+                Text("默认使用 Android 本地 TTS；Edge-TTS 需要网络，Sherpa-onnx 适合需要固定离线音色的场景。引擎切换后立即生效。", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 6.dp))
             }
             item {
                 OutlinedTextField(

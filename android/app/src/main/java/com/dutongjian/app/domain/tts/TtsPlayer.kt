@@ -5,7 +5,7 @@ import com.dutongjian.app.domain.model.TtsEngineType
 import kotlinx.coroutines.flow.StateFlow
 
 data class TtsPlaybackState(
-    val engine: TtsEngineType = TtsEngineType.SHERPA_ONNX,
+    val engine: TtsEngineType = TtsEngineType.LOCAL,
     val isPlaying: Boolean = false,
     val isPaused: Boolean = false,
     val currentItemId: String? = null,

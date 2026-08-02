@@ -100,6 +100,7 @@ class TtsController @Inject constructor(@ApplicationContext private val context:
     }
 
     private fun createEngine(type: TtsEngineType): TTSEngine = when (type) {
+        TtsEngineType.LOCAL -> LocalTtsEngine(context)
         TtsEngineType.EDGE -> EdgeTTSEngine(context)
         TtsEngineType.SHERPA_ONNX -> SherpaOnnxEngine(context)
     }

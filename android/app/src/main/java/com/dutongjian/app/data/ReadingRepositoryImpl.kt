@@ -281,13 +281,13 @@ class ReadingRepositoryImpl @Inject constructor(
         category = category,
         dynasty = dynasty,
         summary = summary,
-        content = normalizeLeadingEntryNumber(title, content),
+        content = content,
         sourceUrl = source_url,
         updatedAt = updated_at,
         section = section,
         volumeId = volume_id,
         yearId = year_id,
-        original = normalizeLeadingEntryNumber(title, original, allowAlternateScript = true),
+        original = original,
         translation = translation,
         notes = notes,
         tags = tags.joinToString("|"),
@@ -309,13 +309,13 @@ class ReadingRepositoryImpl @Inject constructor(
         category = category,
         dynasty = dynasty,
         summary = summary,
-        content = normalizeLeadingEntryNumber(title, content),
+        content = content,
         sourceUrl = sourceUrl,
         updatedAt = updatedAt,
         section = section,
         volumeId = volumeId,
         yearId = yearId,
-        original = normalizeLeadingEntryNumber(title, original, allowAlternateScript = true),
+        original = original,
         translation = translation,
         notes = notes,
         tags = tags.joinToString("|"),
@@ -324,20 +324,12 @@ class ReadingRepositoryImpl @Inject constructor(
     )
 }
 
-internal fun normalizeLeadingEntryNumber(title: String, value: String, allowAlternateScript: Boolean = false): String {
-    val match = Regex("^\\d+(?=[\\u3400-\\u9fff])").find(value) ?: return value
-    val withoutNumber = value.removeRange(match.range)
-    val matchesTitle = title.isNotBlank() && withoutNumber.startsWith(title)
-    val startsWithChinese = withoutNumber.firstOrNull()?.let { it in '\u3400'..'\u9fff' } == true
-    return if (matchesTitle || (allowAlternateScript && startsWithChinese)) withoutNumber else value
-}
-
 private const val CONTENT_ASSET = "offline_content.ndjson"
 private const val LEGACY_CONTENT_ASSET = "offline_content.ndjson.gz"
 private const val OFFLINE_CATALOG_ASSET = "offline_catalog.json"
 private const val OFFLINE_KNOWLEDGE_ASSET = "offline_knowledge.json"
 private const val OFFLINE_CONTENT_RECORD_COUNT = 2_107
-private const val OFFLINE_ASSET_VERSION = "2026-08-02-329-content-clean-2"
+private const val OFFLINE_ASSET_VERSION = "2026-08-02-329-raw-crawled-1"
 private const val OFFLINE_ASSET_PREFERENCES = "offline_assets"
 private const val OFFLINE_ASSET_VERSION_KEY = "content_version"
 private const val ASSET_BATCH_SIZE = 500

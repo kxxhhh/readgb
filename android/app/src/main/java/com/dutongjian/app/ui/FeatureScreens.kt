@@ -21,6 +21,13 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.text.ClickableText
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -50,6 +57,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLayoutResult
@@ -235,6 +243,8 @@ internal fun NoteEditorDialog(
     var color by rememberSaveable(initial?.id) { mutableStateOf(initial?.color ?: "#F4C95D") }
     val context = LocalContext.current
     val quoteStart = quote.trim().let { value -> articleText.indexOf(value).takeIf { value.isNotBlank() && it >= 0 } }
+    val normalizedQuote = quote.trim()
+    val saveEnabled = normalizedQuote.isNotBlank() && (quoteStart != null || initial != null)
     val colors = listOf("#F4C95D", "#A8DADC", "#F4A6A6", "#CDB4DB")
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -267,11 +277,10 @@ internal fun NoteEditorDialog(
         },
         confirmButton = {
             TextButton(onClick = {
-                val normalizedQuote = quote.trim()
-                val resolvedStart = initial?.startIndex ?: quoteStart ?: startIndex
-                onSave(Note(initial?.id ?: UUID.randomUUID().toString(), articleId, resolvedStart, initial?.endIndex ?: resolvedStart + normalizedQuote.length, normalizedQuote, memo.trim(), color, initial?.createdAt ?: System.currentTimeMillis()))
+                val resolvedStart = quoteStart ?: initial?.startIndex ?: startIndex
+                onSave(Note(initial?.id ?: UUID.randomUUID().toString(), articleId, resolvedStart, resolvedStart + normalizedQuote.length, normalizedQuote, memo.trim(), color, initial?.createdAt ?: System.currentTimeMillis()))
                 onDismiss()
-            }, enabled = quoteStart != null || initial != null) { Text("保存") }
+            }, enabled = saveEnabled) { Text("保存") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } },
     )
@@ -358,6 +367,7 @@ internal fun ReadingAnnotatedText(
     highlightedNotePosition: Int? = null,
     onPlaceClick: (HistoricalPlace) -> Unit,
     onHistoricalNoteClick: (ReadableHistoricalNote) -> Unit = {},
+    onSavedNoteClick: (Note) -> Unit = {},
 ) {
     var layoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
     val annotated = remember(text, places, historicalNotes, savedNotes, highlightedSavedNoteId, highlightedNotePosition) {
@@ -401,10 +411,28 @@ internal fun ReadingAnnotatedText(
             }
             annotated.getStringAnnotations("historical-note", offset, offset).firstOrNull()?.let { annotation ->
                 historicalNotes.firstOrNull { it.position.toString() == annotation.item }?.let(onHistoricalNoteClick)
+                return@ClickableText
+            }
+            annotated.getStringAnnotations("saved-note", offset, offset).firstOrNull()?.let { annotation ->
+                savedNotes.firstOrNull { it.id == annotation.item }?.let(onSavedNoteClick)
             }
         },
     )
 }
+
+internal fun noteHighlightRanges(text: String, savedNotes: List<Note>): List<IntRange> = savedNotes
+    .filter { it.selectedText.isNotBlank() }
+    .flatMap { note ->
+        buildList {
+            var cursor = note.startIndex.coerceIn(0, text.length)
+            while (cursor < text.length) {
+                val found = text.indexOf(note.selectedText, cursor)
+                if (found < 0) break
+                add(found until (found + note.selectedText.length))
+                cursor = found + note.selectedText.length
+            }
+        }
+    }
 
 private data class ReadingMark(val start: Int, val end: Int, val type: String, val id: String, val style: SpanStyle)
 
@@ -429,6 +457,7 @@ private fun buildReadingAnnotatedString(
         }
     }
     savedNotes.forEach { note ->
+        if (note.selectedText.isBlank()) return@forEach
         var cursor = note.startIndex.coerceIn(0, text.length)
         while (cursor < text.length) {
             val found = text.indexOf(note.selectedText, cursor)
@@ -504,9 +533,18 @@ internal fun FloatingTtsBall(
     modifier: Modifier = Modifier,
 ) {
     var expanded by rememberSaveable { mutableStateOf(false) }
+    val ballScale by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = if (expanded) 0.94f else 1f,
+        animationSpec = androidx.compose.animation.core.spring(stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow),
+        label = "tts-ball-scale",
+    )
     Box(modifier = modifier) {
         Column(horizontalAlignment = Alignment.End) {
-            if (expanded) {
+            AnimatedVisibility(
+                visible = expanded,
+                enter = fadeIn() + scaleIn(initialScale = 0.92f) + slideInVertically { it / 4 },
+                exit = fadeOut() + scaleOut(targetScale = 0.92f) + slideOutVertically { it / 4 },
+            ) {
                 Surface(
                     modifier = Modifier.width(220.dp).padding(bottom = 8.dp),
                     shape = RoundedCornerShape(14.dp),
@@ -525,7 +563,13 @@ internal fun FloatingTtsBall(
                 }
             }
             Surface(
-                modifier = Modifier.size(58.dp).clickable { expanded = !expanded },
+                modifier = Modifier
+                    .size(58.dp)
+                    .graphicsLayer {
+                        scaleX = ballScale
+                        scaleY = ballScale
+                    }
+                    .clickable { expanded = !expanded },
                 shape = androidx.compose.foundation.shape.CircleShape,
                 tonalElevation = 8.dp,
                 color = MaterialTheme.colorScheme.primary,

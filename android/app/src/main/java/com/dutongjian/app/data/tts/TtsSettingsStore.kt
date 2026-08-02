@@ -6,13 +6,24 @@ import com.dutongjian.app.domain.model.TtsEngineType
 class TtsSettingsStore(context: Context) {
     private val preferences = context.getSharedPreferences("tts_settings", Context.MODE_PRIVATE)
 
-    fun read(): TtsEngineType = runCatching {
-        TtsEngineType.valueOf(preferences.getString(KEY_ENGINE, TtsEngineType.SHERPA_ONNX.name).orEmpty())
-    }.getOrDefault(TtsEngineType.SHERPA_ONNX)
-
-    fun write(engine: TtsEngineType) {
-        preferences.edit().putString(KEY_ENGINE, engine.name).apply()
+    fun read(): TtsEngineType {
+        if (!preferences.getBoolean(KEY_DEFAULT_MIGRATED, false)) {
+            preferences.edit()
+                .putString(KEY_ENGINE, TtsEngineType.LOCAL.name)
+                .putBoolean(KEY_DEFAULT_MIGRATED, true)
+                .apply()
+        }
+        return runCatching {
+            TtsEngineType.valueOf(preferences.getString(KEY_ENGINE, TtsEngineType.LOCAL.name).orEmpty())
+        }.getOrDefault(TtsEngineType.LOCAL)
     }
 
-    private companion object { const val KEY_ENGINE = "engine" }
+    fun write(engine: TtsEngineType) {
+        preferences.edit().putString(KEY_ENGINE, engine.name).putBoolean(KEY_DEFAULT_MIGRATED, true).apply()
+    }
+
+    private companion object {
+        const val KEY_ENGINE = "engine"
+        const val KEY_DEFAULT_MIGRATED = "default_migrated"
+    }
 }
