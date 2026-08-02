@@ -600,3 +600,23 @@ Android 工程已创建；当前锁定 AGP 9.0.0、Kotlin 2.4.10、Compose BOM 2
 
 - 本轮变更已完成验证，下一步创建本地 Git checkpoint commit。
 - 不执行远端 push。
+
+## 增量交付更新：v0.1.0 APK Release 已发布（2026-08-02）
+
+### Release 结果
+
+- 已使用 `gh release create v0.1.0 --target main` 创建 GitHub Release。
+- 已使用 `gh release upload v0.1.0` 上传两个 APK 附件。
+- Release 地址：`https://github.com/kxxhhh/-app/releases/tag/v0.1.0`。
+- `app-debug.apk`：19,643,208 bytes；SHA-256：`9e7ef419c043d31081c475364fe46927645fd8a66205427f167b97ac64ec377b`。
+- `app-release-unsigned.apk`：12,940,054 bytes；SHA-256：`c181c1e0d750f599ce428813dd9c33498c9ade7e1fc34aa4ac945dfd7ce74f31`。
+
+### CI 状态
+
+- GitHub Actions run `30728072092` 的 backend job 已通过。
+- Android job 长时间停留在 `./gradlew testDebugUnitTest lintDebug assembleDebug assembleRelease`，截至本记录仍为 `in_progress` 且没有新增日志；未取消远端运行。
+- 本地 JDK 21 已独立通过同一组测试、lint 和 Debug/Release 构建，因此 Release 资产基于本地已验证产物发布；远端 CI 后续结论仍需关注。
+
+### 当前提交状态
+
+- 本节变更待按默认流程提交并 push 到 `main`。
