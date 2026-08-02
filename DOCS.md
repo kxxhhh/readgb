@@ -71,10 +71,11 @@ Android 依赖方向为 ui -> domain <- data：
 1. ReadingUiState() 默认携带 OfflineSeed，所以无网络启动不会出现空状态。
 2. ReadingRepositoryImpl.observeItems() 确保种子存在，再观察 Room。
 3. 若 APK 内含打包后的 `offline_content.ndjson`，首次准备本地内容时按 500 条批量 upsert；Repository 同时兼容未被 Android 打包工具展开的 `offline_content.ndjson.gz`。
-4. 若资产缺失或导入失败，保留种子和已有 Room 缓存，不阻塞应用启动。
-5. 目录 fallback 优先读取 offline_catalog.json；资产缺失时退回 OfflineSeed 的少量目录。
-6. Retrofit 默认地址是 http://10.0.2.2:8000/，只用于本地联调；连接失败后 Repository 返回本地数据。
-7. source_url 是内容来源字段，不代表 App 运行时会访问目标网站。
+4. 若 APK 内含 `offline_knowledge.json`，百科 fallback 会读取阶段性真实关联条目；资产缺失时才回退到 OfflineSeed。
+5. 若资产缺失或导入失败，保留种子和已有 Room 缓存，不阻塞应用启动。
+6. 目录 fallback 优先读取 offline_catalog.json；资产缺失时退回 OfflineSeed 的少量目录。
+7. Retrofit 默认地址是 http://10.0.2.2:8000/，只用于本地联调；连接失败后 Repository 返回本地数据。
+8. source_url 是内容来源字段，不代表 App 运行时会访问目标网站。
 
 当前 Android 网络适配仍保留 INTERNET 权限和 cleartext 本地联调配置。产品离线契约依靠“本地数据优先 + 普通网络异常 fallback”保证；若未来要从权限层面完全移除网络能力，必须同步删除 Retrofit 路径、更新 Manifest 并增加断网设备测试。
 
@@ -213,6 +214,7 @@ TongjianApiClient(
 - export_catalog(database, output, expected_volumes=294, expected_years=1405) -> dict[str, int]：只导出数量严格匹配的真实目录 JSON。
 - export_partial_content(database, output, checkpoint) -> int：只导出 checkpoint 中已完成纪年的真实 zztj-* 内容，并逐条校验正文、原文、译文和层级字段。
 - export_partial_catalog(database, output, checkpoint) -> dict[str, int]：只导出部分正文对应的卷/纪年目录，和同一次 CLI 调用中的内容快照保持一致。
+- export_partial_knowledge(database, output, checkpoint) -> dict[str, int]：从已完成正文的真实关系字段生成阶段性百科 JSON。
 - 任一完整性校验失败都会抛出 ValueError，目标文件不会被替换。
 
 命令行默认执行严格全量导出；只有显式传入 `--allow-partial --checkpoint ...` 才允许生成阶段性 Android 资源。阶段性资源代表已完成内容快照，不代表 30,989 条全本已经完成。

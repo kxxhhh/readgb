@@ -856,3 +856,11 @@ Android 工程已创建；当前锁定 AGP 9.0.0、Kotlin 2.4.10、Compose BOM 2
 - 修复版版本为 `versionCode 4`、`versionName 0.1.3`；需重新安装新 APK，不能覆盖判断为旧版本的缓存结果。
 - 修复版 GitHub 预发布已创建：<https://github.com/kxxhhh/-app/releases/tag/v0.1.4>；`app-inspection.apk` SHA-256 为 `36783b130bd1cff58a6ba2ca779e20198653e1fac7fbf673f487053c256ee4ab`。
 - 修复版执行 `./gradlew clean testDebugUnitTest lintDebug assembleDebug assembleInspection assembleRelease`：`BUILD SUCCESSFUL`；当前环境无模拟器/实体设备，仍未进行 Runtime 安装验证。
+
+## 增量阶段更新：目录加载竞态与离线百科资产（2026-08-02）
+
+- 修复目录加载期间先显示 OfflineSeed 两卷/两年的竞态；请求未完成时现在显示加载状态，不再允许用户进入过时样例目录。
+- 新增 `offline_knowledge.json` 阶段性资产，从已完成正文的真实人物、地点、官职、主题和决策关联中去重生成百科条目；不再只依赖四条 OfflineSeed。
+- 本次资源快照包含 `1601` 条正文、`20` 卷、`271` 个纪年和 `3643` 条百科条目；正文、原文、译文及百科摘要/正文均非空。
+- 百科分类统计：人物 `1820`、地点 `915`、官职 `580`、决策 `250`、主题 `78`。这些是已抓内容的阶段性关联索引，不是完整百科全量。
+- 新版本为 `versionCode 5`、`versionName 0.1.4`；后续发布使用 `v0.1.5`，旧 `v0.1.4` 仍只有正文资产。
