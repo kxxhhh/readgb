@@ -620,3 +620,27 @@ Android 工程已创建；当前锁定 AGP 9.0.0、Kotlin 2.4.10、Compose BOM 2
 ### 当前提交状态
 
 - 本节变更待按默认流程提交并 push 到 `main`。
+
+## 增量进度更新：离线优先契约 checkpoint 与站点复查（2026-08-02）
+
+### 已完成
+
+- 已按离线使用要求先创建并 push checkpoint：`91280c7 test(android): define offline content contract`。
+- 已新增 Android 离线种子模型 `OfflineSeed.kt`，准备承载阅读条目、目录层级和百科初始数据。
+- 已新增离线内容回归测试契约：初始 UI 状态应包含阅读条目、目录和百科数据；该测试当前处于 RED，表示生产代码尚未接入离线种子。
+- 已确认目标站点当前可解析：`www.dutongjian.com` DNS 指向 `120.55.124.123`，首页和前端静态资源可以读取。
+- 已确认主站是 Vite/SPA：首页入口引用 `/assets/index-9a984a99.js` 和 `/assets/index-1b0be633.css`，正文由前端脚本渲染。
+
+### 当前问题
+
+- 已发布的 `v0.1.0` APK 仍是网络优先版本，默认请求 `10.0.2.2:8000`；这只适用于启动了本地服务的模拟器，真机和未启动服务会出现连接失败。
+- `robots.txt`、`sitemap.xml` 和 `sitemap_index.xml` 在主站返回前端入口 HTML，不是标准 robots/sitemap 文档；`wiki.dutongjian.com/robots.txt` 也返回站点的未找到页面。
+- 目前尚未开始批量抓取或把演示种子宣称为全本；必须先从公开前端 bundle、公开 XHR/API 和真实阅读路由确认数据入口、访问边界和分页规则。
+- 全本离线内容尚未进入 APK；当前离线 checkpoint 只定义了数据模型和失败测试，不能作为可用离线版本发布。
+
+### 下一步执行
+
+1. 分析主站和百科公开 JavaScript bundle，定位公开阅读目录、条目详情、分页和数据请求。
+2. 在确认 robots/公开权限边界后，实现可恢复、限速、缓存、去重和断点续传的全本同步器。
+3. 将同步结果导入预置 SQLite/Room 数据库，接入 Android 启动时离线读取和用户主动同步。
+4. 以真实数据规模、解析失败数、重复数和测试结果为依据持续更新本文件。
