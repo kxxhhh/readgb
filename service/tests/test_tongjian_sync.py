@@ -1,7 +1,11 @@
 import json
+from email.message import Message
+from urllib.error import HTTPError
+
+import pytest
 
 from app.store import ContentStore
-from app.tongjian_sync import TongjianSync
+from app.tongjian_sync import TongjianApiClient, TongjianSync
 
 
 def _catalog():
@@ -105,3 +109,25 @@ def test_sync_resume_skips_completed_reigns(tmp_path):
     assert result.completed_reigns == 1
     assert api.reign_calls == 1
     assert json.loads(checkpoint.read_text(encoding="utf-8"))["completed_reign_ids"] == ["reign-1"]
+
+
+def test_api_client_respects_retry_after_for_rate_limit(tmp_path):
+    waits = []
+    headers = Message()
+    headers["Retry-After"] = "17"
+
+    def opener(_request, timeout):
+        raise HTTPError("https://example.com/api", 429, "too many requests", headers, None)
+
+    client = TongjianApiClient(
+        "https://example.com",
+        cache_dir=tmp_path / "cache",
+        opener=opener,
+        sleep=waits.append,
+        retries=0,
+    )
+
+    with pytest.raises(RuntimeError):
+        client.fetch_catalog()
+
+    assert 17.0 in waits
