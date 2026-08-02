@@ -1101,4 +1101,5 @@ Android 工程已创建；当前锁定 AGP 9.0.0、Kotlin 2.4.10、Compose BOM 2
 - Android: `./gradlew :app:testDebugUnitTest :app:assembleDebug`，`BUILD SUCCESSFUL`；`connectedDebugAndroidTest` 无 instrumented 用例，任务成功完成。
 - `./run_codex_autodev.sh`：Inspection 编译成功、模拟器安装成功，首页显示 `4557` 篇；详情截图进入真实正文页；目录点击后立即显示“阅读目录”，进入资治通鉴可见多卷；年表卡片显示 `公元前403年`；`crash.log` 为 `No Fatal, AndroidRuntime, or NullPointer errors detected.`。
 - 最终 APK [app-autodev.apk](/workspaces/-app/build/outputs/app-autodev.apk)：`24,369,577` bytes，SHA-256 `d6d5db2a88e93b6444cf527383c236105520da9ab1ed07de1b694e94f6fa4fb5`，版本 `versionCode 10 / versionName 0.1.9`。APK 内未发现 Sherpa、ONNX、`model.onnx` 或 `.far` 文件，相比上一版约 `118 MB` 明显缩小。
+- GitHub Release `v0.1.12`：https://github.com/kxxhhh/-app/releases/tag/v0.1.12，已上传上述 APK。
 - 当前没有实体 Android 设备，无法验证真实扬声器输出；本轮只验证了本地 TTS 选项、目录/年表渲染、安装和 Runtime 日志。
