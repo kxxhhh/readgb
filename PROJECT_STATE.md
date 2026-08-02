@@ -829,3 +829,12 @@ Android 工程已创建；当前锁定 AGP 9.0.0、Kotlin 2.4.10、Compose BOM 2
 - 记录本节时爬虫 checkpoint 已继续推进到 `164/1405`，同步进程仍以单进程、5 秒最小间隔运行；不要删除 checkpoint/cache，也不要启动并行抓取。
 - 当前 APK 是“已完成章节快照 + OfflineSeed fallback”，不是完整 `30,989` 条全本；后续每次重新导出前仍需重复字段和占位内容校验。
 - 当前环境没有模拟器/实体设备，因此无法完成 Runtime 验证；本轮只完成了资源、构建和 APK 签名的静态验证。
+
+## 增量交付更新：阶段性内容 APK 版本化（2026-08-02）
+
+- Android 版本已递增为 `versionCode 3`、`versionName 0.1.2`，对应发布标签为 `v0.1.3`，用于和旧的 `v0.1.2` 安装检查包区分。
+- 重新执行 `./gradlew clean testDebugUnitTest lintDebug assembleDebug assembleInspection assembleRelease`：`BUILD SUCCESSFUL`。
+- 新 Debug APK SHA-256：`1622b10c31f7e28ca51fe3a28db43b33fed7c339c7abfa5fda94db505a7de2ed`。
+- 新 Inspection APK SHA-256：`8a75791e445c689d69ed96e7b94c35391d6c2b1efad843c48c2f7dfa1c533e3d`；`apksigner verify` 已确认 v2 签名有效。
+- 新 APK 内部资源仍核对为 `529` 条正文、`162` 个年份目录；Release 变体成功编译但仍为 unsigned，不作为设备安装包。
+- 当前爬虫 checkpoint 已推进到 `166/1405`；APK 是本次导出时的 `162` 年快照，后续抓取内容需要重新导出并重新编译才会进入 APK。
