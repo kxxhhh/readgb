@@ -6,6 +6,9 @@ import com.dutongjian.app.data.local.ItemEntity
 import com.dutongjian.app.data.local.toDomain
 import com.dutongjian.app.data.network.DutongjianApi
 import com.dutongjian.app.data.network.ItemDto
+import com.dutongjian.app.data.network.SectionDto
+import com.dutongjian.app.data.network.VolumeDto
+import com.dutongjian.app.data.network.YearDto
 import com.dutongjian.app.domain.model.HomeFeed
 import com.dutongjian.app.domain.model.KnowledgeEntry
 import com.dutongjian.app.domain.model.LibrarySection
@@ -36,7 +39,9 @@ class ReadingRepositoryImpl @Inject constructor(
     private val dao: ItemDao,
 ) : ReadingRepository {
     private val localContentMutex = Mutex()
+    private val catalogMutex = Mutex()
     private var localContentReady = false
+    private var bundledCatalog: OfflineCatalogAsset? = null
 
     override fun observeItems(): Flow<List<ReadingItem>> = flow {
         ensureLocalSeed()
@@ -78,7 +83,7 @@ class ReadingRepositoryImpl @Inject constructor(
             require(response.code == 0) { response.message }
             response.data?.sections.orEmpty().map { LibrarySection(it.id, it.title, it.description, it.source_url, it.sort_order) }
         },
-        fallback = { OfflineSeed.sections },
+        fallback = { bundledCatalog().sections.map { it.toDomain() } },
     )
 
     override suspend fun loadVolumes(sectionId: String): Result<List<Volume>> = withOfflineFallback(
@@ -87,7 +92,7 @@ class ReadingRepositoryImpl @Inject constructor(
             require(response.code == 0) { response.message }
             response.data?.volumes.orEmpty().map { Volume(it.id, it.section_id, it.title, it.dynasty, it.sort_order) }
         },
-        fallback = { OfflineSeed.volumes.filter { it.sectionId == sectionId } },
+        fallback = { bundledCatalog().volumes.filter { it.section_id == sectionId }.map { it.toDomain() } },
     )
 
     override suspend fun loadYears(volumeId: String): Result<List<ReadingYear>> = withOfflineFallback(
@@ -96,7 +101,7 @@ class ReadingRepositoryImpl @Inject constructor(
             require(response.code == 0) { response.message }
             response.data?.years.orEmpty().map { ReadingYear(it.id, it.volume_id, it.title, it.era, it.sort_order) }
         },
-        fallback = { OfflineSeed.years.filter { it.volumeId == volumeId } },
+        fallback = { bundledCatalog().years.filter { it.volume_id == volumeId }.map { it.toDomain() } },
     )
 
     override suspend fun loadYearItems(yearId: String): Result<List<ReadingItem>> = withOfflineFallback(
@@ -175,6 +180,26 @@ class ReadingRepositoryImpl @Inject constructor(
         }
     }
 
+    private suspend fun bundledCatalog(): OfflineCatalogAsset = catalogMutex.withLock {
+        bundledCatalog ?: run {
+            val loaded = try {
+                withContext(Dispatchers.IO) {
+                    context.assets.open(OFFLINE_CATALOG_ASSET).bufferedReader().use { reader ->
+                        json.decodeFromString<OfflineCatalogAsset>(reader.readText())
+                    }
+                }
+            } catch (_: Exception) {
+                OfflineCatalogAsset(
+                    sections = OfflineSeed.sections.map { SectionDto(it.id, it.title, it.description, it.sourceUrl, it.sortOrder) },
+                    volumes = OfflineSeed.volumes.map { VolumeDto(it.id, it.sectionId, it.title, it.dynasty, it.sortOrder) },
+                    years = OfflineSeed.years.map { YearDto(it.id, it.volumeId, it.title, it.era, it.sortOrder) },
+                )
+            }
+            bundledCatalog = loaded
+            loaded
+        }
+    }
+
     private suspend fun localItems(query: String? = null, yearId: String? = null): List<ReadingItem> {
         ensureLocalSeed()
         val needle = query?.trim()?.lowercase()?.takeIf(String::isNotBlank)
@@ -208,6 +233,12 @@ class ReadingRepositoryImpl @Inject constructor(
         lastOpenedAt = previous?.lastOpenedAt,
     )
 
+    private fun SectionDto.toDomain() = LibrarySection(id, title, description, source_url, sort_order)
+
+    private fun VolumeDto.toDomain() = Volume(id, section_id, title, dynasty, sort_order)
+
+    private fun YearDto.toDomain() = ReadingYear(id, volume_id, title, era, sort_order)
+
     private fun ReadingItem.toEntity(previous: ItemEntity? = null) = ItemEntity(
         id = id,
         title = title,
@@ -230,5 +261,13 @@ class ReadingRepositoryImpl @Inject constructor(
 }
 
 private const val FULL_CONTENT_ASSET = "offline_content.ndjson.gz"
+private const val OFFLINE_CATALOG_ASSET = "offline_catalog.json"
 private const val FULL_CONTENT_COUNT = 30_989
 private const val ASSET_BATCH_SIZE = 500
+
+@kotlinx.serialization.Serializable
+private data class OfflineCatalogAsset(
+    val sections: List<com.dutongjian.app.data.network.SectionDto> = emptyList(),
+    val volumes: List<com.dutongjian.app.data.network.VolumeDto> = emptyList(),
+    val years: List<com.dutongjian.app.data.network.YearDto> = emptyList(),
+)

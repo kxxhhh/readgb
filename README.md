@@ -132,10 +132,10 @@ PYTHONPATH=service python -m app.tongjian_sync \
   --database service/data/dutongjian.db \
   --cache-dir service/data/tongjian-cache \
   --checkpoint service/data/tongjian-progress.json \
-  --min-interval 1.0
+  --min-interval 5.0
 ```
 
-同步器只访问公开、未登录的 JSON API；默认每次请求至少间隔 1 秒，缓存单个请求结果，并在每个纪年节点完成后原子更新 checkpoint。真实全本同步仍未完成，不能将当前部分数据库视为包含完整 `30989` 段正文。
+同步器只访问公开、未登录的 JSON API；默认每次请求至少间隔 5 秒，缓存单个请求结果，并在每个纪年节点完成后原子更新 checkpoint。遇到 HTTP 429 时会尊重 `Retry-After`。真实全本同步仍未完成，不能将当前部分数据库视为包含完整 `30989` 段正文。
 
 ## 🗂️ 项目结构
 
@@ -168,11 +168,11 @@ PYTHONPATH=service python -m app.tongjian_sync \
 
 ## 📌 当前状态
 
-- ⚠️ Backend 当前为 **15 passed, 1 failed**：`test_api_client_respects_retry_after_for_rate_limit` 要求公开 API 客户端尊重 429 响应的 `Retry-After: 17`，现实现尚未满足该测试。
+- ✅ Backend 当前为 **17 passed**，包含 429 `Retry-After` 退避测试。
 - ✅ `python3 -m compileall -q service/app` 当前通过。
-- ⚠️ Android Debug 代码可以进入测试编译，但当前 `testDebugUnitTest` 有 1 个失败：`ReadingViewModelTest.uiStateStartsWithOfflineReadingContent` 直接实例化的 `ReadingUiState()` 仍为空，而 `OfflineSeed` 目前由 `ReadingViewModel` 初始化时注入。详见 [DOCS.md](./DOCS.md#当前验证结果)。
+- ✅ Android `testDebugUnitTest` 当前通过；无网络时默认显示 `OfflineSeed`，若构建包含完整资产则导入 Room。
 - ⚠️ Release 构建目前是 unsigned 产物；签名配置应由部署环境注入，仓库不保存 keystore 或凭据。
-- ⚠️ 当前数据服务包含少量本地演示种子，不代表已经从目标站点实时抓取；官方 JSON API、稳定字段 schema 和完整站点抓取规则仍需在可联网环境中确认。
+- ⚠️ 全本同步仍在进行；当前数据服务包含部分真实公开 API 内容和待清理的本地演示种子，不代表已经拥有完整 `30989` 段正文。实时进度见 [PROJECT_STATE.md](./PROJECT_STATE.md)。
 
 ## 📄 开源协议
 

@@ -184,7 +184,7 @@ Android 端的依赖方向是 `ui → domain ← data`：
 
 #### `tongjian_sync.py` 公开 API 同步器
 
-- `TongjianApiClient(base_url="https://www.dutongjian.com", cache_dir="data/tongjian-cache", retries=3, min_interval=1.0, timeout=30.0)`
+- `TongjianApiClient(base_url="https://www.dutongjian.com", cache_dir="data/tongjian-cache", retries=3, min_interval=5.0, timeout=30.0)`
   - `fetch_catalog() -> dict[str, Any]`：请求 `/api/table_of_contents`，结果缓存为 `catalog.json`。
   - `fetch_reign(reign_id: str) -> dict[str, Any]`：请求 `/api/reign?reign_tongjian_id=...`，按纪年 ID 缓存 JSON。
 - `flatten_catalog(payload: dict[str, Any]) -> list[ReignRef]`
@@ -195,7 +195,7 @@ Android 端的依赖方向是 `ui → domain ← data`：
   - `run() -> SyncProgress`：导入目录，跳过 checkpoint 中已完成的纪年节点，按节点 upsert 内容；全部完成后才清理演示 `资治通鉴` 条目和目录。
   - `SyncProgress` 返回 `total_reigns`、`completed_reigns`、`content_records`。
 - CLI 入口：`PYTHONPATH=service python -m app.tongjian_sync --allow-public-api [--base-url URL] [--database PATH] [--cache-dir PATH] [--checkpoint PATH] [--min-interval SECONDS]`。
-- 当前限制：公开 API 客户端已有重试和节流路径，但尚未满足 429 `Retry-After` 响应头测试；真实全本同步尚未完成。
+- 当前限制：公开 API 客户端已支持重试、节流和 429 `Retry-After` 退避；真实全本同步仍在进行中。
 
 ### Android 模块接口
 
@@ -282,9 +282,9 @@ cd android
 
 #### 当前验证结果
 
-- `python3 -m pytest -q service/tests`：当前 **15 passed, 1 failed**。失败项是 `test_api_client_respects_retry_after_for_rate_limit`；测试通过 429 响应提供 `Retry-After: 17`，但 `TongjianApiClient` 当前未将该值加入等待时间。
+- `python3 -m pytest -q service/tests`：当前 **17 passed**。
 - `python3 -m compileall -q service/app`：**通过**。
-- `./gradlew testDebugUnitTest`：当前 **2 tests completed, 1 failed**。失败项是 `ReadingViewModelTest.uiStateStartsWithOfflineReadingContent`，原因是测试直接构造 `ReadingUiState()`，而离线种子目前只在 `ReadingViewModel` 构造时写入 state；这不是 Gradle 配置失败。
+- `./gradlew testDebugUnitTest`：当前通过；`ReadingUiState()` 默认包含离线种子，完整资产存在时 Repository 会批量导入 Room。
 - Android 测试编译、Hilt 代码生成和 Kotlin 编译阶段已经执行成功；未把该失败误报为 Android 测试全绿。
 
 ### Log 调试
@@ -321,7 +321,7 @@ python -m app.sync \
   --volume-id zizhi-volume-001 \
   --year-id zizhi-year-001 \
   --database ../data/dutongjian.db \
-  --min-interval 1.0
+  --min-interval 5.0
 ```
 
 问题定位顺序：
