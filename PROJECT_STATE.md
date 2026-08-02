@@ -795,4 +795,4 @@ Android 工程已创建；当前锁定 AGP 9.0.0、Kotlin 2.4.10、Compose BOM 2
 - 新增 `inspection` 构建变体：沿用 Release 配置，但使用 Debug keystore 签名，专门用于当前设备安装检查；正式 `release` 仍保持 unsigned，避免将测试签名误当生产签名。
 - `./gradlew clean testDebugUnitTest lintDebug assembleDebug assembleInspection assembleRelease`：通过。
 - `app-inspection.apk` 已通过 `apksigner verify`，APK v2 签名有效；SHA-256 为 `6271e57ba986075e2391425f249baddb77d516837c2219dd08969b07d3091b86`。
-- GitHub Release `v0.1.1` 后续改为提供明确命名的 `app-inspection.apk`，安装检查时不要选择 unsigned Release APK。
+- 新修复版 GitHub Release 使用 `v0.1.2`，只提供明确命名的 `app-inspection.apk`；安装检查时不要选择 unsigned Release APK。
