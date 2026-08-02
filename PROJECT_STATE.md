@@ -961,3 +961,29 @@ Android 工程已创建；当前锁定 AGP 9.0.0、Kotlin 2.4.10、Compose BOM 2
 - 交互检查确认：字号 `100% -> 110%`；AI 设置页显示 API URL、模型、API Key 和保存按钮；沙盘展开后 DOM 包含事件主线、关键人物、相关地点；全程未发现 Fatal、AndroidRuntime 或 NullPointer。
 - APK 已导出至 [app-autodev.apk](/workspaces/-app/build/outputs/app-autodev.apk)，大小 `18,412,697` bytes，SHA-256 `fd746c74c5006ab52126ed269fba7ab8ca5d0f8e0536e179def24258ad4a3c07`，版本 `versionCode 7 / versionName 0.1.6`；`apksigner` 已确认 APK v2 签名有效。
 - GitHub 预发布已创建：<https://github.com/kxxhhh/-app/releases/tag/v0.1.7>，上传 APK 与本地闭环产物 SHA-256 一致。
+
+## 增量迭代更新：阅读工具模块整合、百科性能与注释互链（2026-08-02）
+
+### 本轮实现
+
+- 新增 `TTSEngine` 抽象、SharedPreferences 引擎设置、古文多音字预处理、标点分句队列、暂停/继续/停止、句子进度和条目结束自动进入下一条；设置页提供“微软 Edge-TTS”和“Sherpa-onnx”选项。
+- 新增本地 Room `historical_places` 表和古地名目录，正文中的已知古地名带下划线；点击后显示古今对照、坐标和说明，并可打开带 Marker 的轻量地图视图。
+- 新增历史年表页，按已导入条目的纪、年字段展示时间轴，并支持年份/纪年筛选及点击进入正文。
+- 新增 Room `reading_notes` 表、划线/记笔记入口、笔记颜色、正文高亮和“书架 > 笔记”列表；笔记点击可重新打开对应正文并保留高亮。
+- 服务端 `ExtRef_Children_hu_notes` 注释 JSON 改为可读注释卡片，保留人物/地点关联与原文位置；点击注释可返回原文标记，点击原文标记可打开对应注释。
+- 百科搜索和分类切换改为本地缓存即时筛选、250ms 去抖、取消旧请求；主 Tab 移除不必要的 `AnimatedContent`，降低点击百科时的迟滞。
+
+### 构建与模拟器验证
+
+- 已提交并推送：`17e789a feat(android): add reading toolkit modules`。
+- 推送后的 `./run_codex_autodev.sh`：Inspection 编译成功、模拟器安装成功、首页/详情/滚动截图成功，`crash.log` 为 `No Fatal, AndroidRuntime, or NullPointer errors detected.`。
+- 定向 UI dump 确认百科已载入 `4987 条结果`，底部导航可见首页、年表、目录、百科、书架；年表、书架和设置页均可进入。
+- `./gradlew :app:testDebugUnitTest` 和 `:app:compileDebugKotlin`：`BUILD SUCCESSFUL`；Compose 仅有 `ClickableText` API 弃用警告，无编译错误。
+- APK `build/outputs/app-autodev.apk` 大小 `18,478,233` bytes，SHA-256 `bbe3e929241ee83a098bea6bac6768962e619ad9ef212551215d638278a5e5b6`。
+- GitHub 预发布已创建：<https://github.com/kxxhhh/-app/releases/tag/v0.1.8>，上传 `app-autodev.apk`。
+
+### 当前边界
+
+- 当前环境已经有无头模拟器，可完成编译、安装和 Compose 交互检查；没有真实 Android 设备，不能替代实体设备兼容性验证。
+- Sherpa 模型文件尚未进入 `assets/sherpa-onnx-tts/`，Edge 音频传输端点也未配置；两个引擎类、播放队列和设置契约已接入，未具备外部模型/传输时使用系统中文语音回退，不能宣称真实 Edge 网络合成或 Sherpa 本地模型已验证。
+- 本轮 APK 仍使用已导出的 `2026-08-02-329` 离线内容快照；爬虫进程 PID `114706` 仍在运行，checkpoint 已推进到 `361/1405`。后续完整抓取结束后需要重新导出资源、编译并发布新 APK。
