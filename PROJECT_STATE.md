@@ -922,6 +922,7 @@ Android 工程已创建；当前锁定 AGP 9.0.0、Kotlin 2.4.10、Compose BOM 2
 - `window_dump.xml` 包含 `阅读进度`、`复制当前文本`、`分享`、`content-desc="回到顶部"`、`content-desc="增大字号"` 和 `content-desc="减小字号"`；额外点击增大字号后 `window_dump_after_font.xml` 显示 `110%`。
 - `build/ui_checks/crash.log` 为 `No Fatal, AndroidRuntime, or NullPointer errors detected.`；点击字号后再次检查错误级 Logcat，未发现 Fatal、AndroidRuntime 或 NullPointer。
 - APK 已导出至 [app-autodev.apk](/workspaces/-app/build/outputs/app-autodev.apk)，大小 `16,958,125` bytes，SHA-256 `0c9a9cd66c1b794d2a439521d104730d28a246cd19fef8549d455cb957dfd705`，包版本 `versionCode 6 / versionName 0.1.5`，`apksigner` 已确认 APK v2 签名有效。
+- GitHub 预发布已创建：<https://github.com/kxxhhh/-app/releases/tag/v0.1.6>，上传的 `app-autodev.apk` 与本地闭环产物 SHA-256 一致。
 
 ### 爬虫状态
 
