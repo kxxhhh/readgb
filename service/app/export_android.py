@@ -2,11 +2,12 @@
 
 import argparse
 import gzip
+import hashlib
 import json
 from pathlib import Path
 from typing import Iterable
 
-from .models import Item
+from .models import Item, KnowledgeEntry
 from .store import ContentStore
 
 
@@ -86,6 +87,119 @@ def _write_content(items: Iterable[Item], output: str | Path) -> None:
     temporary.replace(destination)
 
 
+def export_partial_knowledge(
+    database: str | Path,
+    output: str | Path,
+    checkpoint: str | Path,
+) -> dict[str, int]:
+    return _export_partial_knowledge(database, output, _completed_reign_ids(checkpoint))
+
+
+def _export_partial_knowledge(
+    database: str | Path,
+    output: str | Path,
+    completed_reign_ids: set[str],
+) -> dict[str, int]:
+    store = ContentStore(database)
+    items = _partial_items(store, completed_reign_ids)
+    if not items:
+        raise ValueError("refusing partial Android knowledge export: no completed content found")
+    _validate_content(items)
+    entries = _derive_knowledge(items)
+    if not entries:
+        raise ValueError("refusing partial Android knowledge export: no relations found")
+    _write_json([entry.to_dict() for entry in entries], output)
+    return {"entries": len(entries)}
+
+
+def export_knowledge(database: str | Path, output: str | Path) -> dict[str, int]:
+    store = ContentStore(database)
+    category_count = store.count_items(category="资治通鉴")
+    items = [
+        item
+        for item in store.list_items(category="资治通鉴", limit=max(1, category_count))
+        if item.id.startswith("zztj-")
+    ]
+    if not items:
+        raise ValueError("refusing Android knowledge export: no real content found")
+    _validate_content(items)
+    entries = _derive_knowledge(items)
+    _write_json([entry.to_dict() for entry in entries], output)
+    return {"entries": len(entries)}
+
+
+def _derive_knowledge(items: Iterable[Item]) -> list[KnowledgeEntry]:
+    relation_specs = (
+        ("ExtRef_Children_people", "人物", ("people_name_jianti_auto", "people_name"), ("people_note", "note", "source_snippet")),
+        ("ExtRef_Children_places", "地点", ("place_name_jianti_auto", "place_name"), ("place_note", "note", "source_snippet")),
+        ("ExtRef_Children_officials", "官职", ("official_name", "title", "name"), ("official_note", "note", "source_snippet")),
+        ("ExtRef_Children_topics", "主题", ("title", "topic_name", "name"), ("topic_note", "note", "source_snippet")),
+        ("ExtRef_Children_decisions", "决策", ("title", "decision_name", "name"), ("decision_note", "note", "source_snippet")),
+    )
+    aggregates: dict[tuple[str, str], dict[str, object]] = {}
+    for item in items:
+        try:
+            payload = json.loads(item.notes or "{}")
+        except (TypeError, json.JSONDecodeError):
+            continue
+        if not isinstance(payload, dict):
+            continue
+        for relation_key, category, name_fields, note_fields in relation_specs:
+            relations = payload.get(relation_key) or []
+            if not isinstance(relations, list):
+                continue
+            for relation in relations:
+                if not isinstance(relation, dict):
+                    continue
+                title = _first_text(relation, name_fields)
+                if not title:
+                    continue
+                aggregate = aggregates.setdefault(
+                    (category, title),
+                    {"category": category, "title": title, "notes": [], "items": [], "source_url": item.source_url, "updated_at": item.updated_at},
+                )
+                _append_unique(aggregate["notes"], _first_text(relation, note_fields))
+                _append_unique(aggregate["items"], item.title)
+                aggregate["updated_at"] = max(str(aggregate["updated_at"]), item.updated_at)
+
+    entries = []
+    for category, title in sorted(aggregates):
+        aggregate = aggregates[(category, title)]
+        related_items = aggregate["items"]
+        notes = aggregate["notes"]
+        summary = f"{category}“{title}”在已抓取《资治通鉴》中关联 {len(related_items)} 条正文。"
+        related_text = "、".join(related_items[:8])
+        content = f"相关正文：{related_text}。" if related_text else summary
+        if notes:
+            content = f"{content} {'；'.join(notes[:3])}"
+        entry_id = "offline-knowledge-" + hashlib.sha256(f"{category}:{title}".encode("utf-8")).hexdigest()[:20]
+        entries.append(
+            KnowledgeEntry(
+                id=entry_id,
+                title=title,
+                category=category,
+                summary=summary,
+                content=content,
+                source_url=str(aggregate["source_url"]),
+                updated_at=str(aggregate["updated_at"]),
+            )
+        )
+    return entries
+
+
+def _first_text(payload: dict, fields: Iterable[str]) -> str:
+    for field in fields:
+        value = str(payload.get(field) or "").strip()
+        if value:
+            return value
+    return ""
+
+
+def _append_unique(values: object, value: str) -> None:
+    if value and isinstance(values, list) and value not in values:
+        values.append(value)
+
+
 def export_partial_catalog(
     database: str | Path,
     output: str | Path,
@@ -138,7 +252,7 @@ def _completed_reign_ids(checkpoint: str | Path) -> set[str]:
     return set(completed)
 
 
-def _write_json(payload: dict, output: str | Path) -> None:
+def _write_json(payload: object, output: str | Path) -> None:
     destination = Path(output)
     temporary = destination.with_suffix(destination.suffix + ".tmp")
     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -172,6 +286,7 @@ def main() -> int:
     parser.add_argument("--output", default="../android/app/src/main/assets/offline_content.ndjson.gz")
     parser.add_argument("--expected-count", type=int, default=30_989)
     parser.add_argument("--catalog-output", default="../android/app/src/main/assets/offline_catalog.json")
+    parser.add_argument("--knowledge-output", default="../android/app/src/main/assets/offline_knowledge.json")
     parser.add_argument("--expected-volumes", type=int, default=294)
     parser.add_argument("--expected-years", type=int, default=1405)
     parser.add_argument("--allow-partial", action="store_true")
@@ -181,6 +296,7 @@ def main() -> int:
         completed_reign_ids = _completed_reign_ids(args.checkpoint)
         count = _export_partial_content(args.database, args.output, completed_reign_ids)
         catalog = _export_partial_catalog(args.database, args.catalog_output, completed_reign_ids)
+        knowledge = _export_partial_knowledge(args.database, args.knowledge_output, completed_reign_ids)
     else:
         count = export_content(args.database, args.output, expected_count=args.expected_count)
         catalog = export_catalog(
@@ -189,7 +305,8 @@ def main() -> int:
             expected_volumes=args.expected_volumes,
             expected_years=args.expected_years,
         )
-    print({"output": args.output, "records": count, "catalog_output": args.catalog_output, **catalog})
+        knowledge = export_knowledge(args.database, args.knowledge_output)
+    print({"output": args.output, "records": count, "catalog_output": args.catalog_output, "knowledge_output": args.knowledge_output, **catalog, **knowledge})
     return 0
 
 

@@ -132,11 +132,11 @@ class ReadingViewModel @Inject constructor(
                 selectedSectionId = section.id,
                 selectedVolumeId = null,
                 selectedYearId = null,
-                volumes = OfflineSeed.volumes.filter { it.sectionId == section.id },
+                volumes = emptyList(),
                 years = emptyList(),
                 catalogItems = emptyList(),
                 catalogLevel = CatalogLevel.VOLUMES,
-                isCatalogLoading = false,
+                isCatalogLoading = true,
             )
         }
         repository.loadVolumes(section.id).onSuccess { volumes ->
@@ -151,10 +151,10 @@ class ReadingViewModel @Inject constructor(
             it.copy(
                 selectedVolumeId = volume.id,
                 selectedYearId = null,
-                years = OfflineSeed.years.filter { it.volumeId == volume.id },
+                years = emptyList(),
                 catalogItems = emptyList(),
                 catalogLevel = CatalogLevel.YEARS,
-                isCatalogLoading = false,
+                isCatalogLoading = true,
             )
         }
         repository.loadYears(volume.id).onSuccess { years ->
@@ -168,9 +168,9 @@ class ReadingViewModel @Inject constructor(
         _state.update {
             it.copy(
                 selectedYearId = year.id,
-                catalogItems = OfflineSeed.items.filter { item -> item.yearId == year.id },
+                catalogItems = emptyList(),
                 catalogLevel = CatalogLevel.ITEMS,
-                isCatalogLoading = false,
+                isCatalogLoading = true,
             )
         }
         repository.loadYearItems(year.id).onSuccess { items ->

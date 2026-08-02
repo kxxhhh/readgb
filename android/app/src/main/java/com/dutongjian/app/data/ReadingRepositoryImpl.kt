@@ -7,6 +7,7 @@ import com.dutongjian.app.data.local.ItemEntity
 import com.dutongjian.app.data.local.toDomain
 import com.dutongjian.app.data.network.DutongjianApi
 import com.dutongjian.app.data.network.ItemDto
+import com.dutongjian.app.data.network.KnowledgeDto
 import com.dutongjian.app.data.network.SectionDto
 import com.dutongjian.app.data.network.VolumeDto
 import com.dutongjian.app.data.network.YearDto
@@ -41,8 +42,10 @@ class ReadingRepositoryImpl @Inject constructor(
 ) : ReadingRepository {
     private val localContentMutex = Mutex()
     private val catalogMutex = Mutex()
+    private val knowledgeMutex = Mutex()
     private var localContentReady = false
     private var bundledCatalog: OfflineCatalogAsset? = null
+    private var bundledKnowledge: List<KnowledgeEntry>? = null
 
     override fun observeItems(): Flow<List<ReadingItem>> = flow {
         ensureLocalSeed()
@@ -125,7 +128,8 @@ class ReadingRepositoryImpl @Inject constructor(
         },
         fallback = {
             val needle = query?.trim()?.lowercase()?.takeIf(String::isNotBlank)
-            OfflineSeed.knowledge.filter { entry ->
+            val source = bundledKnowledgeEntries().ifEmpty { OfflineSeed.knowledge }
+            source.filter { entry ->
                 (category == null || entry.category == category) &&
                     (needle == null || listOf(entry.title, entry.summary, entry.content).any { it.lowercase().contains(needle) })
             }
@@ -209,6 +213,23 @@ class ReadingRepositoryImpl @Inject constructor(
         }
     }
 
+    private suspend fun bundledKnowledgeEntries(): List<KnowledgeEntry> = knowledgeMutex.withLock {
+        bundledKnowledge ?: run {
+            val loaded = try {
+                withContext(Dispatchers.IO) {
+                    context.assets.open(OFFLINE_KNOWLEDGE_ASSET).bufferedReader().use { reader ->
+                        json.decodeFromString<List<KnowledgeDto>>(reader.readText()).map { it.toDomain() }
+                    }
+                }
+            } catch (error: Exception) {
+                Log.w(LOG_TAG, "Offline knowledge asset is unavailable; using seed entries", error)
+                emptyList()
+            }
+            bundledKnowledge = loaded
+            loaded
+        }
+    }
+
     private suspend fun localItems(query: String? = null, yearId: String? = null): List<ReadingItem> {
         ensureLocalSeed()
         val needle = query?.trim()?.lowercase()?.takeIf(String::isNotBlank)
@@ -248,6 +269,8 @@ class ReadingRepositoryImpl @Inject constructor(
 
     private fun YearDto.toDomain() = ReadingYear(id, volume_id, title, era, sort_order)
 
+    private fun KnowledgeDto.toDomain() = KnowledgeEntry(id, title, category, summary, content, source_url, updated_at)
+
     private fun ReadingItem.toEntity(previous: ItemEntity? = null) = ItemEntity(
         id = id,
         title = title,
@@ -272,6 +295,7 @@ class ReadingRepositoryImpl @Inject constructor(
 private const val CONTENT_ASSET = "offline_content.ndjson"
 private const val LEGACY_CONTENT_ASSET = "offline_content.ndjson.gz"
 private const val OFFLINE_CATALOG_ASSET = "offline_catalog.json"
+private const val OFFLINE_KNOWLEDGE_ASSET = "offline_knowledge.json"
 private const val FULL_CONTENT_COUNT = 30_989
 private const val ASSET_BATCH_SIZE = 500
 private const val LOG_TAG = "ReadingRepository"
