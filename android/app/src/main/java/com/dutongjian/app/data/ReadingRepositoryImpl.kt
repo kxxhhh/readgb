@@ -4,7 +4,10 @@ import android.content.Context
 import android.util.Log
 import com.dutongjian.app.data.local.ItemDao
 import com.dutongjian.app.data.local.ItemEntity
+import com.dutongjian.app.data.local.NoteDao
+import com.dutongjian.app.data.local.PlaceDao
 import com.dutongjian.app.data.local.toDomain
+import com.dutongjian.app.data.local.toEntity
 import com.dutongjian.app.data.network.DutongjianApi
 import com.dutongjian.app.data.network.ItemDto
 import com.dutongjian.app.data.network.KnowledgeDto
@@ -12,9 +15,12 @@ import com.dutongjian.app.data.network.SectionDto
 import com.dutongjian.app.data.network.VolumeDto
 import com.dutongjian.app.data.network.YearDto
 import com.dutongjian.app.domain.model.HomeFeed
+import com.dutongjian.app.domain.model.HistoricalPlace
 import com.dutongjian.app.domain.model.KnowledgeEntry
 import com.dutongjian.app.domain.model.LibrarySection
 import com.dutongjian.app.domain.model.OfflineSeed
+import com.dutongjian.app.domain.model.Note
+import com.dutongjian.app.domain.model.PlaceCatalog
 import com.dutongjian.app.domain.model.ReadingItem
 import com.dutongjian.app.domain.model.ReadingYear
 import com.dutongjian.app.domain.model.Volume
@@ -39,6 +45,8 @@ class ReadingRepositoryImpl @Inject constructor(
     private val json: Json,
     private val api: DutongjianApi,
     private val dao: ItemDao,
+    private val placeDao: PlaceDao,
+    private val noteDao: NoteDao,
 ) : ReadingRepository {
     private val localContentMutex = Mutex()
     private val catalogMutex = Mutex()
@@ -137,6 +145,17 @@ class ReadingRepositoryImpl @Inject constructor(
         },
     )
 
+    override fun observeNotes(): Flow<List<Note>> = noteDao.observeAll().map { notes -> notes.map { it.toDomain() } }
+
+    override suspend fun saveNote(note: Note) = noteDao.upsert(note.toEntity())
+
+    override suspend fun deleteNote(note: Note) = noteDao.delete(note.toEntity())
+
+    override fun observePlaces(): Flow<List<HistoricalPlace>> = flow {
+        ensurePlaces()
+        emitAll(placeDao.observeAll().map { places -> places.map { it.toDomain() } })
+    }
+
     private suspend fun <T> withOfflineFallback(
         remote: suspend () -> T,
         fallback: suspend () -> T,
@@ -163,6 +182,13 @@ class ReadingRepositoryImpl @Inject constructor(
                 }
             }
             localContentReady = true
+        }
+        ensurePlaces()
+    }
+
+    private suspend fun ensurePlaces() {
+        if (placeDao.observeAll().first().isEmpty()) {
+            placeDao.upsertAll(PlaceCatalog.entries.map { it.toEntity() })
         }
     }
 

@@ -10,6 +10,8 @@ import com.dutongjian.app.data.local.ItemDao
 import com.dutongjian.app.data.network.DutongjianApi
 import com.dutongjian.app.domain.repository.AiRepository
 import com.dutongjian.app.domain.repository.ReadingRepository
+import com.dutongjian.app.domain.tts.TtsPlayer
+import com.dutongjian.app.data.tts.TtsController
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
@@ -35,6 +37,34 @@ private val MIGRATION_1_2 = object : androidx.room.migration.Migration(1, 2) {
         db.execSQL("ALTER TABLE reading_items ADD COLUMN translation TEXT NOT NULL DEFAULT ''")
         db.execSQL("ALTER TABLE reading_items ADD COLUMN notes TEXT NOT NULL DEFAULT ''")
         db.execSQL("ALTER TABLE reading_items ADD COLUMN tags TEXT NOT NULL DEFAULT ''")
+    }
+}
+
+private val MIGRATION_2_4 = object : androidx.room.migration.Migration(2, 4) {
+    override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS historical_places (
+                ancientName TEXT NOT NULL PRIMARY KEY,
+                modernName TEXT NOT NULL,
+                latitude REAL NOT NULL,
+                longitude REAL NOT NULL,
+                description TEXT NOT NULL
+            )
+        """.trimIndent())
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS reading_notes (
+                id TEXT NOT NULL PRIMARY KEY,
+                articleId TEXT NOT NULL,
+                startIndex INTEGER NOT NULL,
+                endIndex INTEGER NOT NULL,
+                selectedText TEXT NOT NULL,
+                memo TEXT NOT NULL,
+                color TEXT NOT NULL,
+                createdAt INTEGER NOT NULL
+            )
+        """.trimIndent())
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_reading_notes_articleId ON reading_notes(articleId)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_reading_notes_createdAt ON reading_notes(createdAt)")
     }
 }
 
@@ -83,10 +113,16 @@ object DatabaseModule {
         context,
         AppDatabase::class.java,
         "dutongjian.db",
-    ).addMigrations(MIGRATION_1_2).build()
+    ).addMigrations(MIGRATION_1_2, MIGRATION_2_4).build()
 
     @Provides
     fun provideItemDao(database: AppDatabase): ItemDao = database.itemDao()
+
+    @Provides
+    fun providePlaceDao(database: AppDatabase): com.dutongjian.app.data.local.PlaceDao = database.placeDao()
+
+    @Provides
+    fun provideNoteDao(database: AppDatabase): com.dutongjian.app.data.local.NoteDao = database.noteDao()
 }
 
 @Module
@@ -99,4 +135,8 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindAiRepository(impl: AiRepositoryImpl): AiRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindTtsPlayer(impl: TtsController): TtsPlayer
 }

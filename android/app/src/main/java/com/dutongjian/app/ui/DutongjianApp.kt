@@ -10,6 +10,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -45,7 +46,9 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Timeline
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedCard
@@ -78,16 +81,22 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import com.dutongjian.app.domain.model.AiTask
+import com.dutongjian.app.domain.model.HistoricalPlace
 import com.dutongjian.app.domain.model.KnowledgeEntry
 import com.dutongjian.app.domain.model.LibrarySection
+import com.dutongjian.app.domain.model.Note
 import com.dutongjian.app.domain.model.ReadingItem
 import com.dutongjian.app.domain.model.ReadingYear
+import com.dutongjian.app.domain.model.TtsEngineType
 import com.dutongjian.app.domain.model.Volume
+import com.dutongjian.app.domain.tts.TtsPlaybackState
+import java.util.UUID
 
 private enum class AppTab(val label: String) {
     HOME("首页"),
     CATALOG("目录"),
     KNOWLEDGE("百科"),
+    TIMELINE("年表"),
     LIBRARY("书架"),
 }
 
@@ -122,11 +131,19 @@ fun DutongjianApp(
     onAiApiKeyClear: () -> Unit,
     onAiGenerate: (ReadingItem, AiTask) -> Unit,
     onAiResultClear: () -> Unit,
+    onTtsEngineSelected: (TtsEngineType) -> Unit,
+    onSpeak: (ReadingItem) -> Unit,
+    onPauseTts: () -> Unit,
+    onResumeTts: () -> Unit,
+    onStopTts: () -> Unit,
+    onSaveNote: (Note) -> Unit,
+    onDeleteNote: (Note) -> Unit,
     onDarkModeToggle: () -> Unit,
 ) {
     var tab by rememberSaveable { mutableStateOf(AppTab.HOME) }
     var selectedItem by remember { mutableStateOf<ReadingItem?>(null) }
     var selectedKnowledge by remember { mutableStateOf<KnowledgeEntry?>(null) }
+    var selectedNoteId by remember { mutableStateOf<String?>(null) }
     var showAiSettings by rememberSaveable { mutableStateOf(false) }
     val selectedItemId = selectedItem?.id
     val selectedKnowledgeId = selectedKnowledge?.id
@@ -140,6 +157,8 @@ fun DutongjianApp(
             onApiKeyChanged = onAiApiKeyChanged,
             onSave = onAiSettingsSave,
             onClearApiKey = onAiApiKeyClear,
+            ttsEngine = state.tts.engine,
+            onTtsEngineSelected = onTtsEngineSelected,
         )
     } else AnimatedContent(
         targetState = selectedItemId ?: selectedKnowledgeId,
@@ -159,6 +178,15 @@ fun DutongjianApp(
                     aiState = aiState,
                     onAiGenerate = onAiGenerate,
                     onAiResultClear = onAiResultClear,
+                    places = state.places,
+                    savedNotes = state.notes.filter { it.articleId == targetItem.id },
+                    highlightedSavedNoteId = selectedNoteId,
+                    ttsState = state.tts,
+                    onSpeak = { onSpeak(targetItem) },
+                    onPauseTts = onPauseTts,
+                    onResumeTts = onResumeTts,
+                    onStopTts = onStopTts,
+                    onSaveNote = onSaveNote,
                 )
             }
             targetKnowledge != null -> {
@@ -198,6 +226,12 @@ fun DutongjianApp(
                             label = { Text(AppTab.HOME.label) },
                         )
                         NavigationBarItem(
+                            selected = tab == AppTab.TIMELINE,
+                            onClick = { tab = AppTab.TIMELINE },
+                            icon = { Icon(Icons.Default.Timeline, contentDescription = null) },
+                            label = { Text(AppTab.TIMELINE.label) },
+                        )
+                        NavigationBarItem(
                             selected = tab == AppTab.CATALOG,
                             onClick = { tab = AppTab.CATALOG },
                             icon = { Icon(Icons.AutoMirrored.Filled.MenuBook, contentDescription = null) },
@@ -219,15 +253,14 @@ fun DutongjianApp(
                 },
                 ) { padding ->
                     Column(modifier = Modifier.padding(padding).fillMaxSize()) {
-                        AnimatedContent(targetState = tab, label = "tab-transition") { currentTab ->
-                            when (currentTab) {
+                        when (tab) {
                                 AppTab.HOME -> HomeScreen(
                                     state = state,
                                     onSearch = onSearch,
                                     onCategorySelected = onCategorySelected,
                                     onCycleFeatured = onCycleFeatured,
                                     onFavoriteToggle = onFavoriteToggle,
-                                    onOpen = { item -> onOpen(item); selectedItem = item },
+                                    onOpen = { item -> onOpen(item); selectedItem = item; selectedNoteId = null },
                                 )
                                 AppTab.CATALOG -> CatalogScreen(
                                     state = state,
@@ -236,7 +269,7 @@ fun DutongjianApp(
                                     onYearSelected = onYearSelected,
                                     onBack = onCatalogBack,
                                     onFavoriteToggle = onFavoriteToggle,
-                                    onOpen = { item -> onOpen(item); selectedItem = item },
+                                    onOpen = { item -> onOpen(item); selectedItem = item; selectedNoteId = null },
                                 )
                                 AppTab.KNOWLEDGE -> KnowledgeScreen(
                                     state = state,
@@ -244,13 +277,18 @@ fun DutongjianApp(
                                     onCategorySelected = onKnowledgeCategorySelected,
                                     onOpen = { selectedKnowledge = it },
                                 )
+                                AppTab.TIMELINE -> TimelineScreen(
+                                    items = state.items,
+                                    onOpen = { item -> onOpen(item); selectedItem = item; selectedNoteId = null },
+                                )
                                 AppTab.LIBRARY -> LibraryScreen(
                                     state = state,
                                     onTabSelected = onLibraryTabSelected,
                                     onFavoriteToggle = onFavoriteToggle,
-                                    onOpen = { item -> onOpen(item); selectedItem = item },
+                                    onOpen = { item -> onOpen(item); selectedItem = item; selectedNoteId = null },
+                                    onOpenNote = { item, note -> onOpen(item); selectedItem = item; selectedNoteId = note.id },
+                                    onDeleteNote = onDeleteNote,
                                 )
-                            }
                         }
                     }
                 }
@@ -382,10 +420,13 @@ private fun LibraryScreen(
     onTabSelected: (LibraryTab) -> Unit,
     onFavoriteToggle: (ReadingItem) -> Unit,
     onOpen: (ReadingItem) -> Unit,
+    onOpenNote: (ReadingItem, Note) -> Unit,
+    onDeleteNote: (Note) -> Unit,
 ) {
     val items = when (state.libraryTab) {
         LibraryTab.FAVORITES -> state.items.filter { it.isFavorite }
         LibraryTab.HISTORY -> state.items.filter { it.lastOpenedAt != null }.sortedByDescending { it.lastOpenedAt }
+        LibraryTab.NOTES -> emptyList()
     }
     Column(modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
         Text("我的书架", modifier = Modifier.padding(top = 16.dp), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
@@ -402,8 +443,15 @@ private fun LibraryScreen(
                 label = { Text("最近阅读") },
                 leadingIcon = { Icon(Icons.Default.History, contentDescription = null, modifier = Modifier.size(18.dp)) },
             )
+            FilterChip(
+                selected = state.libraryTab == LibraryTab.NOTES,
+                onClick = { onTabSelected(LibraryTab.NOTES) },
+                label = { Text("笔记") },
+            )
         }
-        if (items.isEmpty()) {
+        if (state.libraryTab == LibraryTab.NOTES) {
+            NotesLibrary(state.notes, state.items, onOpenNote, onDeleteNote)
+        } else if (items.isEmpty()) {
             EmptyState(
                 title = if (state.libraryTab == LibraryTab.FAVORITES) "还没有收藏" else "还没有阅读记录",
                 subtitle = "在条目右上角保存你的阅读线索",
@@ -649,6 +697,15 @@ private fun DetailScreen(
     aiState: AiUiState,
     onAiGenerate: (ReadingItem, AiTask) -> Unit,
     onAiResultClear: () -> Unit,
+    places: List<HistoricalPlace>,
+    savedNotes: List<Note>,
+    highlightedSavedNoteId: String?,
+    ttsState: TtsPlaybackState,
+    onSpeak: () -> Unit,
+    onPauseTts: () -> Unit,
+    onResumeTts: () -> Unit,
+    onStopTts: () -> Unit,
+    onSaveNote: (Note) -> Unit,
 ) {
     var mode by rememberSaveable { mutableStateOf(ReadingMode.PARALLEL) }
     var fontPercent by rememberSaveable(item.id) { androidx.compose.runtime.mutableIntStateOf(100) }
@@ -656,11 +713,17 @@ private fun DetailScreen(
     var showDecisionCard by rememberSaveable { mutableStateOf(false) }
     var showOriginalEdition by rememberSaveable { mutableStateOf(false) }
     var selectedDecision by rememberSaveable(item.id) { androidx.compose.runtime.mutableIntStateOf(0) }
+    var selectedPlace by remember { mutableStateOf<HistoricalPlace?>(null) }
+    var showMap by rememberSaveable(item.id) { mutableStateOf(false) }
+    var selectedHistoricalNote by remember { mutableStateOf<ReadableHistoricalNote?>(null) }
+    var highlightedNotePosition by rememberSaveable(item.id) { mutableStateOf<Int?>(null) }
+    var showNoteEditor by rememberSaveable(item.id) { mutableStateOf(false) }
     val context = LocalContext.current
     val fontScale = fontPercent / 100f
     val original = item.original.ifBlank { item.content }
     val translation = item.translation.ifBlank { item.content }
-    val notes = item.notes.ifBlank { "当前条目暂无独立注释，先使用导读和主题标签阅读。" }
+    val historicalNotes = remember(item.id, item.notes) { formatHistoricalNotes(item.notes) }
+    val notes = historicalNotes.joinToString("\n") { it.text }.ifBlank { "当前条目暂无独立注释，先使用导读和主题标签阅读。" }
     val localContext = parseHistoricalContext(item.notes)
     val decisionOptions = localDecisionOptions(item, localContext)
     val currentText = when (mode) {
@@ -735,6 +798,22 @@ private fun DetailScreen(
                 )
             }
             item {
+                TtsControlRow(
+                    isPlaying = ttsState.currentItemId == item.id && ttsState.isPlaying,
+                    isPaused = ttsState.currentItemId == item.id && ttsState.isPaused,
+                    onSpeak = onSpeak,
+                    onPause = onPauseTts,
+                    onResume = onResumeTts,
+                    onStop = onStopTts,
+                )
+                if (ttsState.currentItemId == item.id && ttsState.isPlaying) {
+                    Text("第 ${ttsState.currentSentence + 1} / ${ttsState.sentenceCount} 句 · ${ttsState.progress}%", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                ttsState.error?.takeIf { ttsState.currentItemId == item.id }?.let { error ->
+                    Text(error, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
+                }
+            }
+            item {
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     item {
                         AssistChip(
@@ -760,6 +839,17 @@ private fun DetailScreen(
                             leadingIcon = { Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(16.dp)) },
                         )
                     }
+                    item {
+                        AssistChip(
+                            onClick = {
+                                onSaveNote(Note(UUID.randomUUID().toString(), item.id, 0, original.length, original, "", "#F4C95D", System.currentTimeMillis()))
+                            },
+                            label = { Text("划线当前原文") },
+                        )
+                    }
+                    item {
+                        AssistChip(onClick = { showNoteEditor = true }, label = { Text("记笔记") })
+                    }
                 }
             }
             item {
@@ -768,13 +858,27 @@ private fun DetailScreen(
                         when (mode) {
                             ReadingMode.PARALLEL -> {
                                 Text("原文", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-                                Text(original, style = MaterialTheme.typography.bodyLarge, fontSize = bodyFontSize, lineHeight = bodyLineHeight)
+                                SelectionContainer {
+                                    ReadingAnnotatedText(original, places, historicalNotes, savedNotes, bodyFontSize, bodyLineHeight, highlightedSavedNoteId, { place -> selectedPlace = place }) { note ->
+                                        highlightedNotePosition = note.position
+                                        selectedHistoricalNote = note
+                                    }
+                                }
                                 Text("白话", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
                                 Text(translation, style = MaterialTheme.typography.bodyLarge, fontSize = bodyFontSize, lineHeight = bodyLineHeight)
                             }
-                            ReadingMode.ORIGINAL -> Text(original, style = MaterialTheme.typography.bodyLarge, fontSize = bodyFontSize, lineHeight = bodyLineHeight)
+                            ReadingMode.ORIGINAL -> {
+                                ReadingAnnotatedText(original, places, historicalNotes, savedNotes, bodyFontSize, bodyLineHeight, highlightedSavedNoteId, { place -> selectedPlace = place }) { note ->
+                                    highlightedNotePosition = note.position
+                                    selectedHistoricalNote = note
+                                }
+                            }
                             ReadingMode.TRANSLATION -> Text(translation, style = MaterialTheme.typography.bodyLarge, fontSize = bodyFontSize, lineHeight = bodyLineHeight)
-                            ReadingMode.NOTES -> Text(notes, style = MaterialTheme.typography.bodyLarge, fontSize = bodyFontSize, lineHeight = bodyLineHeight)
+                            ReadingMode.NOTES -> HistoricalNotesList(historicalNotes) { note ->
+                                highlightedNotePosition = note.position
+                                selectedHistoricalNote = note
+                                mode = ReadingMode.ORIGINAL
+                            }
                             }
                         }
                     }
@@ -807,6 +911,18 @@ private fun DetailScreen(
                             ContextSection("相关地点", localContext.places)
                             ContextSection("官职与军政", localContext.officials)
                             ContextSection("史料注释", localContext.annotations)
+                        }
+                    }
+                }
+            }
+            if (savedNotes.isNotEmpty()) {
+                item {
+                    Surface(color = MaterialTheme.colorScheme.tertiaryContainer, shape = RoundedCornerShape(16.dp)) {
+                        Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text("我的划线", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                            savedNotes.take(5).forEach { note ->
+                                Text("“${note.selectedText}”${note.memo.takeIf(String::isNotBlank)?.let { "：$it" }.orEmpty()}", color = MaterialTheme.colorScheme.onTertiaryContainer)
+                            }
                         }
                     }
                 }
@@ -875,6 +991,27 @@ private fun DetailScreen(
             }
         }
     }
+    selectedPlace?.let { place ->
+        if (showMap) MapSheet(places, place) { showMap = false; selectedPlace = null }
+        else PlaceBottomSheet(place, onDismiss = { selectedPlace = null }, onShowMap = { showMap = true })
+    }
+    selectedHistoricalNote?.let { note ->
+        AlertDialog(
+            onDismissRequest = { selectedHistoricalNote = null },
+            title = { Text("注释 · 原文位置 ${note.position}") },
+            text = { Text(note.text) },
+            confirmButton = { TextButton(onClick = { selectedHistoricalNote = null }) { Text("返回正文") } },
+        )
+    }
+    if (showNoteEditor) {
+        NoteEditorDialog(
+            articleId = item.id,
+            selectedText = original,
+            startIndex = 0,
+            onDismiss = { showNoteEditor = false },
+            onSave = onSaveNote,
+        )
+    }
 }
 
 @Composable
@@ -894,6 +1031,8 @@ private fun AiSettingsScreen(
     onApiKeyChanged: (String) -> Unit,
     onSave: () -> Unit,
     onClearApiKey: () -> Unit,
+    ttsEngine: TtsEngineType,
+    onTtsEngineSelected: (TtsEngineType) -> Unit,
 ) {
     Scaffold(
         modifier = Modifier.windowInsetsPadding(WindowInsets.safeDrawing),
@@ -910,8 +1049,23 @@ private fun AiSettingsScreen(
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             item {
-                Text("连接 OpenAI Chat Completions 兼容接口", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text("AI 与朗读设置", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 Text("可以填写 OpenAI、兼容网关或本机模型服务的 URL 与模型名。API Key 仅加密保存在本机。", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            item {
+                Text("朗读引擎", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text("朗读按句排队，播放完当前条目后自动进入下一条。", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
+                    TtsEngineType.entries.forEach { engine ->
+                        FilterChip(
+                            selected = ttsEngine == engine,
+                            onClick = { onTtsEngineSelected(engine) },
+                            label = { Text("${engine.label}（${engine.description}）") },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                }
+                Text("当前版本在未打包 Sherpa 模型或 Edge 音频传输时使用系统中文语音回退；接口和播放队列已独立。", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 6.dp))
             }
             item {
                 OutlinedTextField(
@@ -1008,7 +1162,7 @@ private fun LoadingState() {
 }
 
 @Composable
-private fun EmptyState(title: String, subtitle: String) {
+internal fun EmptyState(title: String, subtitle: String) {
     Box(modifier = Modifier.fillMaxWidth().height(220.dp), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Icon(Icons.AutoMirrored.Filled.MenuBook, contentDescription = null, modifier = Modifier.size(34.dp), tint = MaterialTheme.colorScheme.primary)

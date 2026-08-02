@@ -43,4 +43,20 @@ class HistoricalContextTest {
         assertEquals(3, options.size)
         assertTrue(options.any { it.title == "先观其变" })
     }
+
+    @Test
+    fun formatsNestedHuNotesAsReadableEntries() {
+        val notes = formatHistoricalNotes(
+            """
+            {"ExtRef_Children_hu_notes":[
+              {"start_index":4,"note_content_jianti_auto":"复，扶又翻。","ExtRef_Children_people":[]},
+              {"start_index":0,"note_content_jianti_auto":"元贵靡，楚主解忧长男也。","ExtRef_Children_people":[{"people_name_jianti_auto":"元贵靡"}]}
+            ]}
+            """.trimIndent(),
+        )
+
+        assertEquals(listOf(0, 4), notes.map { it.position })
+        assertEquals("元贵靡，楚主解忧长男也。", notes.first().text)
+        assertEquals(listOf("元贵靡"), notes.first().people)
+    }
 }

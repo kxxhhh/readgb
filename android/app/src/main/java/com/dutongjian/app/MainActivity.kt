@@ -54,6 +54,13 @@ class MainActivity : ComponentActivity() {
                         onAiApiKeyClear = viewModel::clearAiApiKey,
                         onAiGenerate = viewModel::generateAi,
                         onAiResultClear = viewModel::clearAiResult,
+                        onTtsEngineSelected = viewModel::selectTtsEngine,
+                        onSpeak = viewModel::speak,
+                        onPauseTts = viewModel::pauseTts,
+                        onResumeTts = viewModel::resumeTts,
+                        onStopTts = viewModel::stopTts,
+                        onSaveNote = viewModel::saveNote,
+                        onDeleteNote = viewModel::deleteNote,
                         onDarkModeToggle = { darkMode = !darkMode },
                     )
                 }

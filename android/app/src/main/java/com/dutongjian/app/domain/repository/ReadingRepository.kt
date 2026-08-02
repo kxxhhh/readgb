@@ -1,8 +1,10 @@
 package com.dutongjian.app.domain.repository
 
 import com.dutongjian.app.domain.model.HomeFeed
+import com.dutongjian.app.domain.model.HistoricalPlace
 import com.dutongjian.app.domain.model.KnowledgeEntry
 import com.dutongjian.app.domain.model.LibrarySection
+import com.dutongjian.app.domain.model.Note
 import com.dutongjian.app.domain.model.ReadingItem
 import com.dutongjian.app.domain.model.ReadingYear
 import com.dutongjian.app.domain.model.Volume
@@ -19,4 +21,8 @@ interface ReadingRepository {
     suspend fun loadYears(volumeId: String): Result<List<ReadingYear>>
     suspend fun loadYearItems(yearId: String): Result<List<ReadingItem>>
     suspend fun loadKnowledge(query: String? = null, category: String? = null): Result<List<KnowledgeEntry>>
+    fun observeNotes(): Flow<List<Note>>
+    suspend fun saveNote(note: Note)
+    suspend fun deleteNote(note: Note)
+    fun observePlaces(): Flow<List<HistoricalPlace>>
 }

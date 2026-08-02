@@ -1,0 +1,430 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+
+package com.dutongjian.app.ui
+
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.ClickableText
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.dutongjian.app.domain.model.HistoricalPlace
+import com.dutongjian.app.domain.model.Note
+import com.dutongjian.app.domain.model.ReadingItem
+import com.dutongjian.app.domain.model.TimelineEvent
+import androidx.compose.ui.text.TextStyle
+import java.util.UUID
+
+@Composable
+internal fun TimelineScreen(items: List<ReadingItem>, onOpen: (ReadingItem) -> Unit) {
+    var yearFilter by rememberSaveable { mutableStateOf<String?>(null) }
+    var eraFilter by rememberSaveable { mutableStateOf<String?>(null) }
+    val events = remember(items) {
+        items.map { item ->
+            TimelineEvent(item, item.yearId ?: "未标年", item.dynasty.ifBlank { "未分纪" }, "${item.updatedAt}-${item.yearId}-${item.id}")
+        }.sortedBy(TimelineEvent::sortKey)
+    }
+    val years = remember(events) { events.map(TimelineEvent::yearLabel).distinct().take(24) }
+    val eras = remember(events) { events.map(TimelineEvent::era).distinct().take(24) }
+    val visible = events.filter { (yearFilter == null || it.yearLabel == yearFilter) && (eraFilter == null || it.era == eraFilter) }
+    Column(modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
+        Text("历史年表", modifier = Modifier.padding(top = 16.dp), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+        Text("按本地已导入条目的纪、年和年号整理", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        FilterRow("年份", years, yearFilter) { yearFilter = it }
+        FilterRow("纪年", eras, eraFilter) { eraFilter = it }
+        Text("${visible.size} 个事件", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(vertical = 8.dp))
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            items(visible, key = { it.item.id }) { event ->
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(end = 12.dp)) {
+                        Box(Modifier.size(12.dp).background(MaterialTheme.colorScheme.primary, RoundedCornerShape(50)))
+                        Box(Modifier.width(2.dp).height(74.dp).background(MaterialTheme.colorScheme.outlineVariant))
+                    }
+                    Surface(
+                        modifier = Modifier.fillMaxWidth().clickable { onOpen(event.item) },
+                        shape = RoundedCornerShape(12.dp),
+                        tonalElevation = 2.dp,
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                            Text(event.item.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                            Text("${event.era} · ${event.yearLabel}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                            Text(event.item.summary, maxLines = 2, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("打开正文并定位事件", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.secondary)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FilterRow(label: String, values: List<String>, selected: String?, onSelected: (String?) -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 8.dp)) {
+        Text(label, style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(end = 8.dp))
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            item { FilterChip(selected = selected == null, onClick = { onSelected(null) }, label = { Text("全部") }) }
+            items(values, key = { it }) { value ->
+                FilterChip(selected = selected == value, onClick = { onSelected(if (selected == value) null else value) }, label = { Text(value) })
+            }
+        }
+    }
+}
+
+@Composable
+internal fun PlaceText(
+    text: String,
+    places: List<HistoricalPlace>,
+    fontSize: androidx.compose.ui.unit.TextUnit,
+    lineHeight: androidx.compose.ui.unit.TextUnit,
+    onPlaceClick: (HistoricalPlace) -> Unit,
+) {
+    val annotated = remember(text, places) {
+        buildPlaceAnnotatedString(text, places)
+    }
+    ClickableText(
+        text = annotated,
+        style = MaterialTheme.typography.bodyLarge.copy(fontSize = fontSize, lineHeight = lineHeight, color = MaterialTheme.colorScheme.onSurface),
+        onClick = { offset ->
+            annotated.getStringAnnotations("place", offset, offset).firstOrNull()?.let { annotation ->
+                places.firstOrNull { it.ancientName == annotation.item }?.let(onPlaceClick)
+            }
+        },
+    )
+}
+
+private fun buildPlaceAnnotatedString(text: String, places: List<HistoricalPlace>): AnnotatedString {
+    val matches = places.flatMap { place ->
+        Regex(Regex.escape(place.ancientName)).findAll(text).map { match -> Triple(match.range.first, match.range.last + 1, place) }.toList()
+    }.sortedBy { it.first }
+    return AnnotatedString.Builder().apply {
+        var cursor = 0
+        matches.forEach { (start, end, place) ->
+            if (start < cursor) return@forEach
+            append(text.substring(cursor, start))
+            pushStringAnnotation("place", place.ancientName)
+            pushStyle(SpanStyle(color = Color(0xFF2E6F63), textDecoration = TextDecoration.Underline))
+            append(text.substring(start, end))
+            pop()
+            pop()
+            cursor = end
+        }
+        append(text.substring(cursor))
+    }.toAnnotatedString()
+}
+
+@Composable
+internal fun PlaceBottomSheet(place: HistoricalPlace, onDismiss: () -> Unit, onShowMap: () -> Unit) {
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(modifier = Modifier.fillMaxWidth().padding(24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text(place.ancientName, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            Text("今名：${place.modernName}", color = MaterialTheme.colorScheme.primary)
+            Text(place.description)
+            Text("坐标：${"%.4f".format(place.latitude)}, ${"%.4f".format(place.longitude)}", style = MaterialTheme.typography.labelMedium)
+            Button(onClick = onShowMap, modifier = Modifier.fillMaxWidth()) { Text("在地图中查看") }
+            Spacer(Modifier.height(12.dp))
+        }
+    }
+}
+
+@Composable
+internal fun MapSheet(places: List<HistoricalPlace>, selected: HistoricalPlace?, onDismiss: () -> Unit) {
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(modifier = Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("历史地图", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            Text("${selected?.ancientName ?: "已标记地点"} · ${selected?.modernName.orEmpty()}", color = MaterialTheme.colorScheme.primary)
+            HistoricalMap(places, selected)
+            Spacer(Modifier.height(12.dp))
+        }
+    }
+}
+
+@Composable
+private fun HistoricalMap(places: List<HistoricalPlace>, selected: HistoricalPlace?) {
+    Surface(shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
+        Canvas(Modifier.fillMaxWidth().height(260.dp).padding(14.dp)) {
+            val minLat = 20.0
+            val maxLat = 48.0
+            val minLon = 90.0
+            val maxLon = 125.0
+            fun point(place: HistoricalPlace): Offset = Offset(
+                ((place.longitude - minLon) / (maxLon - minLon) * size.width).toFloat(),
+                ((maxLat - place.latitude) / (maxLat - minLat) * size.height).toFloat(),
+            )
+            for (step in 1..5) {
+                drawLine(Color.Gray.copy(alpha = .28f), Offset(size.width * step / 6f, 0f), Offset(size.width * step / 6f, size.height))
+                drawLine(Color.Gray.copy(alpha = .28f), Offset(0f, size.height * step / 6f), Offset(size.width, size.height * step / 6f))
+            }
+            places.forEach { place ->
+                val p = point(place)
+                drawCircle(if (place == selected) Color(0xFFB34B32) else Color(0xFF35645B), radius = if (place == selected) 10f else 6f, center = p)
+            }
+        }
+    }
+}
+
+@Composable
+internal fun NoteEditorDialog(
+    articleId: String,
+    selectedText: String,
+    startIndex: Int,
+    initial: Note? = null,
+    onDismiss: () -> Unit,
+    onSave: (Note) -> Unit,
+) {
+    var memo by rememberSaveable(initial?.id) { mutableStateOf(initial?.memo.orEmpty()) }
+    var color by rememberSaveable(initial?.id) { mutableStateOf(initial?.color ?: "#F4C95D") }
+    val colors = listOf("#F4C95D", "#A8DADC", "#F4A6A6", "#CDB4DB")
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(if (initial == null) "记一条笔记" else "编辑笔记") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("“${selectedText.take(120)}”", color = MaterialTheme.colorScheme.primary)
+                OutlinedTextField(value = memo, onValueChange = { memo = it }, label = { Text("笔记心得") }, minLines = 3)
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(colors) { candidate ->
+                        FilterChip(selected = color == candidate, onClick = { color = candidate }, label = { Text("颜色") })
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                onSave(Note(initial?.id ?: UUID.randomUUID().toString(), articleId, initial?.startIndex ?: startIndex, initial?.endIndex ?: startIndex + selectedText.length, selectedText, memo.trim(), color, initial?.createdAt ?: System.currentTimeMillis()))
+                onDismiss()
+            }, enabled = selectedText.isNotBlank()) { Text("保存") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } },
+    )
+}
+
+@Composable
+internal fun NotesLibrary(
+    notes: List<Note>,
+    items: List<ReadingItem>,
+    onOpen: (ReadingItem, Note) -> Unit,
+    onDelete: (Note) -> Unit,
+) {
+    if (notes.isEmpty()) {
+        EmptyState("还没有笔记", "在正文中选择划线或记笔记")
+    } else {
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 20.dp)) {
+            items(notes, key = { it.id }) { note ->
+                val item = items.firstOrNull { it.id == note.articleId }
+                Surface(modifier = Modifier.fillMaxWidth().clickable { item?.let { onOpen(it, note) } }, shape = RoundedCornerShape(12.dp), tonalElevation = 2.dp) {
+                    Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(note.selectedText, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                        if (note.memo.isNotBlank()) Text(note.memo)
+                        Text(item?.title ?: "已删除条目", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        TextButton(onClick = { onDelete(note) }) { Text("删除") }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+internal fun HistoricalNotesList(notes: List<ReadableHistoricalNote>, onClick: (ReadableHistoricalNote) -> Unit) {
+    if (notes.isEmpty()) {
+        Text("当前条目暂无可读注释。", color = MaterialTheme.colorScheme.onSurfaceVariant)
+    } else {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            notes.forEach { note ->
+                Surface(modifier = Modifier.fillMaxWidth().clickable { onClick(note) }, shape = RoundedCornerShape(10.dp), color = MaterialTheme.colorScheme.background) {
+                    Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                        Text("原文位置 ${note.position}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                        Text(note.text, fontSize = 16.sp, lineHeight = 25.sp)
+                        val links = (note.people + note.places).distinct()
+                        if (links.isNotEmpty()) Text("关联：${links.joinToString("、")}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+internal fun HistoricalNoteText(
+    text: String,
+    notes: List<ReadableHistoricalNote>,
+    fontSize: androidx.compose.ui.unit.TextUnit,
+    lineHeight: androidx.compose.ui.unit.TextUnit,
+    selectedPosition: Int?,
+    onNoteClick: (ReadableHistoricalNote) -> Unit,
+) {
+    val annotated = remember(text, notes, selectedPosition) {
+        buildHistoricalNoteAnnotatedString(text, notes, selectedPosition)
+    }
+    ClickableText(
+        text = annotated,
+        style = MaterialTheme.typography.bodyLarge.copy(fontSize = fontSize, lineHeight = lineHeight, color = MaterialTheme.colorScheme.onSurface),
+        onClick = { offset ->
+            annotated.getStringAnnotations("historical-note", offset, offset).firstOrNull()?.let { annotation ->
+                notes.firstOrNull { it.position.toString() == annotation.item }?.let(onNoteClick)
+            }
+        },
+    )
+}
+
+@Composable
+internal fun ReadingAnnotatedText(
+    text: String,
+    places: List<HistoricalPlace>,
+    historicalNotes: List<ReadableHistoricalNote>,
+    savedNotes: List<Note>,
+    fontSize: androidx.compose.ui.unit.TextUnit,
+    lineHeight: androidx.compose.ui.unit.TextUnit,
+    highlightedSavedNoteId: String?,
+    onPlaceClick: (HistoricalPlace) -> Unit,
+    onHistoricalNoteClick: (ReadableHistoricalNote) -> Unit,
+) {
+    val annotated = remember(text, places, historicalNotes, savedNotes, highlightedSavedNoteId) {
+        buildReadingAnnotatedString(text, places, historicalNotes, savedNotes, highlightedSavedNoteId)
+    }
+    ClickableText(
+        text = annotated,
+        style = TextStyle(fontSize = fontSize, lineHeight = lineHeight, color = MaterialTheme.colorScheme.onSurface),
+        onClick = { offset ->
+            annotated.getStringAnnotations("place", offset, offset).firstOrNull()?.let { annotation ->
+                places.firstOrNull { it.ancientName == annotation.item }?.let(onPlaceClick)
+                return@ClickableText
+            }
+            annotated.getStringAnnotations("historical-note", offset, offset).firstOrNull()?.let { annotation ->
+                historicalNotes.firstOrNull { it.position.toString() == annotation.item }?.let(onHistoricalNoteClick)
+            }
+        },
+    )
+}
+
+private data class ReadingMark(val start: Int, val end: Int, val type: String, val id: String, val style: SpanStyle)
+
+private fun buildReadingAnnotatedString(
+    text: String,
+    places: List<HistoricalPlace>,
+    historicalNotes: List<ReadableHistoricalNote>,
+    savedNotes: List<Note>,
+    highlightedSavedNoteId: String?,
+): AnnotatedString {
+    val marks = mutableListOf<ReadingMark>()
+    places.forEach { place ->
+        Regex(Regex.escape(place.ancientName)).findAll(text).forEach { match ->
+            marks += ReadingMark(match.range.first, match.range.last + 1, "place", place.ancientName, SpanStyle(color = Color(0xFF2E6F63), textDecoration = TextDecoration.Underline))
+        }
+    }
+    historicalNotes.sortedBy { it.position }.forEachIndexed { index, note ->
+        if (note.position in text.indices) {
+            val end = historicalNotes.getOrNull(index + 1)?.position?.coerceAtMost(text.length) ?: (note.position + 2).coerceAtMost(text.length)
+            marks += ReadingMark(note.position, end, "historical-note", note.position.toString(), SpanStyle(background = Color(0x33B34B32), textDecoration = TextDecoration.Underline))
+        }
+    }
+    savedNotes.forEach { note ->
+        var cursor = note.startIndex.coerceIn(0, text.length)
+        while (cursor < text.length) {
+            val found = text.indexOf(note.selectedText, cursor)
+            if (found < 0) break
+            marks += ReadingMark(found, found + note.selectedText.length, "saved-note", note.id, SpanStyle(background = if (note.id == highlightedSavedNoteId) Color(0xFFF4C95D) else Color(0x55F4C95D)))
+            cursor = found + note.selectedText.length.coerceAtLeast(1)
+        }
+    }
+    val nonOverlapping = marks.sortedWith(compareBy<ReadingMark> { it.start }.thenByDescending { it.end - it.start }).fold(mutableListOf<ReadingMark>()) { result, mark ->
+        if (result.none { mark.start < it.end && it.start < mark.end }) result += mark
+        result
+    }
+    return AnnotatedString.Builder().apply {
+        var cursor = 0
+        nonOverlapping.forEach { mark ->
+            if (mark.start > cursor) append(text.substring(cursor, mark.start))
+            pushStringAnnotation(mark.type, mark.id)
+            pushStyle(mark.style)
+            append(text.substring(mark.start, mark.end))
+            pop()
+            pop()
+            cursor = mark.end
+        }
+        if (cursor < text.length) append(text.substring(cursor))
+    }.toAnnotatedString()
+}
+
+private fun buildHistoricalNoteAnnotatedString(text: String, notes: List<ReadableHistoricalNote>, selectedPosition: Int?): AnnotatedString {
+    val valid = notes.filter { it.position in text.indices }.sortedBy { it.position }
+    return AnnotatedString.Builder().apply {
+        var cursor = 0
+        valid.forEachIndexed { index, note ->
+            val start = note.position.coerceAtLeast(cursor)
+            val end = valid.getOrNull(index + 1)?.position?.coerceAtMost(text.length) ?: (start + 2).coerceAtMost(text.length)
+            if (start > cursor) append(text.substring(cursor, start))
+            if (end > start) {
+                pushStringAnnotation("historical-note", note.position.toString())
+                pushStyle(SpanStyle(background = if (selectedPosition == note.position) Color(0xFFF4C95D) else Color(0x33B34B32), textDecoration = TextDecoration.Underline))
+                append(text.substring(start, end))
+                pop()
+                pop()
+                cursor = end
+            }
+        }
+        if (cursor < text.length) append(text.substring(cursor))
+    }.toAnnotatedString()
+}
+
+@Composable
+internal fun TtsControlRow(
+    isPlaying: Boolean,
+    isPaused: Boolean,
+    onSpeak: () -> Unit,
+    onPause: () -> Unit,
+    onResume: () -> Unit,
+    onStop: () -> Unit,
+) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Button(onClick = onSpeak) { Text(if (isPlaying) "重新朗读" else "朗读") }
+        if (isPlaying && !isPaused) TextButton(onClick = onPause) { Text("暂停") }
+        if (isPaused) TextButton(onClick = onResume) { Text("继续") }
+        if (isPlaying) TextButton(onClick = onStop) { Text("停止") }
+    }
+}

@@ -3,15 +3,20 @@ package com.dutongjian.app.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dutongjian.app.domain.model.KnowledgeEntry
+import com.dutongjian.app.domain.model.HistoricalPlace
 import com.dutongjian.app.domain.model.AiSettings
 import com.dutongjian.app.domain.model.AiTask
 import com.dutongjian.app.domain.model.LibrarySection
 import com.dutongjian.app.domain.model.OfflineSeed
 import com.dutongjian.app.domain.model.ReadingItem
 import com.dutongjian.app.domain.model.ReadingYear
+import com.dutongjian.app.domain.model.Note
+import com.dutongjian.app.domain.model.TtsEngineType
 import com.dutongjian.app.domain.model.Volume
 import com.dutongjian.app.domain.repository.ReadingRepository
 import com.dutongjian.app.domain.repository.AiRepository
+import com.dutongjian.app.domain.tts.TtsPlaybackState
+import com.dutongjian.app.domain.tts.TtsPlayer
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -19,9 +24,11 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-enum class LibraryTab { FAVORITES, HISTORY }
+enum class LibraryTab { FAVORITES, HISTORY, NOTES }
 enum class CatalogLevel { SECTIONS, VOLUMES, YEARS, ITEMS }
 
 data class AiUiState(
@@ -61,8 +68,11 @@ data class ReadingUiState(
     val knowledgeCategoryCounts: Map<String, Int> = OfflineSeed.knowledge.groupingBy(KnowledgeEntry::category).eachCount(),
     val knowledgeQuery: String = "",
     val selectedKnowledgeCategory: String? = null,
+    val notes: List<Note> = emptyList(),
+    val places: List<HistoricalPlace> = emptyList(),
     val isCatalogLoading: Boolean = false,
     val isKnowledgeLoading: Boolean = false,
+    val tts: TtsPlaybackState = TtsPlaybackState(),
     val ai: AiUiState = AiUiState(),
 )
 
@@ -70,7 +80,10 @@ data class ReadingUiState(
 class ReadingViewModel @Inject constructor(
     private val repository: ReadingRepository,
     private val aiRepository: AiRepository,
+    private val ttsController: TtsPlayer,
 ) : ViewModel() {
+    private var knowledgeCache = OfflineSeed.knowledge
+    private var knowledgeRequest: Job? = null
     private val _state = MutableStateFlow(
         ReadingUiState(
             items = OfflineSeed.items,
@@ -95,6 +108,15 @@ class ReadingViewModel @Inject constructor(
                     )
                 }
             }
+        }
+        viewModelScope.launch {
+            repository.observeNotes().collectLatest { notes -> _state.update { it.copy(notes = notes) } }
+        }
+        viewModelScope.launch {
+            repository.observePlaces().collectLatest { places -> _state.update { it.copy(places = places) } }
+        }
+        viewModelScope.launch {
+            ttsController.state.collectLatest { tts -> _state.update { it.copy(tts = tts) } }
         }
         refresh()
         loadSections()
@@ -151,6 +173,20 @@ class ReadingViewModel @Inject constructor(
     }
 
     fun open(item: ReadingItem) = viewModelScope.launch { repository.recordOpened(item.id) }
+
+    fun selectTtsEngine(engine: TtsEngineType) = ttsController.selectEngine(engine)
+
+    fun speak(item: ReadingItem) = ttsController.speak(_state.value.items, item)
+
+    fun pauseTts() = ttsController.pause()
+
+    fun resumeTts() = ttsController.resume()
+
+    fun stopTts() = ttsController.stop()
+
+    fun saveNote(note: Note) = viewModelScope.launch { repository.saveNote(note) }
+
+    fun deleteNote(note: Note) = viewModelScope.launch { repository.deleteNote(note) }
 
     fun updateAiBaseUrl(value: String) { _state.update { it.copy(ai = it.ai.copy(baseUrl = value, error = null)) } }
 
@@ -268,28 +304,73 @@ class ReadingViewModel @Inject constructor(
     }
 
     fun searchKnowledge(value: String) {
-        _state.update { it.copy(knowledgeQuery = value) }
-        loadKnowledge(value.trim().ifBlank { null }, _state.value.selectedKnowledgeCategory)
+        val category = _state.value.selectedKnowledgeCategory
+        _state.update { current ->
+            current.copy(
+                knowledgeQuery = value,
+                knowledge = filterKnowledge(knowledgeCache, value, category),
+                knowledgeCategories = knowledgeCache.map(KnowledgeEntry::category).distinct().sorted(),
+                knowledgeCategoryCounts = knowledgeCache.groupingBy(KnowledgeEntry::category).eachCount(),
+                isKnowledgeLoading = false,
+            )
+        }
+        scheduleKnowledgeRequest(value.trim().ifBlank { null }, category)
     }
 
     fun selectKnowledgeCategory(category: String?) {
-        _state.update { it.copy(selectedKnowledgeCategory = category) }
-        loadKnowledge(_state.value.knowledgeQuery.trim().ifBlank { null }, category)
+        val query = _state.value.knowledgeQuery
+        _state.update { current ->
+            current.copy(
+                selectedKnowledgeCategory = category,
+                knowledge = filterKnowledge(knowledgeCache, query, category),
+                isKnowledgeLoading = false,
+            )
+        }
+        scheduleKnowledgeRequest(query.trim().ifBlank { null }, category)
     }
 
     private fun loadKnowledge(query: String? = null, category: String? = null) = viewModelScope.launch {
         _state.update { it.copy(isKnowledgeLoading = true) }
         repository.loadKnowledge(query, category).onSuccess { entries ->
+            if (query == null && category == null) knowledgeCache = entries
             _state.update {
                 it.copy(
                     knowledge = entries,
-                    knowledgeCategories = entries.map(KnowledgeEntry::category).distinct().sorted(),
-                    knowledgeCategoryCounts = entries.groupingBy(KnowledgeEntry::category).eachCount(),
+                    knowledgeCategories = knowledgeCache.map(KnowledgeEntry::category).distinct().sorted(),
+                    knowledgeCategoryCounts = knowledgeCache.groupingBy(KnowledgeEntry::category).eachCount(),
                     isKnowledgeLoading = false,
                 )
             }
         }.onFailure { failure ->
             _state.update { it.copy(isKnowledgeLoading = false, error = failure.message ?: "百科加载失败") }
         }
+    }
+
+    private fun scheduleKnowledgeRequest(query: String?, category: String?) {
+        knowledgeRequest?.cancel()
+        knowledgeRequest = viewModelScope.launch {
+            delay(250)
+            _state.update { it.copy(isKnowledgeLoading = true) }
+            repository.loadKnowledge(query, category).onSuccess { entries ->
+                if (query == null && category == null) knowledgeCache = entries
+                _state.update { current -> current.copy(knowledge = entries, isKnowledgeLoading = false) }
+            }.onFailure { failure ->
+                _state.update { it.copy(isKnowledgeLoading = false, error = failure.message ?: "百科加载失败") }
+            }
+        }
+    }
+
+    private fun filterKnowledge(source: List<KnowledgeEntry>, query: String, category: String?): List<KnowledgeEntry> {
+        val needle = query.trim().lowercase()
+        return source.filter { entry ->
+            (category == null || entry.category == category) &&
+                (needle.isBlank() || listOf(entry.title, entry.summary, entry.content).any { it.lowercase().contains(needle) })
+        }
+    }
+
+    override fun onCleared() {
+        ttsController.stop()
+        ttsController.release()
+        super.onCleared()
     }
 }

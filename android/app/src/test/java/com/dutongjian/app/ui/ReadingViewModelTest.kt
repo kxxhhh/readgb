@@ -3,18 +3,23 @@ package com.dutongjian.app.ui
 import com.dutongjian.app.domain.model.AiSettings
 import com.dutongjian.app.domain.model.AiTask
 import com.dutongjian.app.domain.model.HomeFeed
+import com.dutongjian.app.domain.model.HistoricalPlace
 import com.dutongjian.app.domain.model.KnowledgeEntry
 import com.dutongjian.app.domain.model.LibrarySection
+import com.dutongjian.app.domain.model.Note
 import com.dutongjian.app.domain.model.ReadingItem
 import com.dutongjian.app.domain.model.ReadingYear
 import com.dutongjian.app.domain.model.Volume
 import com.dutongjian.app.domain.repository.ReadingRepository
 import com.dutongjian.app.domain.repository.AiRepository
+import com.dutongjian.app.domain.tts.TtsPlaybackState
+import com.dutongjian.app.domain.tts.TtsPlayer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -45,7 +50,7 @@ class ReadingViewModelTest {
     fun searchTracksServerMatchesAndClearsForShortQuery() = runTest {
         val match = item("match", "三家分晋")
         val other = item("other", "赤壁之战")
-        val viewModel = ReadingViewModel(FakeRepository(listOf(match, other), listOf(match)), FakeAiRepository())
+        val viewModel = ReadingViewModel(FakeRepository(listOf(match, other), listOf(match)), FakeAiRepository(), FakeTtsPlayer())
 
         viewModel.search("三家")
 
@@ -67,7 +72,7 @@ class ReadingViewModelTest {
     fun catalogDoesNotExposeSeedVolumesWhileRealCatalogIsLoading() = runTest {
         val gate = CompletableDeferred<List<Volume>>()
         val realVolume = Volume("real-volume", "zizhi", "卷第一", "周纪", 1)
-        val viewModel = ReadingViewModel(FakeRepository(listOf(item("item", "正文")), emptyList(), gate), FakeAiRepository())
+        val viewModel = ReadingViewModel(FakeRepository(listOf(item("item", "正文")), emptyList(), gate), FakeAiRepository(), FakeTtsPlayer())
 
         viewModel.selectSection(com.dutongjian.app.domain.model.OfflineSeed.sections.first())
 
@@ -84,7 +89,7 @@ class ReadingViewModelTest {
     @Test
     fun cycleFeaturedMovesTheHomeWindowWithoutChangingTheItemFeed() = runTest {
         val items = (0 until 6).map { index -> item("item-$index", "条目$index") }
-        val viewModel = ReadingViewModel(FakeRepository(items, emptyList()), FakeAiRepository())
+        val viewModel = ReadingViewModel(FakeRepository(items, emptyList()), FakeAiRepository(), FakeTtsPlayer())
 
         viewModel.cycleFeatured()
 
@@ -130,6 +135,14 @@ private class FakeRepository(
     override suspend fun loadYearItems(yearId: String) = Result.success(emptyList<ReadingItem>())
 
     override suspend fun loadKnowledge(query: String?, category: String?) = Result.success(emptyList<KnowledgeEntry>())
+
+    override fun observeNotes(): Flow<List<Note>> = MutableStateFlow(emptyList())
+
+    override suspend fun saveNote(note: Note) = Unit
+
+    override suspend fun deleteNote(note: Note) = Unit
+
+    override fun observePlaces(): Flow<List<HistoricalPlace>> = MutableStateFlow(emptyList())
 }
 
 private class FakeAiRepository : AiRepository {
@@ -140,4 +153,15 @@ private class FakeAiRepository : AiRepository {
     override suspend fun clearApiKey() = Result.success(AiSettings())
 
     override suspend fun generate(item: ReadingItem, task: AiTask) = Result.success("AI result")
+}
+
+private class FakeTtsPlayer : TtsPlayer {
+    private val _state = MutableStateFlow(TtsPlaybackState())
+    override val state: StateFlow<TtsPlaybackState> = _state
+    override fun selectEngine(type: com.dutongjian.app.domain.model.TtsEngineType) = Unit
+    override fun speak(items: List<ReadingItem>, item: ReadingItem) = Unit
+    override fun pause() = Unit
+    override fun resume() = Unit
+    override fun stop() = Unit
+    override fun release() = Unit
 }
