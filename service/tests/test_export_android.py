@@ -1,7 +1,9 @@
 import gzip
 import json
 
-from app.export_android import export_content
+import pytest
+
+from app.export_android import export_catalog, export_content
 from app.models import Item
 from app.store import ContentStore
 
@@ -29,3 +31,13 @@ def test_export_android_requires_verified_full_count_and_writes_ndjson(tmp_path)
 
     with gzip.open(output, "rt", encoding="utf-8") as stream:
         assert json.loads(stream.readline())["id"] == "zztj-content-1"
+
+
+def test_export_catalog_refuses_incomplete_hierarchy(tmp_path):
+    store = ContentStore(tmp_path / "catalog.db")
+    output = tmp_path / "offline_catalog.json"
+
+    with pytest.raises(ValueError, match="refusing Android catalog export"):
+        export_catalog(store.path, output, expected_volumes=294, expected_years=1405)
+
+    assert not output.exists()
