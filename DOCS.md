@@ -2,7 +2,7 @@
 
 [返回 README](./README.md)
 
-本文档描述当前仓库真实存在的架构、数据边界、运行命令、恢复方式和提交规则。易变的任务进度、同步数量和最近测试结果只记录在 PROJECT_STATE.md；PROJECT_STATE_HISTORY.md 是重写前的只读归档，不作为当前事实来源。
+本文档描述当前仓库真实存在的架构、数据边界、运行命令、恢复方式和提交规则。易变的任务进度、同步数量和最近测试结果只记录在 PROJECT_STATE.md；DEVELOPMENT_LOG.md 已与其合并，只作为入口说明；PROJECT_STATE_HISTORY.md 是重写前的只读归档，不作为当前事实来源。
 
 ## 1. 当前范围
 
@@ -77,13 +77,13 @@ ReadingRepositoryImpl 的顺序如下：
 
 ### 3.3 学习页和关系图
 
-学习页不再使用固定六个示例节点：
+学习页不再使用固定的少量示例节点：
 
-- 柱状图从当前 state.items 按朝代动态聚合，并支持点选朝代后下钻到真实文章。
-- 人物关系从文章 notes 中的公开人物关联动态计算共现，显示最多 16 个高频人物和最多 30 条关系线，并可点回文章。
+- 柱状图支持纪年与纪/朝代两个聚合范围；从当前 state.items 计算真实篇目数，所有实际分组通过 LazyRow 横向浏览，点选分组后下钻真实文章。
+- 人物关系从文章 notes 中的公开人物关联动态计算共现；人物索引保留当前数据中的全部人物，选择中心人物后只绘制其高频邻接网络，并可从关系行点回正文。
 - 趋势图使用本地阅读统计中的最近 7 天数据。
 
-这能随真实资产规模扩展，但当前新数据库仍只完成少量纪年，图表数量会随同步和资产导入完成后才达到全本覆盖。Android 真机上的大数据量性能回归仍需补做。
+这能随真实资产规模扩展，但当前数据库仍只完成阶段性纪年，图表数量和关系覆盖不会被误写成全本。Android 真机上的大数据量性能回归仍需补做。
 
 ### 3.4 TTS、AI、Widget 和本地工具
 
@@ -144,7 +144,7 @@ notes 保存完整公开关联对象 JSON；tags 由主题、人物、地点和�
 TongjianApiClient 当前默认：
 
 ~~~python
-min_interval=0.5
+min_interval=5.0
 workers=4
 retries=3
 timeout=30.0
@@ -156,7 +156,7 @@ respect_robots=True  # CLI 默认
 - 先查项目内 JSON cache，cache 命中不发网络请求。
 - robots.txt 检查在非缓存请求前执行；无法读取时拒绝请求。
 - URL 必须由配置的同一 base URL 生成。
-- 请求启动使用全局节奏锁；worker 数量受控，不用于绕过站点限流。
+- 请求启动使用全局节奏锁；当前 5 秒间隔是根据实际 HTTP 429 反馈设置的，worker 数量受控，不用于绕过站点限流。
 - HTTP 429 读取 Retry-After，其他错误指数退避，最大等待 30 秒。
 - 每个纪年成功入库后原子更新 checkpoint。
 - SQLite 主键和公开 ID 去重；原始 API 返回体写入项目内 cache。
@@ -183,8 +183,8 @@ respect_robots=True  # CLI 默认
 cd /mnt/workspace/readgb
 sed -n '1,240p' PROJECT_STATE.md
 git status --short
-ps -eo pid,etime,cmd | rg 'tongjian_sync|readgb-crawler' | rg -v 'rg '
-jq '{total_reigns, completed: (.completed_reign_ids | length), updated_at}' service/data/tongjian-progress.json
+ps -eo pid,lstart,etime,pcpu,pmem,args | rg 'app.tongjian_sync|resume_crawler|readgb-crawler' | rg -v 'rg '
+jq '{total_reigns, completed: (.completed_reign_ids | length), failed: (.failed_reign_ids // [] | length), updated_at}' service/data/tongjian-progress.json
 ~~~
 
 正常恢复：
@@ -262,7 +262,7 @@ cd android && ./gradlew testDebugUnitTest lintDebug assembleDebug assembleReleas
 
 ## 9. 文档和任务记录协议
 
-PROJECT_STATE.md 同时承担项目状态、任务清单和可恢复日志，不再另建并行的活动日志文件。每次开发必须：
+PROJECT_STATE.md 同时承担项目状态、任务清单和可恢复日志；DEVELOPMENT_LOG.md 已合并到它，不在两个文件中重复记录。每次开发必须：
 
 1. 开始前读取 PROJECT_STATE.md 和 git status --short。
 2. 先在当前任务清单中写明本轮目标、涉及路径和恢复方式。

@@ -5,7 +5,7 @@
 工作目录：/mnt/workspace/readgb
 目标网站：https://www.dutongjian.com/
 
-本文件是项目要求和当前实施边界。源码、测试和 PROJECT_STATE.md 优先于早期历史描述。PROJECT_STATE.md 同时承担任务清单、断点恢复记录和变更日志；每次开发必须先读它。
+本文件是项目要求和当前实施边界。源码、测试和 PROJECT_STATE.md 优先于早期历史描述。PROJECT_STATE.md 同时承担任务清单、断点恢复记录和变更日志；DEVELOPMENT_LOG.md 已合并到它；每次开发必须先读 PROJECT_STATE.md。
 
 一、交付目标
 ------------
@@ -55,7 +55,7 @@ Backend：
 - 详情页原文/译文并读、单独阅读、字号、复制分享、划线笔记和工具面板。
 - 展示层繁简/异体字映射和本地字词提示。
 - 系统 TTS 控制器、句子状态、自动滚动和睡眠计时器代码。
-- 学习页动态朝代柱状图、阅读趋势、人物共现关系图和文章下钻代码。
+- 学习页纪年/纪·朝代全量分组柱状图、阅读趋势、结构化人物全索引、中心人物共现关系图和文章下钻代码。
 - FastAPI home/search/items/detail/目录/knowledge 接口。
 - robots、缓存、Retry-After、退避、去重、checkpoint、受控 worker 和失败记录。
 - 项目内 service/data 数据路径、清理前审计快照、断点恢复脚本和 systemd unit。
@@ -106,7 +106,7 @@ Backend：
       --cache-dir service/data/tongjian-cache \
       --checkpoint service/data/tongjian-progress.json \
       --workers 4 \
-      --min-interval 0.5 \
+      --min-interval 5.0 \
       --respect-robots
 
 爬虫规则：
@@ -128,8 +128,8 @@ Backend：
     cd /mnt/workspace/readgb
     sed -n '1,240p' PROJECT_STATE.md
     git status --short
-    ps -eo pid,etime,cmd | rg 'tongjian_sync|readgb-crawler' | rg -v 'rg '
-    jq '{total_reigns, completed: (.completed_reign_ids | length), updated_at}' \
+    ps -eo pid,lstart,etime,pcpu,pmem,args | rg 'app.tongjian_sync|resume_crawler|readgb-crawler' | rg -v 'rg '
+    jq '{total_reigns, completed: (.completed_reign_ids | length), failed: (.failed_reign_ids // [] | length), updated_at}' \
       service/data/tongjian-progress.json
     ./scripts/resume_crawler.sh
 
@@ -166,7 +166,7 @@ CI：
 
 每次开发必须：
 
-1. 先读 PROJECT_STATE.md，再执行 git status --short。
+1. 先读 PROJECT_STATE.md，再执行 git status --short；DEVELOPMENT_LOG.md 已与 PROJECT_STATE.md 合并，不维护第二份进度。
 2. 在 PROJECT_STATE.md 当前任务清单写目标、路径和恢复方式。
 3. 完成项行末加 ✅；未完成项保留未勾选并写明下一步。
 4. 测试、同步、部署、数据路径和构建变化追加到同一文件的变更日志。

@@ -1,166 +1,106 @@
-# 读通鉴项目任务清单与恢复日志
+# 读通鉴当前任务清单与恢复日志
 
-更新时间：2026-08-03 08:55（Asia/Shanghai）
+更新时间：2026-08-03（Asia/Shanghai）
 
-本文件是当前唯一活动状态源，同时承担任务清单、断点恢复说明和变更日志。旧版长状态已保存为 PROJECT_STATE_HISTORY.md，只用于追溯，不代表当前事实。
+本文件是项目的单一状态源，同时承担项目清单、断点恢复记录和开发日志。PROJECT_STATE_HISTORY.md 只保留旧历史，不作为当前事实来源；DEVELOPMENT_LOG.md 是本文件的合并入口说明，不再单独维护第二套日志。
 
-## 每次开发必须遵守
+## 恢复入口
 
-- [x] 开始前读取本文件，再执行 git status --short。✅
-- [x] 任务、爬虫、构建、部署和文档变更都记录在本文件，不另建并行活动日志。✅
-- [x] 完成项使用 [x]，并在行末追加 ✅；未完成项保持 [ ]，写明下一步或阻塞原因。✅
-- [x] 新抓取内容、数据库、cache、checkpoint 和审计快照都放在项目目录，不使用 /tmp 作为内容目录。✅
-- [x] 意外中断后复用同一数据库、cache 和 checkpoint，不删除数据、不启动重复爬虫。✅
-- [ ] 每次本轮任务结束后提交、推送，并在本文件记录 commit 和远端分支。
+工作目录：/mnt/workspace/readgb
 
-## 项目目标
-
-- [x] 原生 Kotlin Android App：Compose、Material 3、MVVM、StateFlow、Repository、Room、Hilt。✅
-- [x] 首页、目录、搜索、详情、收藏、历史、笔记、百科和本地阅读工具。✅
-- [x] Python/FastAPI 数据服务和统一 code/message/data REST API。✅
-- [x] 公开内容同步器：robots、同源、限速、缓存、Retry-After、退避、去重和 checkpoint。✅
-- [ ] 完成公开《资治通鉴》全量同步，校验 294 卷、1,405 纪年和 30,989 条正文。
-- [ ] 将校验后的正文、目录和百科资产导入 Android，重新构建 APK。
-- [ ] 完成真实 Android 设备上的安装、阅读、TTS、Widget、图表和 AI 回归。
-
-## 当前任务清单
-
-### 数据清理和同步
-
-- [x] 停止旧同步进程，避免旧任务继续修改数据库。✅
-- [x] 删除旧导入的资治通鉴正文、资治通鉴目录和关联百科记录。✅
-- [x] 将清理前的数据库、旧 Android assets、旧 cache/checkpoint 归档到 service/data/resync-archive-20260803/。✅
-- [x] 新同步直接使用 service/data/dutongjian.db、service/data/tongjian-cache/ 和 service/data/tongjian-progress.json。✅
-- [x] 同步器增加 4 个有界 worker、全局请求节奏和共享 Retry-After 冷却。✅
-- [x] 单纪年失败时继续收集其他任务，并把 failed_reign_ids/last_errors 写入 checkpoint。✅
-- [ ] 从当前 checkpoint 56/1405 继续同步剩余 1,349 个纪年。
-- [ ] 校验 30,989 条正文的 ID、原文、简体、译文、关联字段、卷和纪年层级。
-- [ ] 同步完成后清理残留演示 seed，并生成最终 Android assets。
-
-### Android 离线内容
-
-- [x] Room 导入前完整解析资产，解析失败不删除已有本地内容。✅
-- [x] 新资产导入前删除旧 zztj-* 和 zizhi-tongjian-* 内容，同时保留收藏和最近阅读时间。✅
-- [x] 添加 classical_char_map.json 和 classical_glossary.json，并在 App 启动时加载。✅
-- [ ] 重新生成并放入项目 android/app/src/main/assets/offline_content.ndjson.gz、offline_catalog.json、offline_knowledge.json。
-- [ ] 安装新 APK 后确认 Room 实际正文数、目录数和百科分类数。
-
-### 阅读体验和功能
-
-- [x] 重构详情页：顶部元信息、正文工作区、原文/译文模式、底部工具面板。✅
-- [x] 加入字号、复制、分享、收藏、划线笔记、历史上下文和字词提示。✅
-- [x] 加入展示层繁简/异体字转换，不改写数据库原文。✅
-- [x] 接入系统 TTS、当前句状态、自动滚动和睡眠计时器代码。✅
-- [x] 将学习柱状图、趋势图和人物关系图改为动态数据聚合，并支持文章下钻。✅
-- [ ] 在全本数据规模检查关系图和柱状图覆盖的人物、时期、数量和性能。
-- [ ] 在真实设备检查 TTS 音频、Widget、Edge-TTS 和 AI 配置。
-- [ ] 实现 plugin.md 中尚未完成的语法拆解、反事实推演、人物角色对话和战役沙盘。
-
-### 开机恢复和工程化
-
-- [x] 新增 scripts/resume_crawler.sh，复用项目内路径，拒绝 --reset，并用 tongjian-sync.lock 防止重复进程。✅
-- [x] deploy/readgb-crawler.service 的 ExecStart 指向恢复脚本，失败自动重启。✅
-- [x] 运行 scripts/install_crawler_service.sh；当前容器没有 systemd PID 1，但 unit 和 enable 链接已写入，宿主机启动时接管。✅
-- [x] 将 README.md、DOCS.md、plugin.md、guide.txt 和 docs/site-analysis.md 按当前实现重写。✅
-- [x] 将本文件和旧状态归档合并为“任务清单 + 恢复日志”方案。✅
-- [x] 本轮功能、文档和部署变更已提交并推送到 origin/main，commit fca5c11。✅
-
-## 当前同步快照
-
-记录时间：2026-08-03 09:16
-
-- 同步进程：scripts/resume_crawler.sh 正在运行。
-- checkpoint：56/1405，failed_reign_ids 为 2。
-- 新正文：188 条 zztj-*。
-- 原始纪年 cache：58 个 JSON。
-- 最近 checkpoint 更新时间：2026-08-03 09:15:20 +0800。
-- 上一轮实际表现：约 30 分钟没有 checkpoint 增长；缓存仍每分钟变化，进程线程处于 Retry-After/网络等待，不能算加速。
-- 原因判断：4 个 worker 同时遭遇服务端 429/Retry-After，旧实现对 future 异常处理不足，可能在等待线程池收尾时使 checkpoint 停止。
-- 修复状态：已加入共享服务端退避窗口、逐任务异常记录和非零失败退出；缓存阶段已从 9/1405 快速推进到 34/1405，未缓存部分遵守站点退避。当前 2 个纪年因 HTTP 429 失败，已写入 checkpoint，下一轮会重试。
-
-## 数据路径约定
-
-| 路径 | 用途 | 状态 |
-| --- | --- | --- |
-| service/data/dutongjian.db | 当前同步 SQLite | 项目内，运行时文件 |
-| service/data/tongjian-cache/ | 原始公开 API JSON | 项目内，运行时文件 |
-| service/data/tongjian-progress.json | checkpoint 和失败记录 | 项目内，运行时文件 |
-| service/data/resync-archive-20260803/ | 清理前可恢复审计快照 | 项目内，保留 |
-| android/app/src/main/assets/ | 通过校验后进入 APK 的最终资源 | 当前仅字形/字词资源 |
-
-/tmp 不承载新的正文、数据库、cache 或 checkpoint。同步器写入的 .tmp 只是目标文件同目录内的原子替换中间文件。
-
-## 意外关闭恢复
-
-先检查是否已有进程：
+机器重启、会话中断或准备继续开发时，按下面顺序执行：
 
 ~~~bash
 cd /mnt/workspace/readgb
-sed -n '1,240p' PROJECT_STATE.md
+sed -n '1,260p' PROJECT_STATE.md
 git status --short
-ps -eo pid,etime,cmd | rg 'tongjian_sync|readgb-crawler' | rg -v 'rg '
-jq '{total_reigns, completed: (.completed_reign_ids | length), failed: (.failed_reign_ids | length), updated_at}' \
-  service/data/tongjian-progress.json
+ps -eo pid,lstart,etime,pcpu,pmem,args | rg 'app.tongjian_sync|resume_crawler|readgb-crawler' | rg -v 'rg '
+jq '{total_reigns, completed: (.completed_reign_ids | length), failed: (.failed_reign_ids // [] | length), updated_at}' service/data/tongjian-progress.json
 ~~~
 
-确认没有同步进程后正常恢复：
+如果没有同步进程，使用 ./scripts/resume_crawler.sh 续跑。脚本通过 service/data/tongjian-sync.lock 防止重复启动，不带 --reset；已有进程持锁时不要再启动第二个任务。不要删除数据库、cache 或 checkpoint。
 
-~~~bash
-./scripts/resume_crawler.sh
-~~~
+## 当前事实快照
 
-恢复脚本固定使用：
+- [x] 已确认项目为 Kotlin/Compose Android 客户端 + Python/FastAPI 数据服务，App 运行时不请求原网站。✅
+- [x] 公开同步目标已确认：294 卷、1,405 个纪年节点、30,989 条正文；公开入口为 /api/table_of_contents 和 /api/reign。✅
+- [x] 旧导入内容清理前快照保存在 service/data/resync-archive-20260803/；新同步数据只写入 service/data/。✅
+- [x] 同步器使用受控多线程：4 个 worker、全局请求节奏、robots 检查、缓存、Retry-After、退避、去重和原子 checkpoint。✅
+- [x] 当前唯一同步进程快照：PID 136988，4 worker，checkpoint 64/1405，失败 4；数据库 203 条真实 zztj-* 正文、覆盖 64 个纪年。快照时间约为 2026-08-03 09:22。✅
+- [ ] 同步仍未完成，当前约 4.56%，不能把数据库或 App 描述为全本。下一步：保留当前进程，持续观察 checkpoint；4 个 HTTP 429 失败项复用 cache/checkpoint 重试。
+- [ ] 新的正文、目录、百科 Android assets 尚未由本轮全量同步导出；导出前必须通过 30,989/294/1,405 完整性校验。
+- [ ] Android 图表代码已改为按纪年/纪·朝代覆盖全部分组，并把人物图谱改为全人物索引 + 中心人物下钻；下一步是 Kotlin 编译、测试和设备/模拟器检查。
+
+### 当前同步速度判断
+
+2026-08-03 08:21 至 08:57 的旧缓存写入为 41 个纪年，跨度约 2,206 秒，平均约 55.2 秒/纪年；这段期间进程随后停止，不能作为稳定吞吐。恢复后从约 9/1405 推进到 64/1405；已有 cache 命中阶段约 25 秒推进到 34/1405，之后受站点 Retry-After 影响，速度仍未稳定。当前有 4 个 HTTP 429 失败项，已写入 checkpoint；4 worker 不用于绕过限流。
+
+## 当前任务清单
+
+### 阅读界面与研读图表
+
+- [x] 定位原有问题：柱状图按 dynasty 合并且硬截 18 个分组，人物图谱硬截 16 人/30 条关系并使用固定网格。✅
+- [x] 柱状图按 纪年 或 纪/朝代 切换，柱高使用真实篇目数，支持全部实际分组横向浏览和点选下钻。✅
+- [x] 人物关系从 notes 的结构化人物字段动态聚合；人物索引不再只保留 16 人，支持选择中心人物查看共现网络和正文。✅
+- [x] 运行 :app:compileDebugKotlin、单元测试和 lint；Android testDebugUnitTest、lintDebug、assembleDebug、assembleRelease 全部 BUILD SUCCESSFUL。✅
+- [ ] 在有代表性的内容规模下检查图表滚动、文字截断、节点重叠和点选回正文。
+
+### 多线程同步
+
+- [x] TongjianSync 使用 ThreadPoolExecutor 并发获取未完成纪年，主线程顺序入库并逐纪年写 checkpoint。✅
+- [x] 单个纪年的网络、解析或入库异常会写入 failed_reign_ids/last_errors，不会中断其他已完成 future。✅
+- [x] scripts/resume_crawler.sh 固定使用 4 worker、5 秒最小请求间隔和 robots 检查；当前进程仍需平滑重启到新配置。✅
+- [ ] 观察恢复后的稳定吞吐和失败率；若出现 429，只遵守 Retry-After，不盲目增加并发。
+- [ ] 完成 1,405 个纪年后执行全量正文、目录、关联字段校验并导出 Android assets。
+
+### 构建与验收
+
+- [x] Backend 测试 21 passed、compileall 和 git diff --check。✅
+- [x] Android testDebugUnitTest、compileDebugKotlin、lintDebug、Debug/Release 构建全部通过；构建耗时 1 分 36 秒。✅
+- [ ] 模拟器/真机检查研读页：纪年柱状图全量滚动、人物索引、关系下钻和空数据态。
+- [ ] 记录 APK、数据资产数量、测试命令和任何失败；不把未实际运行的结果写成完成。
+
+### 其他未完成能力
+
+- [ ] 全量百科资产、全本图表性能和关系准确性验收。
+- [ ] 真实设备上的 TTS 音频、Widget、Edge-TTS、AI 网络调用和正式签名发布验收。
+- [ ] AI 语法拆解、反事实推演、人物角色对话和战役沙盘的完整实现。
+
+## 路径与边界
 
 ~~~text
-PYTHONPATH=service
-service/data/dutongjian.db
-service/data/tongjian-cache/
-service/data/tongjian-progress.json
-workers=4
-min_interval=0.5
-respect_robots=true
+service/data/dutongjian.db              当前同步数据库
+service/data/tongjian-cache/            原始 JSON cache
+service/data/tongjian-progress.json     断点和失败记录
+service/data/tongjian-sync.lock         防重复锁
+service/data/resync-archive-20260803/   清理前可恢复审计快照
+android/app/src/main/assets/            校验后的 APK 资产
 ~~~
 
-脚本不接受 --reset。已有进程持有 service/data/tongjian-sync.lock 时，脚本会退出而不启动第二个爬虫。只有明确需要重新清空全部通鉴内容时，才在确认进程停止后手动执行带 --reset 的同步命令。
-
-开机服务安装：
-
-~~~bash
-./scripts/install_crawler_service.sh
-~~~
-
-## 已验证结果
-
-- [x] python3 -m pytest -q service/tests：21 passed（2026-08-03）。✅
-- [x] python3 -m compileall -q service/app：通过（2026-08-03）。✅
-- [x] bash -n scripts/resume_crawler.sh scripts/install_crawler_service.sh：通过。✅
-- [x] Android testDebugUnitTest：此前通过，当前文档/服务端修复未改变 Android 编译输入。✅
-- [x] Android :app:compileDebugKotlin：此前通过，当前文档/服务端修复未改变 Android 编译输入。✅
-- [x] 当前改动后的 lintDebug、assembleDebug、assembleRelease：BUILD SUCCESSFUL，111 actionable tasks，1 分 36 秒。✅
-- [ ] 无连接设备，尚未完成安装、TTS 音频、Widget 和真实 UI 回归。
+- 新抓取内容不得放入 /tmp；.tmp 只用于同一目标目录的原子替换。
+- 不登录、不绕过验证码、访问控制、robots 或付费墙。
+- 不通过并发绕过站点限流；缓存命中不发网络请求。
+- 阶段性快照必须标明 checkpoint，不得称为全本。
 
 ## 变更日志
 
-### 2026-08-03 08:55
+### 2026-08-03
 
-- 重写所有活动开发文档：README.md、DOCS.md、plugin.md、guide.txt、docs/site-analysis.md。✅
-- 把任务日志和项目状态合并到本文件；旧版保存为 PROJECT_STATE_HISTORY.md。✅
-- 新增 scripts/resume_crawler.sh，并让 systemd unit 通过它恢复；增加项目内 flock 锁。✅
-- 修复同步器共享 Retry-After 冷却和 future 异常处理。✅
-- 待完成：继续同步、全量校验、资产导出、提交和推送。
+- [x] 核对真实同步状态：进程曾停止，checkpoint 为 9/1405，数据库为 47 条真实正文；缓存数量不作为已入库数量。✅
+- [x] 恢复唯一多线程同步进程；最新观察到 64/1405、203 条真实正文、失败 4（均为 HTTP 429，已写入 checkpoint）。✅
+- [x] 将研读柱状图从少量朝代示例改为纪年/纪·朝代全量分组，并增加点选下钻。✅
+- [x] 将人物图谱从固定节点改为结构化人物全索引、中心人物关系网络和正文入口。✅
+- [x] 把“每轮先读状态、任务行末加 ✅、中断可恢复、日志与项目合并”的要求写入 README.md、DOCS.md、guide.txt 和本文件。✅
+- [x] 完成 Kotlin/Backend 构建和运行验证：Backend 21 passed；Android test/lint/Debug/Release BUILD SUCCESSFUL。✅
+- [x] 功能/文档提交 fca5c11 和状态提交 b35ed9a 已推送 origin/main。✅
 
-### 2026-08-03 09:10
+## 记录协议
 
-- 使用 scripts/resume_crawler.sh 从 9/1405 恢复；缓存阶段约 25 秒推进到 34/1405，随后继续按站点退避请求。✅
-- 当前 checkpoint 42/1405，143 条正文，53 个 cache，0 个失败；同步进程保持运行。✅
-- Android testDebugUnitTest、lintDebug、assembleDebug、assembleRelease 全部通过。✅
+每次开发必须执行以下规则：
 
-### 2026-08-03 09:16
-
-- 同步继续到 56/1405、188 条正文、58 个 cache；2 个纪年返回 HTTP 429，失败 ID 和错误已写入 checkpoint，未丢失已完成数据。✅
-- 功能与文档提交 fca5c11 已推送 origin/main；本状态补记待随后提交。✅
-
-### 2026-08-03 08:24
-
-- 观察到 checkpoint 9/1405、47 条新正文、38 个 cache；旧进程因服务端退避实际停滞。
-- 安全停止旧进程，保留数据库、cache、checkpoint 和项目内审计归档。
+1. 开始前先读本文件，再执行 git status --short。
+2. 开始工作时在“当前任务清单”写目标、涉及路径和恢复方式。
+3. 完成一项就在任务行末加 ✅；未完成项保持 [ ]，并写明下一步或阻塞原因。
+4. 爬虫、构建、测试、部署、数据路径或文档有变化时，在本文件“变更日志”追加时间、命令、结果和实际数量。
+5. 意外中断后先检查进程和 checkpoint，复用同一 cache/checkpoint；确认没有进程时才运行恢复脚本。
+6. 不把 PID、速度、数量、构建或测试结果写入 README 等稳定文档；这些事实只更新本文件。
