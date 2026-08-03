@@ -4,6 +4,8 @@
 
 本文件由 `scripts/persistent_progress_logger.sh` 每半小时追加记录。所有同步数据和本文件都位于 `/mnt/workspace/readgb` 内；不要把数据库、cache、checkpoint 或日志移到 `/mnt/workspace` 外。
 
+说明：本文件是追加式历史记录，早期 checkpoint、失败数和“准备做”内容均为当时观察值，不覆盖当前事实。最新任务清单、当前同步状态和恢复命令以 `PROJECT_STATE.md` 为准；当前有效未完成项已按全量数据、百科/标注、图表/设备、TTS/AI、沙盘、签名和发布自动化拆分记录。
+
 ### 2026-08-03 15:17 Asia/Shanghai
 
 - 已完成：已阅读项目文档；已记录 `/mnt/workspace` 持久化边界；已移除 Android 虚拟机联调指南；已安装 `jq`；已启动公开 API 断点同步。
@@ -98,4 +100,3 @@ any Requests | 8d00f18f-db0e-11ef-846c-a0d3651f611f: RuntimeError: failed to fet
 - 灏氭湭瀹屾垚锛氬湪鏈変唬琛ㄦ�х殑鍐呭瑙勬ā涓嬫鏌ュ浘琛ㄦ粴鍔ㄣ�佹枃瀛楁埅鏂�佽妭鐐归噸鍙犲拰鐐归�夊洖姝ｆ枃銆傦鏈疆鐩爣锛氫粠褰撳墠椤圭洰鍐呯┖鏁版嵁鐘舵�佸惎鍔ㄥ叕寮� API 鍚屾锛涜矾寰勶細`service/data/dutongjian.db`銆乣service/data/tongjian-cache/`銆乣service/data/tongjian-progress.json`锛涙仮澶嶏細鎸佺画浣跨敤 `./scripts/resume_crawler.sh`锛屼笉浣跨敤 `--reset`锛涗笅涓�姝ワ細纭鐩綍鍝嶅簲鍜� checkpoint 鍚庢寔缁瀵熷畬鎴愭暟銆佸け璐ラ」涓庨檺娴佹儏鍐点�偧瑙傚療鎭㈠鍚庣殑绋冲畾鍚炲悙鍜屽け璐ョ巼锛涜嫢鍑虹幇 429锛屽彧閬靛畧 Retry-After锛屼笉鐩茬洰澧炲姞骞跺彂銆傘��
 - 鍚屾鐘舵�侊細checkpoint 196/1405锛涘け璐� 26锛涙洿鏂版椂闂� 2026-08-03T09:29:05.699408+00:00锛涢敊璇� 8c8898a0-db0e-11ef-b10f-a0d3651f611f: RuntimeError: failed to fetch https://www.dutongjian.com/api/reign?reign_tongjian_id=8c8898a0-db0e-11ef-b10f-a0d3651f611f: HTTP Error 429: Too Many Requests | 8ca1d493-db0e-11ef-ad7a-a0d3651f611f: RuntimeError: failed to fetch https://www.dutongjian.com/api/reign?reign_tongjian_id=8ca1d493-db0e-11ef-ad7a-a0d3651f611f: HTTP Error 429: Too Many Requests | 8cad5f62-db0e-11ef-ad6c-a0d3651f611f: RuntimeError: failed to fetch https://www.dutongjian.com/api/reign?reign_tongjian_id=8cad5f62-db0e-11ef-ad6c-a0d3651f611f: HTTP Error 429: Too Many Requests銆�
 - 杩愯浣嶇疆锛氬悓姝ヨ繘绋� PID 13555锛沜wd /mnt/workspace/readgb銆�
-

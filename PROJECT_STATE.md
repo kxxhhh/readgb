@@ -1,6 +1,6 @@
 # 读通鉴当前任务清单与恢复日志
 
-更新时间：2026-08-03（Asia/Shanghai）
+更新时间：2026-08-03 21:29（Asia/Shanghai）
 
 本文件是项目的单一状态源，同时承担项目清单、断点恢复记录和开发日志。PROJECT_STATE_HISTORY.md 只保留旧历史，不作为当前事实来源；DEVELOPMENT_LOG.md 是本文件的合并入口说明，不再单独维护第二套日志。
 
@@ -26,14 +26,15 @@ jq '{total_reigns, completed: (.completed_reign_ids | length), failed: (.failed_
 - [x] 公开同步目标已确认：294 卷、1,405 个纪年节点、30,989 条正文；公开入口为 /api/table_of_contents 和 /api/reign。✅
 - [x] 旧导入内容清理前快照保存在 service/data/resync-archive-20260803/；新同步数据只写入 service/data/。✅
 - [x] 同步器使用受控多线程：4 个 worker、全局请求节奏、robots 检查、缓存、Retry-After、退避、去重和原子 checkpoint。✅
-- [x] 本轮从当前项目内空数据状态启动后已转为独立 session 续跑；最近观察到 checkpoint 508/1405，失败 0，数据库 4,152 条真实 zztj-* 正文。运行使用 4 worker、5 秒请求间隔和 robots 检查。✅
-- [ ] 同步仍未完成，当前 checkpoint 约 36.16%，不能把数据库或 App 描述为全本。下一步：保持唯一后台进程运行，必要时复用 `service/data/tongjian-progress.json`、`service/data/tongjian-cache/` 和 `service/data/dutongjian.db` 执行 `./scripts/resume_crawler.sh`；不使用 `--reset`。
-- [ ] 新的正文、目录、百科 Android assets 尚未由本轮全量同步导出；导出前必须通过 30,989/294/1,405 完整性校验。
+- [x] 本轮从当前项目内空数据状态启动后已转为独立 session 续跑；21:29 观察到 checkpoint `957/1405`、失败 `0`、数据库 `16,285` 条真实 `zztj-*` 正文。运行使用 4 worker、5 秒请求间隔和 robots 检查。✅
+- [ ] 同步仍未完成，当前 checkpoint `68.11%`，不能把数据库或 App 描述为全本。下一步：保持唯一后台进程运行，复用 `service/data/tongjian-progress.json`、`service/data/tongjian-cache/` 和 `service/data/dutongjian.db` 执行 `./scripts/resume_crawler.sh`；不使用 `--reset`。
+- [ ] 新的正文、目录、百科 Android assets 尚未由本轮全量同步导出；导出前必须通过 `service/app/validate_tongjian.py --strict` 的 `30,989/294/1,405` 完整性校验。
 - [x] Android 图表代码已改为按纪年/纪·朝代覆盖全部分组，并把人物图谱改为全人物索引 + 中心人物下钻；Kotlin 编译、测试和 lint 已通过。✅
+- [x] 研读页新增正文/纪年/卷三项真实 `zztj-*` 覆盖率卡片，不把 OfflineSeed 计入数据覆盖。✅
 
 ### 当前同步速度判断
 
-本轮于 2026-08-03 14:57 左右从空 checkpoint 启动，至 16:59 观察到 167/1405 个纪年和 737 条正文，失败 19；该阶段受源站 429 影响，不能作为稳定吞吐。后续继续使用 5 秒请求间隔、4 worker 和服务端 Retry-After；4 worker 不用于绕过限流。
+本轮于 2026-08-03 14:57 左右从空 checkpoint 启动；21:23 观察到 `911/1405` 个纪年、`14,195` 条真实正文、失败 `0`。当前阶段没有新的失败，仍继续使用 5 秒请求间隔、4 worker 和服务端 Retry-After；4 worker 不用于绕过限流。该结论只表示已观察窗口，不代表同步已完成。
 
 ## 当前任务清单
 
@@ -43,7 +44,7 @@ jq '{total_reigns, completed: (.completed_reign_ids | length), failed: (.failed_
 - [x] 柱状图按 纪年 或 纪/朝代 切换，柱高使用真实篇目数，支持全部实际分组横向浏览和点选下钻。✅
 - [x] 人物关系从 notes 的结构化人物字段动态聚合；人物索引不再只保留 16 人，支持选择中心人物查看共现网络和正文。✅
 - [x] 运行 `:app:testDebugUnitTest :app:compileDebugKotlin :app:lintDebug :app:assembleDebug :app:assembleInspection :app:assembleRelease`；全部 BUILD SUCCESSFUL，耗时 23 分 54 秒。✅
-- [ ] 在有代表性的内容规模下检查图表滚动、文字截断、节点重叠和点选回正文。
+- [ ] 在有代表性的内容规模下检查图表滚动、文字截断、节点重叠和点选回正文；下一步：全量资产导入后运行 Android UI/模拟器检查，当前容器没有 KVM，实体设备仍未提供。
 
 ### 多线程同步
 
@@ -52,8 +53,14 @@ jq '{total_reigns, completed: (.completed_reign_ids | length), failed: (.failed_
 - [x] TongjianSync 使用 ThreadPoolExecutor 并发获取未完成纪年，主线程顺序入库并逐纪年写 checkpoint。✅
 - [x] 单个纪年的网络、解析或入库异常会写入 failed_reign_ids/last_errors，不会中断其他已完成 future。✅
 - [x] scripts/resume_crawler.sh 固定使用 4 worker、5 秒最小请求间隔和 robots 检查；当前 PID 9878 持有同步锁运行，源代码已增加 1,405/294 规模门槛。✅
-- [ ] 观察恢复后的稳定吞吐和失败率；若出现 429，只遵守 Retry-After，不盲目增加并发。
+- [ ] 继续观察恢复后的稳定吞吐和失败率；当前已观察到 `911` 个纪年、失败 `0`，仍需保持到任务结束；若出现 429，只遵守 Retry-After，不盲目增加并发。
 - [ ] 完成 1,405 个纪年后执行全量正文、目录、关联字段校验并导出 Android assets。
+
+### 数据校验与覆盖看板
+
+- [x] 增加只读数据集校验器，检查真实正文数量、唯一 ID、必填字段、卷/纪年外键、空纪年、关联 JSON 和 checkpoint；路径：`service/app/validate_tongjian.py`；测试：`service/tests/test_validate_tongjian.py`。✅
+- [x] 研读页增加正文/纪年/卷覆盖率卡片，明确排除 OfflineSeed；路径：`android/app/src/main/java/com/dutongjian/app/ui/StudyCoverage.kt`、`StudyScreen.kt`；测试：`StudyCoverageTest`。✅
+- [ ] 同步结束后用校验器严格通过 `30,989` 条正文、`294` 卷、`1,405` 纪年、零空纪年和零字段/关联错误；下一步：爬虫结束后执行 `PYTHONPATH=service .venv/bin/python -m app.validate_tongjian --strict`。
 
 ### 构建与验收
 
@@ -65,9 +72,18 @@ jq '{total_reigns, completed: (.completed_reign_ids | length), failed: (.failed_
 
 ### 其他未完成能力
 
-- [ ] 全量百科资产、全本图表性能和关系准确性验收。
-- [ ] Edge-TTS、AI 网络调用和正式签名发布的功能边界仍需按发布配置确认；设备级验收不在本轮范围内。
-- [ ] AI 语法拆解、反事实推演、人物角色对话和战役沙盘的完整实现。
+- [ ] 全量百科资产：人物、地点、官职、专题、决策关联需在完整正文后导出并检查分类计数、非空字段和去重；下一步：运行完整 `export_android` 并复核 `offline_knowledge.json`。
+- [ ] 典章制度、经济史专题的全量结构化标注；当前只有 tags/关联字段和关键词筛选，下一步：依据公开字段建立可追溯的主题分类规则并补测试。
+- [ ] 全本图表性能、关系准确性和人物/时期覆盖验收；下一步：全量资产导入后执行图表聚合基准和 Android UI 检查。
+- [ ] “历史上的今天”完整历法匹配和自动刷新；当前 `今日金句` 只是按 day-of-year 轮换条目，缺少公开月日字段，下一步：补充可信历法映射数据后再实现。
+- [ ] Edge-TTS 网络音频端点和真实音频验收；代码已保留可选网络引擎，阻塞：当前没有稳定端点/实体设备，下一步：在提供端点和设备后验证握手、音频解码与失败提示。
+- [ ] AI OpenAI-compatible 网络调用端到端验收；配置和任务提示已实现，阻塞：没有可用 API key/模型服务，下一步：用本地兼容服务完成请求、错误、超时和结果展示验证。
+- [ ] AI 语法拆解的结构化结果与选中文本高亮；当前有任务提示和结果文本，下一步：增加结构化解析协议、段落定位和 UI 高亮。
+- [ ] AI 反事实推演的独立模板、上下文边界和结果保存；当前有任务提示，下一步：增加任务记录 Room 表、保存/删除/重开流程。
+- [ ] 历史人物角色对话的事实约束、对话界面和离线/联网边界；当前只有一次性任务入口，下一步：增加角色上下文和会话记录模型。
+- [ ] 重点战役沙盘的地图、兵力、粮道和关键决策数据；当前只有正文注释沙盘卡，下一步：先确认公开结构化字段，再建立可追溯数据模型。
+- [ ] GitHub Codespace 真实签名构建和上传；阻塞：当前环境没有用户生产 keystore，下一步：在 Codespace 注入签名 secrets 后运行 CI。
+- [ ] gh release 自动发布闭环；已加入只允许手动/版本标签触发、必须生产 keystore secrets 的 `.github/workflows/release.yml`，但当前环境没有生产 keystore，下一步：在 Codespace/Actions secrets 配置后执行一次签名发布演练。
 
 ## 路径与边界
 
@@ -109,6 +125,13 @@ android/app/src/main/assets/            校验后的 APK 资产
 - [x] 事项：完善客户端/API 交互；结果：年表不再截断前 24 个筛选项，笔记删除按钮与打开正文点击区分离，分类筛选可再次点击清除，空白搜索返回 422；路径：`android/app/src/main/java/com/dutongjian/app/ui/FeatureScreens.kt`、`DutongjianApp.kt`、`service/app/main.py`。✅
 - [ ] 事项：持续公开 API 同步；结果：最近观察 checkpoint `508/1405`、失败 `0`、真实正文 `4,152`；下一步：保持 PID `9878` 完成全量，完成后校验 `30,989/294/1,405` 并导出 Android assets。
 
+### 2026-08-03 21:23 Asia/Shanghai
+
+- [x] 事项：递归阅读 Git 跟踪的 11 份 Markdown/TXT 项目文档及完整历史归档；结果：识别并区分全量数据、百科/标注、图表验收、历法、TTS、AI、沙盘、签名和发布自动化任务；路径：`README.md`、`DOCS.md`、`guide.txt`、`plugin.md`、`PROJECT_STATE.md`、`PROJECT_STATE_HISTORY.md`、`TASK_PROGRESS_2026-08-03.md`、`issue/Unable2Install.txt`、`docs/site-analysis.md`、`DEVELOPMENT_LOG.md`、`service/requirements.txt`。✅
+- [x] 事项：补充只读数据集校验器和 Android 覆盖率卡片；命令：`PYTHONPATH=service .venv/bin/python -m pytest -q service/tests/test_validate_tongjian.py`、`./gradlew :app:testDebugUnitTest`；结果：校验器测试 `3 passed`，观察到真实正文 `14,195`、纪年 `911/1405`、卷 `150/294`，字段/层级/关联错误 `0`；路径：`service/app/validate_tongjian.py`、`android/app/src/main/java/com/dutongjian/app/ui/StudyCoverage.kt`。✅
+- [x] 事项：加入签名发布自动化骨架；结果：`.github/workflows/release.yml` 仅接受手动/版本标签触发，要求生产 keystore secrets，执行 Android 测试、lint、签名 APK、apksigner、SHA-256 和 gh release 上传；当前未使用真实 secrets。✅
+- [ ] 事项：继续公开 API 同步；结果：PID `9878`，checkpoint `957/1405`，真实正文 `16,285`，失败 `0`；下一步：复用项目内数据库/cache/checkpoint，结束后执行严格校验、资产导出、Android 全量构建和快照推送。
+
 ### 2026-08-03 14:59 Asia/Shanghai
 
 - [x] 事项：记录宿主机持久化边界。命令：`./scripts/resume_crawler.sh`；结果：当前同步从 `/mnt/workspace/readgb` 启动，数据库、cache、checkpoint 和锁均位于 `/mnt/workspace/readgb/service/data/`；路径：`README.md`、`DOCS.md`、`guide.txt`、`PROJECT_STATE.md`；恢复：后续只复用项目内绝对路径，不使用 `/tmp` 或 `/mnt/workspace` 外目录。✅
@@ -124,7 +147,7 @@ android/app/src/main/assets/            校验后的 APK 资产
 - [x] 事项：补齐构建环境；结果：OpenJDK 21、Gradle 9.4.0、Android API 35、Build Tools 35.0.0/36.0.0、platform-tools 均位于 `/mnt/workspace/readgb` 内；未安装模拟器镜像。✅
 - [x] 事项：清理旧安装问题文档中的模拟器/adb 复现要求；结果：`issue/Unable2Install.txt` 已改为历史静态诊断，当前只接受 Backend/JVM/lint/APK 产物验证；历史档案保留。✅
 - [ ] 事项：持续公开 API 同步；结果：checkpoint `167/1405`，失败 `19`，数据库 `737` 条正文，失败主要为 HTTP 429；下一步：继续复用项目内 cache/checkpoint，20:30 自动停止并保存。
-- [ ] 事项：GitHub Release；结果：自动收尾脚本已启动，当前 `gh auth status` 未登录；下一步：若收尾前完成登录则自动创建 Release，否则记录为未授权阻塞。
+- [x] 事项：历史 GitHub Release 记录；结果：该旧日志当时记录为 `gh auth status` 未登录，后续已恢复 gh 登录并完成多次历史预发布；当前全量资产 Release 仍需等严格校验、签名和产物检查。✅
 
 ## 记录协议
 

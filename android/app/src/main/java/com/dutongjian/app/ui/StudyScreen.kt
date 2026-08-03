@@ -101,6 +101,7 @@ internal fun StudyScreen(state: ReadingUiState, onOpen: (ReadingItem) -> Unit) {
     val maxBar = bars.maxOfOrNull { it.value }?.coerceAtLeast(1) ?: 1
     val selectedPeriod = bars.firstOrNull { it.key == selectedPeriodKey }
     val selectedPeriodItems = selectedPeriod?.items.orEmpty()
+    val corpusCoverage = remember(state.items) { studyCoverage(state.items) }
     val today = remember { java.time.LocalDate.now() }
     val weekSeconds = remember(state.stats.dailySeconds, today) {
         (0..6).sumOf { offset -> state.stats.dailySeconds[today.minusDays(offset.toLong()).toString()] ?: 0L }
@@ -154,6 +155,19 @@ internal fun StudyScreen(state: ReadingUiState, onOpen: (ReadingItem) -> Unit) {
                 StudyMetric("覆盖卷数", "${state.stats.coveredVolumes}/${state.stats.totalVolumes}", Modifier.weight(1f))
             }
             Text("累计 ${state.stats.totalSeconds / 60} 分钟", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 8.dp))
+        }
+        item {
+            Text("通鉴数据覆盖", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Text(
+                "按本地真实 zztj-* 正文统计，不含 OfflineSeed；全量校验目标为 30,989 条正文、1,405 个纪年、294 卷。",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
+                StudyMetric("正文", "${corpusCoverage.items}/$EXPECTED_TONGJIAN_ITEMS", Modifier.weight(1f))
+                StudyMetric("纪年", "${corpusCoverage.years}/$EXPECTED_TONGJIAN_YEARS", Modifier.weight(1f))
+                StudyMetric("卷", "${corpusCoverage.volumes}/$EXPECTED_TONGJIAN_VOLUMES", Modifier.weight(1f))
+            }
         }
         item {
             Text("阅读趋势", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)

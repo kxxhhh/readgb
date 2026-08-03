@@ -62,11 +62,15 @@ Backend：
 
 未完成或必须实测：
 
-- 完成 1,405 个纪年、校验 30,989 条正文。
-- 生成并导入新的正文、目录和百科 assets。
-- 全本数据下的图表覆盖、关系准确性和性能。
-- AI 语法拆解、反事实推演、人物角色对话和战役沙盘。
-- 自动 gh release 和 Codespace 签名发布闭环。
+- 完成 1,405 个纪年、校验 30,989 条正文、唯一 ID、必填字段、层级、关联 JSON 和零空纪年；当前 checkpoint 911/1405。
+- 生成并导入新的正文、目录和百科 assets，且从 APK 内复核数量和校验值。
+- 全本数据下的图表滚动、文字截断、节点重叠、关系准确性、人物/时期覆盖和搜索性能。
+- 全量百科分类及典章制度/经济史结构化标注。
+- “历史上的今天”可信月日历法匹配和自动刷新；当前今日金句只是按 day-of-year 轮换。
+- Edge-TTS 真实端点和音频验收、AI 兼容接口端到端调用。
+- AI 语法拆解高亮、反事实任务保存、历史角色事实约束/会话、战役地图/兵力/粮道沙盘。
+- 真实 Android 设备安装、详情、系统 TTS、Widget、Edge-TTS 和 AI 配置验收；当前容器无 KVM/实体设备。
+- 自动 gh release 和 Codespace 签名发布闭环；`.github/workflows/release.yml` 已加入签名、apksigner、SHA-256 和 release 上传步骤，但真实 secrets 演练未完成；当前 gh 登录/push 可用，但没有生产 keystore。
 
 四、同步规范
 ------------
@@ -121,6 +125,14 @@ Backend：
 - 每个纪年成功后更新 checkpoint。
 - 单个纪年失败不丢失已完成结果；failed_reign_ids 和 last_errors 写入 checkpoint，下一次恢复重试。
 - 不通过提高并发绕过站点限流。
+
+同步期间可运行只读覆盖报告：
+
+    PYTHONPATH=service .venv/bin/python -m app.validate_tongjian \
+      --database service/data/dutongjian.db \
+      --checkpoint service/data/tongjian-progress.json
+
+只有 `--strict` 输出通过 30,989/294/1,405、零空纪年、零字段/层级/关联错误时，才允许执行全量 Android 资产导出。
 
 五、恢复流程
 ------------
