@@ -1,6 +1,6 @@
 # 读通鉴当前任务清单与恢复日志
 
-更新时间：2026-08-03 22:49（Asia/Shanghai）
+更新时间：2026-08-03 23:20（Asia/Shanghai）
 
 本文件是项目的单一状态源，同时承担项目清单、断点恢复记录和开发日志。PROJECT_STATE_HISTORY.md 只保留旧历史，不作为当前事实来源；DEVELOPMENT_LOG.md 是本文件的合并入口说明，不再单独维护第二套日志。
 
@@ -51,10 +51,12 @@ jq '{total_reigns, completed: (.completed_reign_ids | length), failed: (.failed_
 - [x] 增加百科导出五类关联、非空字段、去重闸门，以及 `scripts/finalize_tongjian.sh` 全量收尾流程；持锁拒绝并发已验证。✅
 - [x] 完成公开 API 全量续爬并收敛到 `1405/1405`、失败 `0`、真实正文 `30,989`；复用项目内 database/cache/checkpoint，没有重置或重复抓取。✅
 - [x] 运行严格校验和全量收尾；生成正文、目录、百科 assets，并生成可推送的数据库/进度快照与独立缓存快照；两个归档均小于 GitHub 单文件限制并通过 SHA-256。✅
+- [x] 完善本地 AI 能力：角色任务支持同一史料边界内的多轮追问并更新 Room 转录；语法任务支持原文定位列和命中高亮；反事实任务补齐事实/推断/假设/影响边界。✅
+- [x] 全量 Android 构建完成；APK 未进入 Git 项目，已直接上传 GitHub `v0.1.14` 预发布。✅
 
 正在进行：
 
-- [ ] 远程同步：代码、全量 Android assets、数据库/进度快照和独立 cache 快照已完成本地校验，下一步提交并 push；之后继续补齐可在本地实现的 AI 会话/定位能力。
+- [ ] 外部验收：等待可用 OpenAI-compatible 服务、Edge-TTS 端点、实体设备/KVM、可信历法/战役数据和生产 keystore；源码、全量数据、资产和 APK Release 已完成。
 
 接下来按顺序执行：
 
@@ -62,7 +64,8 @@ jq '{total_reigns, completed: (.completed_reign_ids | length), failed: (.failed_
 - [x] 运行 `validate_tongjian --strict`，确认 `30989/294/1405`、零空纪年、零层级/关联错误；译文缺失单独计入 `translation_fallback=1`。✅
 - [x] 运行 `./scripts/finalize_tongjian.sh`，生成并核对 `offline_content.ndjson.gz`、`offline_catalog.json`、`offline_knowledge.json` 和分卷压缩快照。✅
 - [x] 用全量 assets 重跑 Android JVM test、lint、Debug/Inspection/Release 构建；三种 APK 均核对正文 `30,989`、目录 `294/1,405`、百科 `61,696` 和五类分类。✅
-- [ ] 更新当前数量、快照哈希和 APK 产物记录，提交并 push 全量资产与爬取快照。
+- [x] 更新当前数量、快照哈希和 APK 产物记录，提交并 push 全量资产与爬取快照；代码/资产 commit `7bf598a`，AI 代码 commit `11eb34a`。✅
+- [x] 用 `gh release create v0.1.14` 直接上传三个 APK；Release URL：`https://github.com/kxxhhh/readgb/releases/tag/v0.1.14`。APK 未提交到项目仓库。✅
 
 仍未完成或有外部阻塞：
 
@@ -204,6 +207,12 @@ android/app/src/main/assets/            校验后的 APK 资产
 - [x] 事项：生成并校验全量 Android assets；结果：五类百科齐全，三种 APK 包内正文/目录/百科数量均与数据库一致；源码资产和 APK SHA-256 已记录在本文件。✅
 - [x] 事项：生成可推送爬取快照；结果：`tongjian-snapshot-latest.tar.gz` `55,739,826` bytes，SHA-256 `eea1d5798d8e1ccfb582475cf65ad488ba809e1830c943df69bdfc8fce4c4ac5`；`tongjian-cache-snapshot-latest.tar.gz` `53,912,115` bytes，SHA-256 `2334152b4e94120894338537f98e8e8e46215d9db4b377136b7695a352ae0718`；两个文件均通过 `sha256sum -c`。✅
 - [ ] 事项：提交和 push 全量代码、assets 与快照；下一步：stage 大文件并推送 `origin/main`，然后继续实现本地可完成的 AI 会话/原文定位能力。
+
+### 2026-08-03 23:20 Asia/Shanghai
+
+- [x] 事项：实现本地 AI 未完成能力；命令：`./gradlew --no-daemon :app:testDebugUnitTest :app:lintDebug :app:assembleDebug :app:assembleInspection :app:assembleRelease`；结果：`BUILD SUCCESSFUL`，JVM `32` 项通过；角色多轮追问、史料边界、Room 转录更新和语法原文高亮已加入。✅
+- [x] 事项：按要求不把 APK 提交到项目；结果：三种 APK 直接上传 GitHub `v0.1.14` 预发布，Release 资产状态均为 `uploaded`；没有生产 keystore，因此明确标记为未签名。✅
+- [x] 事项：第二批源码和文档 push；结果：`11eb34a` 已推送 `origin/main`，工作区干净；路径：`android/app/`、`PROJECT_STATE.md`、`DOCS.md`、`guide.txt`、`plugin.md`。✅
 
 ## 记录协议
 
