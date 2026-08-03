@@ -61,7 +61,7 @@ class TongjianApiClient:
         opener: Callable = urlopen,
         sleep: Callable[[float], None] = time.sleep,
         retries: int = 3,
-        min_interval: float = 0.5,
+        min_interval: float = 5.0,
         timeout: float = 30.0,
         respect_robots: bool = False,
         robots_checker: Callable[[str], bool] | None = None,
@@ -71,7 +71,7 @@ class TongjianApiClient:
         self.opener = opener
         self.sleep = sleep
         self.retries = retries
-        self.min_interval = max(0.25, min_interval)
+        self.min_interval = max(2.0, min_interval)
         self.timeout = timeout
         self.respect_robots = respect_robots
         self.robots_checker = robots_checker
@@ -394,7 +394,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--database", default="data/dutongjian.db")
     parser.add_argument("--cache-dir", default="data/tongjian-cache")
     parser.add_argument("--checkpoint", default="data/tongjian-progress.json")
-    parser.add_argument("--min-interval", type=float, default=0.5, help="minimum seconds between request starts")
+    parser.add_argument("--min-interval", type=float, default=5.0, help="minimum seconds between request starts")
     parser.add_argument("--workers", type=int, default=4, help="bounded concurrent requests")
     parser.add_argument("--reset", action="store_true", help="clear old corpus, cache, and checkpoint before syncing")
     parser.add_argument("--respect-robots", action=argparse.BooleanOptionalAction, default=True)

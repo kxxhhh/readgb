@@ -37,6 +37,6 @@ exec env PYTHONPATH="$root_dir/service" PYTHONUNBUFFERED=1 "$python_bin" -m app.
     --cache-dir "$data_dir/tongjian-cache" \
     --checkpoint "$data_dir/tongjian-progress.json" \
     --workers 4 \
-    --min-interval 0.5 \
+    --min-interval 5.0 \
     --respect-robots \
     "$@"

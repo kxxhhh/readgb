@@ -26,14 +26,14 @@ jq '{total_reigns, completed: (.completed_reign_ids | length), failed: (.failed_
 - [x] 公开同步目标已确认：294 卷、1,405 个纪年节点、30,989 条正文；公开入口为 /api/table_of_contents 和 /api/reign。✅
 - [x] 旧导入内容清理前快照保存在 service/data/resync-archive-20260803/；新同步数据只写入 service/data/。✅
 - [x] 同步器使用受控多线程：4 个 worker、全局请求节奏、robots 检查、缓存、Retry-After、退避、去重和原子 checkpoint。✅
-- [x] 当前唯一同步进程快照：PID 136988，4 worker，checkpoint 64/1405，失败 4；数据库 203 条真实 zztj-* 正文、覆盖 64 个纪年。快照时间约为 2026-08-03 09:22。✅
-- [ ] 同步仍未完成，当前约 4.56%，不能把数据库或 App 描述为全本。下一步：保留当前进程，持续观察 checkpoint；4 个 HTTP 429 失败项复用 cache/checkpoint 重试。
+- [x] 当前唯一同步进程快照：PID 143358，4 worker，5 秒请求间隔，checkpoint 71/1405，失败 0；数据库 226 条真实 zztj-* 正文、覆盖 71 个纪年。快照时间约为 2026-08-03 09:29。✅
+- [ ] 同步仍未完成，当前约 5.05%，不能把数据库或 App 描述为全本。下一步：保留当前进程，持续观察 checkpoint；若出现 429，复用 cache/checkpoint 重试。
 - [ ] 新的正文、目录、百科 Android assets 尚未由本轮全量同步导出；导出前必须通过 30,989/294/1,405 完整性校验。
 - [ ] Android 图表代码已改为按纪年/纪·朝代覆盖全部分组，并把人物图谱改为全人物索引 + 中心人物下钻；下一步是 Kotlin 编译、测试和设备/模拟器检查。
 
 ### 当前同步速度判断
 
-2026-08-03 08:21 至 08:57 的旧缓存写入为 41 个纪年，跨度约 2,206 秒，平均约 55.2 秒/纪年；这段期间进程随后停止，不能作为稳定吞吐。恢复后从约 9/1405 推进到 64/1405；已有 cache 命中阶段约 25 秒推进到 34/1405，之后受站点 Retry-After 影响，速度仍未稳定。当前有 4 个 HTTP 429 失败项，已写入 checkpoint；4 worker 不用于绕过限流。
+2026-08-03 08:21 至 08:57 的旧缓存写入为 41 个纪年，跨度约 2,206 秒，平均约 55.2 秒/纪年；这段期间进程随后停止，不能作为稳定吞吐。恢复后从约 9/1405 推进到 71/1405；已有 cache 命中阶段约 25 秒推进到 34/1405，之后使用 5 秒请求间隔并受站点 Retry-After 影响，速度仍未稳定。当前失败数为 0；4 worker 不用于绕过限流。
 
 ## 当前任务清单
 
@@ -49,7 +49,7 @@ jq '{total_reigns, completed: (.completed_reign_ids | length), failed: (.failed_
 
 - [x] TongjianSync 使用 ThreadPoolExecutor 并发获取未完成纪年，主线程顺序入库并逐纪年写 checkpoint。✅
 - [x] 单个纪年的网络、解析或入库异常会写入 failed_reign_ids/last_errors，不会中断其他已完成 future。✅
-- [x] scripts/resume_crawler.sh 固定使用 4 worker、5 秒最小请求间隔和 robots 检查；当前进程仍需平滑重启到新配置。✅
+- [x] scripts/resume_crawler.sh 固定使用 4 worker、5 秒最小请求间隔和 robots 检查；当前 PID 143358 已使用新配置运行。✅
 - [ ] 观察恢复后的稳定吞吐和失败率；若出现 429，只遵守 Retry-After，不盲目增加并发。
 - [ ] 完成 1,405 个纪年后执行全量正文、目录、关联字段校验并导出 Android assets。
 
@@ -87,7 +87,7 @@ android/app/src/main/assets/            校验后的 APK 资产
 ### 2026-08-03
 
 - [x] 核对真实同步状态：进程曾停止，checkpoint 为 9/1405，数据库为 47 条真实正文；缓存数量不作为已入库数量。✅
-- [x] 恢复唯一多线程同步进程；最新观察到 64/1405、203 条真实正文、失败 4（均为 HTTP 429，已写入 checkpoint）。✅
+- [x] 恢复唯一多线程同步进程；最新观察到 71/1405、226 条真实正文、失败 0；当前进程按 5 秒请求间隔运行。✅
 - [x] 将研读柱状图从少量朝代示例改为纪年/纪·朝代全量分组，并增加点选下钻。✅
 - [x] 将人物图谱从固定节点改为结构化人物全索引、中心人物关系网络和正文入口。✅
 - [x] 把“每轮先读状态、任务行末加 ✅、中断可恢复、日志与项目合并”的要求写入 README.md、DOCS.md、guide.txt 和本文件。✅

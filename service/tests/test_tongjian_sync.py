@@ -1,4 +1,6 @@
 import json
+import threading
+import time
 from email.message import Message
 from urllib.error import HTTPError
 
@@ -110,6 +112,54 @@ def test_sync_resume_skips_completed_reigns(tmp_path):
     assert result.completed_reigns == 1
     assert api.reign_calls == 1
     assert json.loads(checkpoint.read_text(encoding="utf-8"))["completed_reign_ids"] == ["reign-1"]
+
+
+def test_sync_uses_bounded_workers_and_preserves_completed_results_on_failure(tmp_path):
+    catalog = _catalog()
+    reigns = catalog["data"]["juan_list"][0]["emperor_list"][0]["reign_list"]
+    reigns.extend(
+        [
+            {"tongjian_id": "reign-2", "reign_name": "二十四年", "year_anno": "前四○二", "year_int": -402},
+            {"tongjian_id": "reign-3", "reign_name": "二十五年", "year_anno": "前四○一", "year_int": -401},
+        ]
+    )
+
+    class ConcurrentApi:
+        def __init__(self):
+            self.active = 0
+            self.max_active = 0
+            self.lock = threading.Lock()
+
+        def fetch_catalog(self):
+            return catalog
+
+        def fetch_reign(self, reign_id):
+            with self.lock:
+                self.active += 1
+                self.max_active = max(self.max_active, self.active)
+            try:
+                time.sleep(0.03)
+                if reign_id == "reign-2":
+                    raise ValueError("malformed test reign")
+                payload = _reign()
+                payload["data"]["ExtRef_Children_contents"][0]["tongjian_id"] = f"content-{reign_id}"
+                return payload
+            finally:
+                with self.lock:
+                    self.active -= 1
+
+    api = ConcurrentApi()
+    store = ContentStore(tmp_path / "tongjian.db")
+    checkpoint = tmp_path / "progress.json"
+
+    with pytest.raises(RuntimeError, match="reign-2"):
+        TongjianSync(api, store, checkpoint_path=checkpoint, workers=3).run()
+
+    saved = json.loads(checkpoint.read_text(encoding="utf-8"))
+    assert api.max_active >= 2
+    assert len(saved["completed_reign_ids"]) == 2
+    assert saved["failed_reign_ids"] == ["reign-2"]
+    assert sum(item.id.startswith("zztj-") for item in store.list_items(category="资治通鉴", limit=20)) == 2
 
 
 def test_api_client_respects_retry_after_for_rate_limit(tmp_path):
