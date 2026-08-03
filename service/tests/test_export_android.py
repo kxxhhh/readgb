@@ -6,6 +6,7 @@ import pytest
 from app.export_android import (
     export_catalog,
     export_content,
+    export_knowledge,
     export_partial_catalog,
     export_partial_content,
     export_partial_knowledge,
@@ -185,3 +186,34 @@ def test_partial_knowledge_export_extracts_completed_relations(tmp_path):
     official = next(entry for entry in entries if entry["title"] == "大将军")
     assert official["category"] == "官职"
     assert "汉代官职" in official["content"]
+
+
+def test_full_knowledge_export_rejects_missing_relation_category_without_replacing_output(tmp_path):
+    database = tmp_path / "incomplete-knowledge.db"
+    store = ContentStore(database)
+    store.upsert_items(
+        [
+            Item(
+                id="zztj-knowledge-only-people",
+                title="正文",
+                category="资治通鉴",
+                dynasty="周纪",
+                summary="摘要",
+                content="正文",
+                source_url="https://www.dutongjian.com/api/reign",
+                updated_at="2026-08-02",
+                volume_id="volume-1",
+                year_id="year-1",
+                original="原文",
+                translation="译文",
+                notes=json.dumps({"ExtRef_Children_people": [{"people_name": "魏斯"}]}),
+            )
+        ]
+    )
+    output = tmp_path / "offline_knowledge.json"
+    output.write_text("previous export", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="missing relation categories"):
+        export_knowledge(database, output)
+
+    assert output.read_text(encoding="utf-8") == "previous export"

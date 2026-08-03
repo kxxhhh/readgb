@@ -11,6 +11,9 @@ from .models import Item, KnowledgeEntry
 from .store import ContentStore
 
 
+KNOWLEDGE_CATEGORIES = frozenset({"人物", "地点", "官职", "主题", "决策"})
+
+
 def export_content(database: str | Path, output: str | Path, *, expected_count: int = 30_989) -> int:
     store = ContentStore(database)
     category_count = store.count_items(category="资治通鉴")
@@ -108,6 +111,7 @@ def _export_partial_knowledge(
     entries = _derive_knowledge(items)
     if not entries:
         raise ValueError("refusing partial Android knowledge export: no relations found")
+    _validate_knowledge_entries(entries, require_all_categories=False)
     _write_json([entry.to_dict() for entry in entries], output)
     return {"entries": len(entries)}
 
@@ -124,8 +128,10 @@ def export_knowledge(database: str | Path, output: str | Path) -> dict[str, int]
         raise ValueError("refusing Android knowledge export: no real content found")
     _validate_content(items)
     entries = _derive_knowledge(items)
+    _validate_knowledge_entries(entries, require_all_categories=True)
     _write_json([entry.to_dict() for entry in entries], output)
-    return {"entries": len(entries)}
+    category_counts = {category: sum(entry.category == category for entry in entries) for category in sorted(KNOWLEDGE_CATEGORIES)}
+    return {"entries": len(entries), **{f"category_{category}": count for category, count in category_counts.items()}}
 
 
 def _derive_knowledge(items: Iterable[Item]) -> list[KnowledgeEntry]:
@@ -185,6 +191,32 @@ def _derive_knowledge(items: Iterable[Item]) -> list[KnowledgeEntry]:
             )
         )
     return entries
+
+
+def _validate_knowledge_entries(entries: list[KnowledgeEntry], *, require_all_categories: bool) -> None:
+    seen_ids: set[str] = set()
+    seen_keys: set[tuple[str, str]] = set()
+    categories: set[str] = set()
+    required_fields = ("id", "title", "category", "summary", "content", "source_url", "updated_at")
+    for entry in entries:
+        values = entry.to_dict()
+        missing = [field for field in required_fields if not str(values.get(field) or "").strip()]
+        if missing:
+            raise ValueError(f"refusing Android knowledge export: incomplete entry {entry.id}: missing {', '.join(missing)}")
+        if entry.id in seen_ids:
+            raise ValueError(f"refusing Android knowledge export: duplicate entry id {entry.id}")
+        key = (entry.category, entry.title)
+        if key in seen_keys:
+            raise ValueError(f"refusing Android knowledge export: duplicate entry {entry.category}/{entry.title}")
+        seen_ids.add(entry.id)
+        seen_keys.add(key)
+        categories.add(entry.category)
+    if require_all_categories:
+        missing_categories = sorted(KNOWLEDGE_CATEGORIES - categories)
+        if missing_categories:
+            raise ValueError(
+                "refusing Android knowledge export: missing relation categories " + ", ".join(missing_categories)
+            )
 
 
 def _first_text(payload: dict, fields: Iterable[str]) -> str:
