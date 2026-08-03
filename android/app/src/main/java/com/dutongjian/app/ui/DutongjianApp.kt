@@ -117,6 +117,7 @@ import com.dutongjian.app.domain.model.TtsEngineType
 import com.dutongjian.app.domain.model.Volume
 import com.dutongjian.app.domain.text.ClassicalScriptMapper
 import com.dutongjian.app.domain.text.ClassicalGlossary
+import com.dutongjian.app.domain.text.parseGrammarAnalysisTable
 import com.dutongjian.app.domain.tts.TtsPlaybackState
 import kotlinx.coroutines.delay
 private enum class AppTab(val label: String) {
@@ -1317,7 +1318,25 @@ private fun DetailScreen(
                                 Text("已保存", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
                                 TextButton(onClick = onAiResultClear) { Text("隐藏") }
                             }
-                            Text(aiState.result.orEmpty(), fontSize = bodyFontSize, lineHeight = bodyLineHeight)
+                            val grammarRows = if (aiState.task == AiTask.GRAMMAR_ANALYSIS) {
+                                remember(aiState.result) { parseGrammarAnalysisTable(aiState.result.orEmpty()) }
+                            } else {
+                                emptyList()
+                            }
+                            if (grammarRows.isEmpty()) {
+                                Text(aiState.result.orEmpty(), fontSize = bodyFontSize, lineHeight = bodyLineHeight)
+                            } else {
+                                grammarRows.forEach { row ->
+                                    Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(12.dp)) {
+                                        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                            Text(row.original, fontWeight = FontWeight.Bold)
+                                            Text("结构：${row.structure}", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            Text("句式/虚词：${row.grammar}", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            Text("直译：${row.translation}", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }

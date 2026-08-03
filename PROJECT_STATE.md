@@ -109,7 +109,8 @@ jq '{total_reigns, completed: (.completed_reign_ids | length), failed: (.failed_
 - [ ] “历史上的今天”完整历法匹配和自动刷新；当前 `今日金句` 只是按 day-of-year 轮换条目，缺少公开月日字段，下一步：补充可信历法映射数据后再实现。
 - [ ] Edge-TTS 网络音频端点和真实音频验收；代码已保留可选网络引擎，阻塞：当前没有稳定端点/实体设备，下一步：在提供端点和设备后验证握手、音频解码与失败提示。
 - [ ] AI OpenAI-compatible 网络调用端到端验收；配置和任务提示已实现，阻塞：没有可用 API key/模型服务，下一步：用本地兼容服务完成请求、错误、超时和结果展示验证。
-- [ ] AI 语法拆解的结构化结果与选中文本高亮；当前有任务提示和结果文本，下一步：增加结构化解析协议、段落定位和 UI 高亮。
+- [x] AI 语法拆解的 Markdown 表格解析和结构化结果卡片；解析失败回退原文；路径：`android/app/src/main/java/com/dutongjian/app/domain/text/ClassicalGrammarAnalysis.kt`、`DutongjianApp.kt`；JVM 测试和 Android 构建已通过。✅
+- [ ] AI 语法拆解的选中文本精确定位和高亮；下一步：要求模型返回原文片段/句号索引并把结果绑定到正文段落，当前没有真实模型端到端验证。
 - [x] AI 结果记录的 Room 表、保存、删除和重开流程；路径：`android/app/src/main/java/com/dutongjian/app/data/local/AiResult*`、`ReadingViewModel.kt`、`DutongjianApp.kt`；迁移 `4→5` 和 JVM 测试已通过。✅
 - [ ] AI 反事实推演的独立模板和上下文边界；当前结果已可保存/删除/重开，下一步：补结构化任务记录、上下文边界和端到端模型验证。
 - [ ] 历史人物角色对话的事实约束、对话界面和离线/联网边界；当前只有一次性任务入口，下一步：增加角色上下文和会话记录模型。
