@@ -113,14 +113,20 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import android.widget.Toast
 import com.dutongjian.app.BuildConfig
@@ -140,7 +146,12 @@ import com.dutongjian.app.domain.model.TtsEngineType
 import com.dutongjian.app.domain.model.Volume
 import com.dutongjian.app.domain.text.ClassicalScriptMapper
 import com.dutongjian.app.domain.text.ClassicalGlossary
+import com.dutongjian.app.domain.text.MarkdownBlock
+import com.dutongjian.app.domain.text.markdownPlainText
+import com.dutongjian.app.domain.text.parseInlineMarkdown
+import com.dutongjian.app.domain.text.parseMarkdown
 import com.dutongjian.app.domain.text.parseGrammarAnalysisTable
+import com.dutongjian.app.domain.tts.ClassicalTextPreprocessor
 import com.dutongjian.app.domain.tts.TtsPlaybackState
 import kotlinx.coroutines.delay
 private enum class AppTab(val label: String) {
@@ -160,21 +171,14 @@ private data class SentenceSegment(
 )
 
 private fun sentenceSegments(text: String): List<SentenceSegment> =
-    Regex("[^。；？！]*[。；？！]|[^。；？！]+")
-        .findAll(text)
-        .mapIndexedNotNull { index, match ->
-            val raw = match.value
-            val leading = raw.indexOfFirst { !it.isWhitespace() }
-            if (leading < 0) return@mapIndexedNotNull null
-            val trailing = raw.indexOfLast { !it.isWhitespace() } + 1
-            SentenceSegment(
-                index = index,
-                start = match.range.first + leading,
-                end = match.range.first + trailing,
-                text = raw.substring(leading, trailing),
-            )
-        }
-        .toList()
+    ClassicalTextPreprocessor.sentenceRanges(text).mapIndexed { index, range ->
+        SentenceSegment(
+            index = index,
+            start = range.first,
+            end = range.last + 1,
+            text = text.substring(range.first, range.last + 1),
+        )
+    }
 
 private fun buildGrammarHighlight(
     original: String,
@@ -188,7 +192,194 @@ private fun buildGrammarHighlight(
             original.indexOf(source).takeIf { it >= 0 }?.let { start ->
                 addStyle(highlightStyle, start, start + source.length)
             }
+    }
+}
+
+@Composable
+private fun MarkdownContent(
+    markdown: String,
+    fontSize: TextUnit,
+    lineHeight: TextUnit,
+    modifier: Modifier = Modifier,
+) {
+    val blocks = remember(markdown) { parseMarkdown(markdown) }
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        blocks.forEach { block ->
+            when (block) {
+                is MarkdownBlock.Heading -> MarkdownInlineText(
+                    text = block.text,
+                    fontSize = fontSize,
+                    lineHeight = lineHeight,
+                    fontWeight = if (block.level <= 2) FontWeight.Bold else FontWeight.SemiBold,
+                )
+
+                is MarkdownBlock.Paragraph -> MarkdownInlineText(
+                    text = block.text,
+                    fontSize = fontSize,
+                    lineHeight = lineHeight,
+                )
+
+                is MarkdownBlock.UnorderedList -> MarkdownList(
+                    items = block.items,
+                    ordered = false,
+                    fontSize = fontSize,
+                    lineHeight = lineHeight,
+                )
+
+                is MarkdownBlock.OrderedList -> MarkdownList(
+                    items = block.items,
+                    ordered = true,
+                    fontSize = fontSize,
+                    lineHeight = lineHeight,
+                )
+
+                is MarkdownBlock.Quote -> Surface(
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.62f),
+                    shape = RoundedCornerShape(8.dp),
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Text("│", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                        MarkdownInlineText(
+                            text = block.text,
+                            fontSize = fontSize,
+                            lineHeight = lineHeight,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                }
+
+                is MarkdownBlock.Code -> Surface(
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    shape = RoundedCornerShape(8.dp),
+                ) {
+                    SelectionContainer {
+                        Text(
+                            text = block.text,
+                            modifier = Modifier.padding(12.dp),
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = fontSize,
+                            lineHeight = lineHeight,
+                        )
+                    }
+                }
+
+                is MarkdownBlock.Table -> MarkdownTable(
+                    table = block,
+                    fontSize = fontSize,
+                    lineHeight = lineHeight,
+                )
+
+                MarkdownBlock.Divider -> HorizontalDivider()
+            }
         }
+    }
+}
+
+@Composable
+private fun MarkdownList(
+    items: List<String>,
+    ordered: Boolean,
+    fontSize: TextUnit,
+    lineHeight: TextUnit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        items.forEachIndexed { index, value ->
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = if (ordered) "${index + 1}." else "•",
+                    modifier = Modifier.width(if (ordered) 26.dp else 18.dp),
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                MarkdownInlineText(
+                    text = value,
+                    fontSize = fontSize,
+                    lineHeight = lineHeight,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun MarkdownTable(
+    table: MarkdownBlock.Table,
+    fontSize: TextUnit,
+    lineHeight: TextUnit,
+) {
+    Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(8.dp)) {
+        Column {
+            MarkdownTableRow(table.headers, fontSize, lineHeight, FontWeight.SemiBold)
+            table.rows.forEach { row -> MarkdownTableRow(row, fontSize, lineHeight, null) }
+        }
+    }
+}
+
+@Composable
+private fun MarkdownTableRow(
+    cells: List<String>,
+    fontSize: TextUnit,
+    lineHeight: TextUnit,
+    fontWeight: FontWeight?,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        cells.forEach { cell ->
+            MarkdownInlineText(
+                text = cell,
+                fontSize = fontSize,
+                lineHeight = lineHeight,
+                fontWeight = fontWeight,
+                modifier = Modifier.weight(1f),
+            )
+        }
+    }
+}
+
+@Composable
+private fun MarkdownInlineText(
+    text: String,
+    fontSize: TextUnit,
+    lineHeight: TextUnit,
+    modifier: Modifier = Modifier,
+    fontWeight: FontWeight? = null,
+) {
+    val annotated = buildAnnotatedString {
+        parseInlineMarkdown(text).forEach { token ->
+            val style = token.style
+            withStyle(
+                SpanStyle(
+                    color = if (style.link) MaterialTheme.colorScheme.primary else Color.Unspecified,
+                    background = if (style.code) MaterialTheme.colorScheme.surfaceVariant else Color.Unspecified,
+                    fontWeight = if (style.bold) FontWeight.Bold else null,
+                    fontStyle = if (style.italic) FontStyle.Italic else null,
+                    fontFamily = if (style.code) FontFamily.Monospace else null,
+                    textDecoration = when {
+                        style.strikeThrough -> TextDecoration.LineThrough
+                        style.link -> TextDecoration.Underline
+                        else -> null
+                    },
+                ),
+            ) {
+                append(token.text)
+            }
+        }
+    }
+    Text(
+        text = annotated,
+        modifier = modifier,
+        fontSize = fontSize,
+        lineHeight = lineHeight,
+        fontWeight = fontWeight,
+    )
 }
 
 @Composable
@@ -1381,7 +1572,13 @@ private fun DetailScreen(
                                 emptyList()
                             }
                             if (grammarRows.isEmpty()) {
-                                Text(aiState.result.orEmpty(), fontSize = bodyFontSize, lineHeight = bodyLineHeight)
+                                SelectionContainer {
+                                    MarkdownContent(
+                                        markdown = aiState.result.orEmpty(),
+                                        fontSize = bodyFontSize,
+                                        lineHeight = bodyLineHeight,
+                                    )
+                                }
                             } else {
                                 Text("原文定位", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
                                 SelectionContainer {
@@ -1447,7 +1644,7 @@ private fun DetailScreen(
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text(saved.task.label, fontWeight = FontWeight.SemiBold)
                                         Text(
-                                            saved.result,
+                                            markdownPlainText(saved.result),
                                             maxLines = 4,
                                             overflow = TextOverflow.Ellipsis,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant,

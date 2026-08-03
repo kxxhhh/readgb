@@ -131,8 +131,8 @@ class EdgeTTSEngine(context: Context) : TTSEngine {
                 }
                 media.setOnCompletionListener {
                     current.onProgress(100)
-                    current.onComplete()
                     stop()
+                    current.onComplete()
                 }
                 media.setOnErrorListener { _, what, extra ->
                     logAudioError("EDGE_DECODE_FAILED", "Edge-TTS 音频解码失败：$what/$extra", -1)
@@ -151,7 +151,7 @@ class EdgeTTSEngine(context: Context) : TTSEngine {
 
         private fun sendSsml(webSocket: WebSocket, value: String) {
             val escaped = value.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;").replace("'", "&apos;")
-            val body = "<speak version=\"1.0\" xmlns=\"http://www.w3.org/2001/10/synthesis\" xml:lang=\"zh-CN\"><voice name=\"zh-CN-YunxiNeural\"><prosody rate=\"+0%\" pitch=\"+0Hz\" volume=\"+0%\">$escaped</prosody></voice></speak>"
+            val body = "<speak version=\"1.0\" xmlns=\"http://www.w3.org/2001/10/synthesis\" xml:lang=\"zh-CN\"><voice name=\"zh-CN-YunxiNeural\"><prosody rate=\"+0%\" pitch=\"+0Hz\" volume=\"+0%\"><s>$escaped</s></prosody></voice></speak>"
             webSocket.send("X-RequestId:$requestId\r\nContent-Type:application/ssml+xml\r\nX-Timestamp:${edgeTimestamp()}Z\r\nPath:ssml\r\n\r\n$body")
         }
     }

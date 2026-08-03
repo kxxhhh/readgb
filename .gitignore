@@ -17,6 +17,7 @@ service/data/*.sqlite3
 service/data/*.log
 service/data/tongjian-cache/
 service/data/extended-cache/
+service/data/extended-sync.log
 service/data/tongjian-progress.json
 service/data/tongjian-progress.*.json
 service/data/*.lock

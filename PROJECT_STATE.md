@@ -1,6 +1,6 @@
 # 读通鉴当前任务清单与恢复日志
 
-更新时间：2026-08-04 03:43（Asia/Shanghai）
+更新时间：2026-08-04 04:25（Asia/Shanghai）
 
 本文件是项目的单一状态源，同时承担项目清单、断点恢复记录和开发日志。PROJECT_STATE_HISTORY.md 只保留旧历史，不作为当前事实来源；DEVELOPMENT_LOG.md 是本文件的合并入口说明，不再单独维护第二套日志。
 
@@ -38,7 +38,10 @@ jq '{total_reigns, completed: (.completed_reign_ids | length), failed: (.failed_
 - [x] 修复目录、子目录和扩展入口为空/加载慢：目录本地优先，空 API 响应触发回退，纪事本末/读通鉴论补种子层级，百科入口切换知识库，正文查询先于阅读记录写入。✅
 - [x] `0.1.18` 已完成签名构建：`versionCode=15`、`versionName=0.1.18`，Release APK v2 签名通过。✅
 - [x] `0.1.19` 发布快照已导出：正文 `46,110` 篇（资治通鉴 `30,989`、纪事本末 `14,176`、读通鉴论 `945`），目录 `544` 卷/`1,985` 纪年，百科 `61,696` 条。✅
-- [ ] 扩展内容仍在后台断点同步：事件 `239/239`，史论主题当前 `462/912`，当前 checkpoint 错误 `0`；Android 本次 Release 固定使用已校验的 `341` 主题快照，后续增量继续写入同一 cache/database。⏳
+- [x] Edge-TTS 连续朗读修复：播放完成回调先清理旧请求再进入下一句，避免新请求被旧回调取消；句末识别覆盖中英文句号、问号、感叹号、省略号、分号及句末引号/括号，并以 SSML `<s>` 明确句子边界。✅
+- [x] AI Markdown 渲染已接入：普通 AI 结果支持标题、段落、列表、引用、代码块、表格和行内样式，归档预览去除 Markdown 控制符；解析器和 Android JVM 测试通过。✅
+- [x] 当前 Release 构建已上传并替换 `v0.1.19` 的 `app-release.apk`；Release v2 签名通过，版本 `16/0.1.19`，APK 只保留在 GitHub Release。✅
+- [ ] 扩展内容仍在后台断点同步：事件 `239/239`，史论主题当前 `742/912`，当前 checkpoint 错误 `7`；Android 当前 Release 固定使用已校验的 `341` 主题快照，后续增量继续写入同一 cache/database。⏳
 
 ### 当前同步速度判断
 
@@ -134,6 +137,7 @@ jq '{total_reigns, completed: (.completed_reign_ids | length), failed: (.failed_
 - [ ] Edge-TTS 网络音频端点和真实音频验收；代码已保留可选网络引擎，阻塞：当前没有稳定端点/实体设备，下一步：在提供端点和设备后验证握手、音频解码与失败提示。
 - [ ] AI OpenAI-compatible 网络调用端到端验收；配置和任务提示已实现，阻塞：没有可用 API key/模型服务，下一步：用本地兼容服务完成请求、错误、超时和结果展示验证。
 - [x] AI 语法拆解的 Markdown 表格解析和结构化结果卡片；解析失败回退原文；路径：`android/app/src/main/java/com/dutongjian/app/domain/text/ClassicalGrammarAnalysis.kt`、`DutongjianApp.kt`；JVM 测试和 Android 构建已通过。✅
+- [x] AI 普通结果 Markdown 渲染：标题、段落、粗斜体、行内代码、链接文本、列表、引用、分隔线、代码块和表格已解析展示；路径：`android/app/src/main/java/com/dutongjian/app/domain/text/MarkdownRenderer.kt`、`DutongjianApp.kt`；JVM 测试已通过。✅
 - [x] AI 语法拆解的原文定位和高亮：提示要求模型返回连续原文片段，解析器兼容第五列，详情页对命中的原文片段着色；没有定位列或未命中时仍回退结构卡片/原始结果。✅
 - [x] AI 结果记录的 Room 表、保存、删除和重开流程；路径：`android/app/src/main/java/com/dutongjian/app/data/local/AiResult*`、`ReadingViewModel.kt`、`DutongjianApp.kt`；迁移 `4→5` 和 JVM 测试已通过。✅
 - [x] AI 反事实推演的独立模板和上下文边界：系统提示区分史料事实、合理推断、不确定假设和非正史影响，输入块使用明确数据边界；真实模型验证仍受外部服务阻塞。✅
@@ -271,6 +275,13 @@ android/app/src/main/assets/            校验后的 APK 资产
 
 - [x] 事项：核验发布资产；命令：`apksigner verify --verbose --print-certs`、`aapt dump badging`、APK asset 解包统计；结果：Release v2 签名通过，版本 `16/0.1.19`，证书 SHA-256 `0bd6d2260b1da032d761c16e7d31fee2767c80362295353e3f7ea10ebd111c57`，三个 APK 均含 `46,110/544/1,985/61,696`。✅
 - [ ] 事项：扩展史论继续补抓；当前 `239/239` 事件、`462/912` 史论主题、错误 `0`；恢复命令：`EXTENDED_MIN_INTERVAL=5 ./scripts/resume_extended_crawler.sh`。⏳
+
+### 2026-08-04 04:25 Asia/Shanghai
+
+- [x] 事项：修复 Edge-TTS 只朗读到第一句的问题；结果：播放完成回调先清理旧音频请求，再触发下一句；句段边界和阅读页高亮统一，SSML 使用 `<s>` 显式标记句子。路径：`android/app/src/main/java/com/dutongjian/app/data/tts/EdgeTTSEngine.kt`、`ClassicalTextPreprocessor.kt`、`DutongjianApp.kt`；Android JVM test、Compose 编译通过。✅
+- [x] 事项：修复 AI 结果 Markdown 源码直接显示；结果：新增纯 Kotlin Markdown 解析器和 Compose 渲染组件，支持标题、列表、引用、代码块、表格及行内样式；新增 `MarkdownRendererTest`，Android JVM test 通过。✅
+- [x] 事项：编译并上传当前签名 Release；命令：`./gradlew --no-daemon :app:assembleRelease`、`gh release upload v0.1.19 android/app/build/outputs/apk/release/app-release.apk --clobber`；结果：Release v2 签名通过，版本 `16/0.1.19`，资产大小 `93,684,243` bytes，地址：`https://github.com/kxxhhh/readgb/releases/download/v0.1.19/app-release.apk`。✅
+- [ ] 事项：继续扩展史论同步；当前 `239/239` 事件、`742/912` 史论主题、错误 `7`；下一步：本轮完成后自动重试失败项，达到 `912/912` 且错误 `0` 后再导出最终 Android assets。⏳
 
 ## 记录协议
 
