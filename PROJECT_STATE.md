@@ -78,7 +78,7 @@ jq '{total_reigns, completed: (.completed_reign_ids | length), failed: (.failed_
 - [x] 修复正文详情显示回归并补充 `loadedDetailSurvivesSummaryRefresh` 测试；Android JVM test、lint 和 `0.1.17` 三种 APK 构建均通过。✅
 - [x] 创建并上传正式 `v0.1.17` GitHub Release；signed `app-release.apk`、debug 和 inspection APK 均已上传，APK 不进入 Git。✅
 - [x] 修复目录/百科空数据和 API 超时等待；Android JVM test、lint 和 `0.1.18` 三种 APK 构建均通过。✅
-- [ ] 创建并上传正式 `v0.1.18` GitHub Release；签名 APK 构建已完成，上传后更新 URL。
+- [x] 创建并上传正式 `v0.1.18` GitHub Release；signed `app-release.apk`、debug 和 inspection APK 均已上传，地址：`https://github.com/kxxhhh/readgb/releases/tag/v0.1.18`。✅
 
 仍未完成或有外部阻塞：
 
@@ -251,7 +251,7 @@ android/app/src/main/assets/            校验后的 APK 资产
 
 - [x] 事项：修复目录与扩展入口空数据/加载慢；结果：目录、卷、纪年、百科改为本地优先，API 空响应不再覆盖离线数据；纪事本末和读通鉴论补齐种子卷/年/条目，通鉴百科从目录入口切到知识库。✅
 - [x] 事项：优化正文打开耗时；结果：先加载正文详情并刷新界面，再安全写入阅读历史，避免记录写入阻塞正文首屏。✅
-- [x] 事项：构建 `0.1.18`；结果：`versionCode=15`，JVM test、lint、Debug/Inspection/Release 成功，Release v2 签名通过；待创建 GitHub Release。
+- [x] 事项：构建并发布 `0.1.18`；结果：`versionCode=15`，JVM test、lint、Debug/Inspection/Release 成功，Release v2 签名通过；地址：`https://github.com/kxxhhh/readgb/releases/tag/v0.1.18`。✅
 
 ## 记录协议
 
