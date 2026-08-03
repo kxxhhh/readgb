@@ -1,6 +1,6 @@
 # 读通鉴当前任务清单与恢复日志
 
-更新时间：2026-08-04 01:17（Asia/Shanghai）
+更新时间：2026-08-04 01:35（Asia/Shanghai）
 
 本文件是项目的单一状态源，同时承担项目清单、断点恢复记录和开发日志。PROJECT_STATE_HISTORY.md 只保留旧历史，不作为当前事实来源；DEVELOPMENT_LOG.md 是本文件的合并入口说明，不再单独维护第二套日志。
 
@@ -58,7 +58,7 @@ jq '{total_reigns, completed: (.completed_reign_ids | length), failed: (.failed_
 
 正在进行：
 
-- [ ] 外部验收：AI/Edge-TTS/历法/战役数据仍有外部依赖；4GB AVD 已配置但 API 35 软件 TCG 首次启动仍慢，最终 `0.1.16` 安装和应用进程日志待完成。
+- [ ] 外部验收：AI/Edge-TTS/历法/战役数据仍有外部依赖；用户已取消本地虚拟机路线，真实 Android 设备验收待设备接入。
 
 接下来按顺序执行：
 
@@ -69,12 +69,12 @@ jq '{total_reigns, completed: (.completed_reign_ids | length), failed: (.failed_
 - [x] 更新当前数量、快照哈希和 APK 产物记录，提交并 push 全量资产与爬取快照；代码/资产 commit `7bf598a`，AI 代码 commit `11eb34a`。✅
 - [x] 用 `gh release create v0.1.14` 直接上传三个 APK；Release URL：`https://github.com/kxxhhh/readgb/releases/tag/v0.1.14`。APK 未提交到项目仓库。✅
 - [x] 修复全量导入/列表内存峰值并完成 `0.1.16` 签名 Debug/Inspection/Release 构建；JVM test、lint 全部通过，APK 内正文/目录/百科资产仍为 `30,989/294/1,405/61,696`。✅
-- [ ] 安装并启动签名 `0.1.16`：继续等待 AVD `first_boot_completed=1`，然后用 ADB 验证冷启动、导入数量、打开正文和崩溃日志；当前阻塞是 API 35 软件 TCG 首启/PackageInstaller，不是已确认的 App 进程崩溃。
-- [ ] 创建并上传 `v0.1.16` GitHub Release；完成 ADB 验收后上传 signed `app-release.apk`、debug 和 inspection APK，APK 不进入 Git。
+- [x] 按要求取消本地虚拟机路线并清理 `readgb-api35-lite`、`readgb-api35-workspace` 及 API 35 系统镜像；当前无 emulator/qemu 进程和可用 AVD。✅
+- [x] 创建并上传正式 `v0.1.16` GitHub Release；signed `app-release.apk`、debug 和 inspection APK 均已上传，APK 不进入 Git。✅
 
 仍未完成或有外部阻塞：
 
-- [ ] 全本规模图表滚动、文字截断、节点重叠、关系准确性、搜索性能和真实设备验收；当前 AVD 使用软件 TCG，无 KVM，已验证物理坐标为 `1080x1920/420dpi`，仍需完成应用级操作回归。
+- [ ] 全本规模图表滚动、文字截断、节点重叠、关系准确性、搜索性能和真实设备验收；本地无 KVM 且虚拟机路线已取消，需接入真实 Android 设备后回归。
 - [ ] AI 兼容服务真实请求/错误/超时验收，以及模型实际遵守史料边界的质量验收；本地 prompt 边界、反事实模板、角色多轮会话和语法原文定位 UI 已实现。
 - [ ] 历史上的今天可信月日映射、Edge-TTS 真实端点音频、战役地图/兵力/粮道沙盘；缺少可信数据或端点。
 - [ ] Codespace/Actions 生产 keystore 签名和 gh release 演练；本地 `0.1.16` 专用 keystore 已创建并使用，GitHub Actions secrets 仍未注入。
@@ -226,6 +226,12 @@ android/app/src/main/assets/            校验后的 APK 资产
 - [x] 事项：准备并验证 `0.1.16` 签名；命令：`apksigner verify --verbose --print-certs app-release.apk`；结果：v2 `true`，版本 `13/0.1.16`，证书指纹 `0bd6d2260b1da032d761c16e7d31fee2767c80362295353e3f7ea10ebd111c57`；APK 仍只留在本地构建目录，待 Release 上传。✅
 - [x] 事项：配置并调试 AVD/ADB；结果：先观察到宿主机 `109MB` 可用导致 system_server 重启，停止 Gradle daemon 后恢复；随后 2GB AVD 在安装阶段被来宾 lowmemorykiller 杀掉 system_server，已调为 4GB；swap 文件因容器无 `CAP_SYS_ADMIN` 无法启用，失败文件已清理。✅
 - [ ] 事项：应用级 ADB 回归和崩溃日志；恢复：复用 `readgb-api35-workspace`，等待 `first_boot_completed=1` 后安装 `android/app/build/outputs/apk/release/app-release.apk`；下一步：抓取 `logcat`、截图，操作首页/搜索/目录/正文和导入数量，再决定是否发布 `v0.1.16`。
+
+### 2026-08-04 01:35 Asia/Shanghai
+
+- [x] 事项：按用户要求先发布 `0.1.16`；结果：正式 Release 已创建并上传 `app-release.apk`、`app-debug.apk`、`app-inspection.apk`，地址：`https://github.com/kxxhhh/readgb/releases/tag/v0.1.16`。✅
+- [x] 事项：取消本地虚拟机方案；结果：停止后删除 `readgb-api35-lite`、`readgb-api35-workspace` 及 API 35 系统镜像，当前无 emulator/qemu 进程和 AVD。✅
+- [ ] 事项：应用级崩溃日志和真实设备回归；当前不再使用虚拟机，待接入真实 Android 设备后通过 ADB 完成。
 
 ## 记录协议
 
