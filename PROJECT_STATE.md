@@ -114,7 +114,7 @@ jq '{total_reigns, completed: (.completed_reign_ids | length), failed: (.failed_
 - [ ] AI 反事实推演的独立模板和上下文边界；当前结果已可保存/删除/重开，下一步：补结构化任务记录、上下文边界和端到端模型验证。
 - [ ] 历史人物角色对话的事实约束、对话界面和离线/联网边界；当前只有一次性任务入口，下一步：增加角色上下文和会话记录模型。
 - [ ] 重点战役沙盘的地图、兵力、粮道和关键决策数据；当前只有正文注释沙盘卡，下一步：先确认公开结构化字段，再建立可追溯数据模型。
-- [ ] GitHub Codespace 真实签名构建和上传；阻塞：当前环境没有用户生产 keystore，下一步：在 Codespace 注入签名 secrets 后运行 CI。
+- [ ] 当前环境没有用户生产 keystore，下一步：注入签名 secrets 。
 - [ ] gh release 自动发布闭环；已加入只允许手动/版本标签触发、必须生产 keystore secrets 的 `.github/workflows/release.yml`，但当前环境没有生产 keystore，下一步：在 Codespace/Actions secrets 配置后执行一次签名发布演练。
 
 ## 路径与边界
