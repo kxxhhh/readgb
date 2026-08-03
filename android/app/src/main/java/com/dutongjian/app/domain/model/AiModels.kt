@@ -14,3 +14,11 @@ data class AiSettings(
     val model: String = "gpt-4o-mini",
     val hasApiKey: Boolean = false,
 )
+
+data class AiResult(
+    val id: String,
+    val itemId: String,
+    val task: AiTask,
+    val result: String,
+    val createdAt: Long,
+)

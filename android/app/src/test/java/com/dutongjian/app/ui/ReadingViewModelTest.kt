@@ -1,6 +1,7 @@
 package com.dutongjian.app.ui
 
 import com.dutongjian.app.domain.model.AiSettings
+import com.dutongjian.app.domain.model.AiResult
 import com.dutongjian.app.domain.model.AiTask
 import com.dutongjian.app.domain.model.HomeFeed
 import com.dutongjian.app.domain.model.HistoricalPlace
@@ -22,6 +23,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -99,6 +101,27 @@ class ReadingViewModelTest {
         assertEquals(items, viewModel.state.value.items)
     }
 
+    @Test
+    fun aiResultsAreSavedReopenedAndDeleted() = runTest {
+        val repository = FakeRepository(listOf(item("item", "正文")), emptyList())
+        val readingItem = repository.observeItems().first().first()
+        val viewModel = ReadingViewModel(repository, FakeAiRepository(), FakeTtsPlayer(), FakeReadingStatsRecorder())
+
+        viewModel.generateAi(readingItem, AiTask.COUNTERFACTUAL)
+        advanceUntilIdle()
+
+        val saved = viewModel.state.value.aiResults.single()
+        assertEquals(AiTask.COUNTERFACTUAL, saved.task)
+        assertEquals("item", saved.itemId)
+        viewModel.clearAiResult()
+        viewModel.openAiResult(saved)
+        assertEquals(saved.result, viewModel.state.value.ai.result)
+
+        viewModel.deleteAiResult(saved)
+        advanceUntilIdle()
+        assertTrue(viewModel.state.value.aiResults.isEmpty())
+    }
+
     private fun item(id: String, title: String) = ReadingItem(
         id = id,
         title = title,
@@ -117,6 +140,7 @@ private class FakeRepository(
     private val volumesGate: CompletableDeferred<List<Volume>>? = null,
 ) : ReadingRepository {
     private val items = MutableStateFlow(initialItems)
+    private val aiResults = MutableStateFlow<List<AiResult>>(emptyList())
 
     override fun observeItems(): Flow<List<ReadingItem>> = items
 
@@ -147,6 +171,16 @@ private class FakeRepository(
     override suspend fun deleteNote(note: Note) = Unit
 
     override fun observePlaces(): Flow<List<HistoricalPlace>> = MutableStateFlow(emptyList())
+
+    override fun observeAiResults(): Flow<List<AiResult>> = aiResults
+
+    override suspend fun saveAiResult(result: AiResult) {
+        aiResults.value = listOf(result) + aiResults.value.filterNot { it.id == result.id }
+    }
+
+    override suspend fun deleteAiResult(result: AiResult) {
+        aiResults.value = aiResults.value.filterNot { it.id == result.id }
+    }
 }
 
 private class FakeAiRepository : AiRepository {

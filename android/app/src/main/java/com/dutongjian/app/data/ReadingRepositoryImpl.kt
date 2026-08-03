@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import com.dutongjian.app.data.local.ItemDao
 import com.dutongjian.app.data.local.ItemEntity
+import com.dutongjian.app.data.local.AiResultDao
 import com.dutongjian.app.data.local.NoteDao
 import com.dutongjian.app.data.local.PlaceDao
 import com.dutongjian.app.data.local.toDomain
@@ -15,6 +16,7 @@ import com.dutongjian.app.data.network.SectionDto
 import com.dutongjian.app.data.network.VolumeDto
 import com.dutongjian.app.data.network.YearDto
 import com.dutongjian.app.domain.model.HomeFeed
+import com.dutongjian.app.domain.model.AiResult
 import com.dutongjian.app.domain.model.HistoricalPlace
 import com.dutongjian.app.domain.model.KnowledgeEntry
 import com.dutongjian.app.domain.model.LibrarySection
@@ -48,6 +50,7 @@ class ReadingRepositoryImpl @Inject constructor(
     private val dao: ItemDao,
     private val placeDao: PlaceDao,
     private val noteDao: NoteDao,
+    private val aiResultDao: AiResultDao,
 ) : ReadingRepository {
     private val localContentMutex = Mutex()
     private val catalogMutex = Mutex()
@@ -155,6 +158,14 @@ class ReadingRepositoryImpl @Inject constructor(
     override suspend fun saveNote(note: Note) = noteDao.upsert(note.toEntity())
 
     override suspend fun deleteNote(note: Note) = noteDao.delete(note.toEntity())
+
+    override fun observeAiResults(): Flow<List<AiResult>> = aiResultDao.observeAll().map { results ->
+        results.map { it.toDomain() }
+    }
+
+    override suspend fun saveAiResult(result: AiResult) = aiResultDao.upsert(result.toEntity())
+
+    override suspend fun deleteAiResult(result: AiResult) = aiResultDao.deleteById(result.id)
 
     override fun observePlaces(): Flow<List<HistoricalPlace>> = flow {
         ensurePlaces()

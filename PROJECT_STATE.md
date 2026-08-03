@@ -26,15 +26,15 @@ jq '{total_reigns, completed: (.completed_reign_ids | length), failed: (.failed_
 - [x] 公开同步目标已确认：294 卷、1,405 个纪年节点、30,989 条正文；公开入口为 /api/table_of_contents 和 /api/reign。✅
 - [x] 旧导入内容清理前快照保存在 service/data/resync-archive-20260803/；新同步数据只写入 service/data/。✅
 - [x] 同步器使用受控多线程：4 个 worker、全局请求节奏、robots 检查、缓存、Retry-After、退避、去重和原子 checkpoint。✅
-- [x] 本轮从当前项目内空数据状态启动后已转为独立 session 续跑；21:29 观察到 checkpoint `957/1405`、失败 `0`、数据库 `16,285` 条真实 `zztj-*` 正文。运行使用 4 worker、5 秒请求间隔和 robots 检查。✅
-- [ ] 同步仍未完成，当前 checkpoint `68.11%`，不能把数据库或 App 描述为全本。下一步：保持唯一后台进程运行，复用 `service/data/tongjian-progress.json`、`service/data/tongjian-cache/` 和 `service/data/dutongjian.db` 执行 `./scripts/resume_crawler.sh`；不使用 `--reset`。
+- [x] 本轮从当前项目内空数据状态启动后已转为独立 session 续跑；21:45 观察到 checkpoint `1069/1405`、失败 `0`、数据库 `17,900` 条真实 `zztj-*` 正文。运行使用 4 worker、5 秒请求间隔和 robots 检查。✅
+- [ ] 同步仍未完成，当前 checkpoint `76.01%`，不能把数据库或 App 描述为全本。下一步：保持唯一后台进程运行，复用 `service/data/tongjian-progress.json`、`service/data/tongjian-cache/` 和 `service/data/dutongjian.db` 执行 `./scripts/resume_crawler.sh`；不使用 `--reset`。
 - [ ] 新的正文、目录、百科 Android assets 尚未由本轮全量同步导出；导出前必须通过 `service/app/validate_tongjian.py --strict` 的 `30,989/294/1,405` 完整性校验。
 - [x] Android 图表代码已改为按纪年/纪·朝代覆盖全部分组，并把人物图谱改为全人物索引 + 中心人物下钻；Kotlin 编译、测试和 lint 已通过。✅
 - [x] 研读页新增正文/纪年/卷三项真实 `zztj-*` 覆盖率卡片，不把 OfflineSeed 计入数据覆盖。✅
 
 ### 当前同步速度判断
 
-本轮于 2026-08-03 14:57 左右从空 checkpoint 启动；21:23 观察到 `911/1405` 个纪年、`14,195` 条真实正文、失败 `0`。当前阶段没有新的失败，仍继续使用 5 秒请求间隔、4 worker 和服务端 Retry-After；4 worker 不用于绕过限流。该结论只表示已观察窗口，不代表同步已完成。
+本轮于 2026-08-03 14:57 左右从空 checkpoint 启动；21:45 观察到 `1069/1405` 个纪年、`17,900` 条真实正文、失败 `0`。当前阶段没有新的失败，仍继续使用 5 秒请求间隔、4 worker 和服务端 Retry-After；4 worker 不用于绕过限流。该结论只表示已观察窗口，不代表同步已完成。
 
 ## 当前任务清单
 
@@ -53,7 +53,7 @@ jq '{total_reigns, completed: (.completed_reign_ids | length), failed: (.failed_
 - [x] TongjianSync 使用 ThreadPoolExecutor 并发获取未完成纪年，主线程顺序入库并逐纪年写 checkpoint。✅
 - [x] 单个纪年的网络、解析或入库异常会写入 failed_reign_ids/last_errors，不会中断其他已完成 future。✅
 - [x] scripts/resume_crawler.sh 固定使用 4 worker、5 秒最小请求间隔和 robots 检查；当前 PID 9878 持有同步锁运行，源代码已增加 1,405/294 规模门槛。✅
-- [ ] 继续观察恢复后的稳定吞吐和失败率；当前已观察到 `911` 个纪年、失败 `0`，仍需保持到任务结束；若出现 429，只遵守 Retry-After，不盲目增加并发。
+- [ ] 继续观察恢复后的稳定吞吐和失败率；当前已观察到 `1069` 个纪年、失败 `0`，仍需保持到任务结束；若出现 429，只遵守 Retry-After，不盲目增加并发。
 - [ ] 完成 1,405 个纪年后执行全量正文、目录、关联字段校验并导出 Android assets。
 
 ### 数据校验与覆盖看板
@@ -79,7 +79,8 @@ jq '{total_reigns, completed: (.completed_reign_ids | length), failed: (.failed_
 - [ ] Edge-TTS 网络音频端点和真实音频验收；代码已保留可选网络引擎，阻塞：当前没有稳定端点/实体设备，下一步：在提供端点和设备后验证握手、音频解码与失败提示。
 - [ ] AI OpenAI-compatible 网络调用端到端验收；配置和任务提示已实现，阻塞：没有可用 API key/模型服务，下一步：用本地兼容服务完成请求、错误、超时和结果展示验证。
 - [ ] AI 语法拆解的结构化结果与选中文本高亮；当前有任务提示和结果文本，下一步：增加结构化解析协议、段落定位和 UI 高亮。
-- [ ] AI 反事实推演的独立模板、上下文边界和结果保存；当前有任务提示，下一步：增加任务记录 Room 表、保存/删除/重开流程。
+- [x] AI 结果记录的 Room 表、保存、删除和重开流程；路径：`android/app/src/main/java/com/dutongjian/app/data/local/AiResult*`、`ReadingViewModel.kt`、`DutongjianApp.kt`；迁移 `4→5` 和 JVM 测试已通过。✅
+- [ ] AI 反事实推演的独立模板和上下文边界；当前结果已可保存/删除/重开，下一步：补结构化任务记录、上下文边界和端到端模型验证。
 - [ ] 历史人物角色对话的事实约束、对话界面和离线/联网边界；当前只有一次性任务入口，下一步：增加角色上下文和会话记录模型。
 - [ ] 重点战役沙盘的地图、兵力、粮道和关键决策数据；当前只有正文注释沙盘卡，下一步：先确认公开结构化字段，再建立可追溯数据模型。
 - [ ] GitHub Codespace 真实签名构建和上传；阻塞：当前环境没有用户生产 keystore，下一步：在 Codespace 注入签名 secrets 后运行 CI。
@@ -149,6 +150,12 @@ android/app/src/main/assets/            校验后的 APK 资产
 - [x] 事项：清理旧安装问题文档中的模拟器/adb 复现要求；结果：`issue/Unable2Install.txt` 已改为历史静态诊断，当前只接受 Backend/JVM/lint/APK 产物验证；历史档案保留。✅
 - [ ] 事项：持续公开 API 同步；结果：checkpoint `167/1405`，失败 `19`，数据库 `737` 条正文，失败主要为 HTTP 429；下一步：继续复用项目内 cache/checkpoint，20:30 自动停止并保存。
 - [x] 事项：历史 GitHub Release 记录；结果：该旧日志当时记录为 `gh auth status` 未登录，后续已恢复 gh 登录并完成多次历史预发布；当前全量资产 Release 仍需等严格校验、签名和产物检查。✅
+
+### 2026-08-03 21:45 Asia/Shanghai
+
+- [x] 事项：补齐 AI 结果持久化。命令：`./gradlew --no-daemon :app:testDebugUnitTest :app:lintDebug :app:assembleDebug`；结果：`BUILD SUCCESSFUL`，新增 Room `ai_results` 表、`4→5` 迁移、保存/删除/重开流程和 JVM 覆盖；路径：`android/app/src/main/java/com/dutongjian/app/data/local/`、`ReadingViewModel.kt`、`DutongjianApp.kt`。✅
+- [x] 事项：排除本机模拟器状态。结果：`.android-avd/` 已加入 `.gitignore`，不进入源码或远程仓库。✅
+- [ ] 事项：继续公开 API 同步；结果：PID `9878`，checkpoint `1069/1405`，真实正文 `17,900`，失败 `0`；下一步：完成同步后执行严格校验、资产导出、Android 全量构建和快照推送。
 
 ## 记录协议
 

@@ -58,6 +58,8 @@ class MainActivity : ComponentActivity() {
                         onAiApiKeyClear = viewModel::clearAiApiKey,
                         onAiGenerate = viewModel::generateAi,
                         onAiResultClear = viewModel::clearAiResult,
+                        onAiResultOpen = viewModel::openAiResult,
+                        onAiResultDelete = viewModel::deleteAiResult,
                         onTtsEngineSelected = viewModel::selectTtsEngine,
                         onSpeak = viewModel::speak,
                         onPauseTts = viewModel::pauseTts,

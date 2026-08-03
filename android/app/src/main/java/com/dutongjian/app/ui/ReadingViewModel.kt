@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.dutongjian.app.domain.model.KnowledgeEntry
 import com.dutongjian.app.domain.model.HistoricalPlace
 import com.dutongjian.app.domain.model.AiSettings
+import com.dutongjian.app.domain.model.AiResult
 import com.dutongjian.app.domain.model.AiTask
 import com.dutongjian.app.domain.model.LibrarySection
 import com.dutongjian.app.domain.model.OfflineSeed
@@ -29,6 +30,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.util.UUID
 
 enum class LibraryTab { FAVORITES, HISTORY, NOTES }
 enum class CatalogLevel { SECTIONS, VOLUMES, YEARS, ITEMS }
@@ -42,6 +44,7 @@ data class AiUiState(
     val isGenerating: Boolean = false,
     val task: AiTask? = null,
     val resultItemId: String? = null,
+    val resultId: String? = null,
     val result: String? = null,
     val error: String? = null,
 )
@@ -72,6 +75,7 @@ data class ReadingUiState(
     val knowledgeQuery: String = "",
     val selectedKnowledgeCategory: String? = null,
     val notes: List<Note> = emptyList(),
+    val aiResults: List<AiResult> = emptyList(),
     val places: List<HistoricalPlace> = emptyList(),
     val stats: ReadingStats = ReadingStats(),
     val isCatalogLoading: Boolean = false,
@@ -121,6 +125,9 @@ class ReadingViewModel @Inject constructor(
         }
         viewModelScope.launch {
             repository.observeNotes().collectLatest { notes -> _state.update { it.copy(notes = notes) } }
+        }
+        viewModelScope.launch {
+            repository.observeAiResults().collectLatest { results -> _state.update { it.copy(aiResults = results) } }
         }
         viewModelScope.launch {
             repository.observePlaces().collectLatest { places -> _state.update { it.copy(places = places) } }
@@ -242,14 +249,54 @@ class ReadingViewModel @Inject constructor(
     }
 
     fun generateAi(item: ReadingItem, task: AiTask) = viewModelScope.launch {
-        _state.update { it.copy(ai = it.ai.copy(isGenerating = true, task = task, resultItemId = item.id, result = null, error = null)) }
+        _state.update { it.copy(ai = it.ai.copy(isGenerating = true, task = task, resultItemId = item.id, resultId = null, result = null, error = null)) }
         aiRepository.generate(item, task)
-            .onSuccess { result -> _state.update { it.copy(ai = it.ai.copy(isGenerating = false, result = result, error = null)) } }
+            .onSuccess { result ->
+                val saved = AiResult(
+                    id = UUID.randomUUID().toString(),
+                    itemId = item.id,
+                    task = task,
+                    result = result,
+                    createdAt = System.currentTimeMillis(),
+                )
+                repository.saveAiResult(saved)
+                _state.update {
+                    it.copy(
+                        ai = it.ai.copy(
+                            isGenerating = false,
+                            task = task,
+                            resultItemId = item.id,
+                            resultId = saved.id,
+                            result = result,
+                            error = null,
+                        ),
+                    )
+                }
+            }
             .onFailure { failure -> _state.update { it.copy(ai = it.ai.copy(isGenerating = false, error = failure.message ?: "AI 生成失败")) } }
     }
 
     fun clearAiResult() {
-        _state.update { it.copy(ai = it.ai.copy(task = null, resultItemId = null, result = null, error = null)) }
+        _state.update { it.copy(ai = it.ai.copy(task = null, resultItemId = null, resultId = null, result = null, error = null)) }
+    }
+
+    fun openAiResult(result: AiResult) {
+        _state.update {
+            it.copy(
+                ai = it.ai.copy(
+                    task = result.task,
+                    resultItemId = result.itemId,
+                    resultId = result.id,
+                    result = result.result,
+                    error = null,
+                ),
+            )
+        }
+    }
+
+    fun deleteAiResult(result: AiResult) = viewModelScope.launch {
+        repository.deleteAiResult(result)
+        if (_state.value.ai.resultId == result.id) clearAiResult()
     }
 
     private fun loadAiSettings() = viewModelScope.launch {

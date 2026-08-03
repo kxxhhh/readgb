@@ -47,6 +47,7 @@ import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Home
@@ -104,6 +105,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import android.widget.Toast
 import com.dutongjian.app.domain.model.AiTask
+import com.dutongjian.app.domain.model.AiResult
 import com.dutongjian.app.domain.model.HistoricalPlace
 import com.dutongjian.app.domain.model.KnowledgeEntry
 import com.dutongjian.app.domain.model.LibrarySection
@@ -180,6 +182,8 @@ fun DutongjianApp(
     onAiApiKeyClear: () -> Unit,
     onAiGenerate: (ReadingItem, AiTask) -> Unit,
     onAiResultClear: () -> Unit,
+    onAiResultOpen: (AiResult) -> Unit,
+    onAiResultDelete: (AiResult) -> Unit,
     onTtsEngineSelected: (TtsEngineType) -> Unit,
     onSpeak: (ReadingItem) -> Unit,
     onPauseTts: () -> Unit,
@@ -280,6 +284,9 @@ fun DutongjianApp(
                     aiState = aiState,
                     onAiGenerate = onAiGenerate,
                     onAiResultClear = onAiResultClear,
+                    savedAiResults = state.aiResults.filter { it.itemId == targetItem.id },
+                    onAiResultOpen = onAiResultOpen,
+                    onAiResultDelete = onAiResultDelete,
                     places = state.places,
                     savedNotes = state.notes.filter { it.articleId == targetItem.id },
                     highlightedSavedNoteId = selectedNoteId,
@@ -850,6 +857,9 @@ private fun DetailScreen(
     aiState: AiUiState,
     onAiGenerate: (ReadingItem, AiTask) -> Unit,
     onAiResultClear: () -> Unit,
+    savedAiResults: List<AiResult>,
+    onAiResultOpen: (AiResult) -> Unit,
+    onAiResultDelete: (AiResult) -> Unit,
     places: List<HistoricalPlace>,
     savedNotes: List<Note>,
     highlightedSavedNoteId: String?,
@@ -1304,9 +1314,37 @@ private fun DetailScreen(
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(aiState.task?.label ?: "AI结果", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                                 Spacer(Modifier.weight(1f))
-                                TextButton(onClick = onAiResultClear) { Text("清除") }
+                                Text("已保存", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                                TextButton(onClick = onAiResultClear) { Text("隐藏") }
                             }
                             Text(aiState.result.orEmpty(), fontSize = bodyFontSize, lineHeight = bodyLineHeight)
+                        }
+                    }
+                }
+            }
+            val archivedAiResults = savedAiResults.filter { it.id != aiState.resultId }
+            if (archivedAiResults.isNotEmpty()) {
+                item {
+                    Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(16.dp)) {
+                        Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("已保存的 AI 结果", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                            archivedAiResults.forEach { saved ->
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(saved.task.label, fontWeight = FontWeight.SemiBold)
+                                        Text(
+                                            saved.result,
+                                            maxLines = 4,
+                                            overflow = TextOverflow.Ellipsis,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                    TextButton(onClick = { onAiResultOpen(saved) }) { Text("重开") }
+                                    IconButton(onClick = { onAiResultDelete(saved) }) {
+                                        Icon(Icons.Default.Delete, contentDescription = "删除 AI 结果")
+                                    }
+                                }
+                            }
                         }
                     }
                 }

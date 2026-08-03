@@ -1,6 +1,7 @@
 package com.dutongjian.app.domain.repository
 
 import com.dutongjian.app.domain.model.HomeFeed
+import com.dutongjian.app.domain.model.AiResult
 import com.dutongjian.app.domain.model.HistoricalPlace
 import com.dutongjian.app.domain.model.KnowledgeEntry
 import com.dutongjian.app.domain.model.LibrarySection
@@ -26,4 +27,7 @@ interface ReadingRepository {
     suspend fun saveNote(note: Note)
     suspend fun deleteNote(note: Note)
     fun observePlaces(): Flow<List<HistoricalPlace>>
+    fun observeAiResults(): Flow<List<AiResult>>
+    suspend fun saveAiResult(result: AiResult)
+    suspend fun deleteAiResult(result: AiResult)
 }

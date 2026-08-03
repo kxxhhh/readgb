@@ -73,6 +73,22 @@ private val MIGRATION_2_4 = object : androidx.room.migration.Migration(2, 4) {
     }
 }
 
+private val MIGRATION_4_5 = object : androidx.room.migration.Migration(4, 5) {
+    override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS ai_results (
+                id TEXT NOT NULL PRIMARY KEY,
+                itemId TEXT NOT NULL,
+                task TEXT NOT NULL,
+                result TEXT NOT NULL,
+                createdAt INTEGER NOT NULL
+            )
+        """.trimIndent())
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_ai_results_itemId ON ai_results(itemId)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_ai_results_createdAt ON ai_results(createdAt)")
+    }
+}
+
 @Module
 @InstallIn(SingletonComponent::class)
 object NetworkModule {
@@ -118,7 +134,7 @@ object DatabaseModule {
         context,
         AppDatabase::class.java,
         "dutongjian.db",
-    ).addMigrations(MIGRATION_1_2, MIGRATION_2_4)
+    ).addMigrations(MIGRATION_1_2, MIGRATION_2_4, MIGRATION_4_5)
         .addCallback(object : RoomDatabase.Callback() {
             override fun onOpen(db: SupportSQLiteDatabase) {
                 ReadingSearchIndex.ensure(db)
@@ -134,6 +150,9 @@ object DatabaseModule {
 
     @Provides
     fun provideNoteDao(database: AppDatabase): com.dutongjian.app.data.local.NoteDao = database.noteDao()
+
+    @Provides
+    fun provideAiResultDao(database: AppDatabase): com.dutongjian.app.data.local.AiResultDao = database.aiResultDao()
 }
 
 @Module

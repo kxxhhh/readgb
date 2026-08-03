@@ -24,6 +24,7 @@ service/data/resync-archive-*/
 # Android / Gradle
 .gradle/
 .android-sdk/
+.android-avd/
 android/.kotlin/
 build/
 */build/

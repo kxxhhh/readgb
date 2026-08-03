@@ -60,7 +60,7 @@ ReadingRepositoryImpl 的顺序如下：
 4. 导入时按 ID 保留本地 isFavorite 和 lastOpenedAt。
 5. 目录从 offline_catalog.json 读取；百科从 offline_knowledge.json 读取；缺资产时才回退种子。
 
-截至 2026-08-03 21:29，新一轮同步 checkpoint 为 `957/1405`，真实正文 `16,285` 条；因此 `offline_content.ndjson.gz`、`offline_catalog.json`、`offline_knowledge.json` 尚未按本轮全量数据重新生成。`classical_char_map.json` 和 `classical_glossary.json` 是独立的本地静态资源，当前已经在 assets 中。
+截至 2026-08-03 21:45，新一轮同步 checkpoint 为 `1069/1405`，真实正文 `17,900` 条；因此 `offline_content.ndjson.gz`、`offline_catalog.json`、`offline_knowledge.json` 尚未按本轮全量数据重新生成。`classical_char_map.json` 和 `classical_glossary.json` 是独立的本地静态资源，当前已经在 assets 中。
 
 ### 3.2 阅读详情页
 
@@ -90,6 +90,7 @@ ReadingRepositoryImpl 的顺序如下：
 - LocalTtsEngine 使用 Android 系统中文 TTS；EdgeTTSEngine 是可选网络引擎，失败时显示错误，不伪装成本地合成。
 - TtsController 保存当前句、播放队列和睡眠计时器状态。
 - AiRepositoryImpl 支持用户配置 OpenAI 兼容接口或本机模型服务，Key 只存本机；没有配置时不发远程请求。
+- AI 生成结果已写入 Room `ai_results`，详情页支持隐藏当前结果、重开历史结果和删除记录；真实模型请求仍需可用服务端到端验证。
 - QuoteWidgetProvider 使用 RemoteViews 展示本地名句和入口。
 - ClassicalGlossary 和 ClassicalScriptMapper 在应用启动时从 assets 加载；没有资产时使用内置 fallback 映射。
 
@@ -314,12 +315,12 @@ PROJECT_STATE.md 同时承担项目状态、任务清单和可恢复日志；DEV
 
 这些不是已实现声明，实际清单以 PROJECT_STATE.md 为准：
 
-- [ ] 数据门槛：完成 `1,405/1,405` 纪年并校验 `30,989` 条真实正文、唯一 ID、必填字段、卷/纪年外键、关联 JSON 和零空纪年；当前 `911/1405`，下一步运行 `app.validate_tongjian --strict`。
+- [ ] 数据门槛：完成 `1,405/1,405` 纪年并校验 `30,989` 条真实正文、唯一 ID、必填字段、卷/纪年外键、关联 JSON 和零空纪年；当前 `1069/1405`，下一步运行 `app.validate_tongjian --strict`。
 - [ ] 离线资产：严格通过数据门槛后生成并导入正文、目录、百科三个 Android assets，再从 APK 内容核对数量和 SHA-256。
 - [ ] 百科和专题：完成全量人物/地点/官职/专题/决策索引，以及典章制度、经济史的可追溯结构化标注。
 - [ ] 研读验收：全本规模下验证图表滚动、节点不重叠、文字不截断、关系准确性、人物/时期覆盖和搜索性能。
 - [ ] 用户看板：将已有的正文/纪年/卷覆盖率卡片与全量数据复核；“历史上的今天”仍需可信月日历法映射和自动刷新。
 - [ ] 设备与声音：真实 Android 设备上复验安装、详情滚动、系统 TTS、Widget、Edge-TTS 音频和网络失败提示；当前无实体设备，模拟器无 KVM。
-- [ ] AI 端到端：用本地或用户提供的 OpenAI-compatible 服务验证请求、错误、超时和结果展示；再补语法高亮、反事实保存、人物对话事实约束和会话界面。
+- [ ] AI 端到端：用本地或用户提供的 OpenAI-compatible 服务验证请求、错误、超时和结果展示；结果保存/删除/重开已实现，仍需补语法高亮、反事实上下文边界、人物对话事实约束和会话界面。
 - [ ] 战役沙盘：在确认公开结构化数据后补地图、兵力、粮道和决策模型；当前仅有正文注释沙盘卡。
 - [ ] 发布：Codespace 注入生产 keystore 后完成签名构建；`.github/workflows/release.yml` 已加入 APK 校验、SHA-256 和 gh release 自动化，但仍需真实 secrets 演练。gh 登录/push 已可用，但不是生产签名凭据。
