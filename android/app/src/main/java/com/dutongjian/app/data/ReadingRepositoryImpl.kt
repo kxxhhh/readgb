@@ -2,8 +2,12 @@ package com.dutongjian.app.data
 
 import android.content.Context
 import android.util.Log
+import androidx.room.withTransaction
+import com.dutongjian.app.data.local.AppDatabase
 import com.dutongjian.app.data.local.ItemDao
 import com.dutongjian.app.data.local.ItemEntity
+import com.dutongjian.app.data.local.ItemLocalState
+import com.dutongjian.app.data.local.ItemSummaryEntity
 import com.dutongjian.app.data.local.AiResultDao
 import com.dutongjian.app.data.local.NoteDao
 import com.dutongjian.app.data.local.PlaceDao
@@ -40,13 +44,17 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.DecodeSequenceMode
+import kotlinx.serialization.json.decodeToSequence
 import java.io.IOException
 import javax.inject.Inject
 
+@OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
 class ReadingRepositoryImpl @Inject constructor(
     @ApplicationContext private val context: Context,
     private val json: Json,
     private val api: DutongjianApi,
+    private val database: AppDatabase,
     private val dao: ItemDao,
     private val placeDao: PlaceDao,
     private val noteDao: NoteDao,
@@ -62,7 +70,7 @@ class ReadingRepositoryImpl @Inject constructor(
 
     override fun observeItems(): Flow<List<ReadingItem>> = flow {
         ensureLocalSeed()
-        emitAll(dao.observeAll().map { items -> items.map(ItemEntity::toDomain) })
+        emitAll(dao.observeSummaries().map { items -> items.map(ItemSummaryEntity::toDomain) })
     }
 
     override suspend fun refreshHome(): Result<HomeFeed> = withOfflineFallback(
@@ -70,8 +78,8 @@ class ReadingRepositoryImpl @Inject constructor(
             val response = api.home()
             require(response.code == 0) { response.message }
             val data = requireNotNull(response.data) { "empty home response" }
-            val existing = dao.observeAllOnce()
-            val incoming = data.items.map { it.toEntity(existing[it.id]) }
+            val existing = dao.importStatesOnce()
+            val incoming = data.items.map { it.toImportedEntity(existing[it.id]) }
             dao.upsertAll(incoming)
             HomeFeed(incoming.map(ItemEntity::toDomain), data.categories)
         },
@@ -93,6 +101,10 @@ class ReadingRepositoryImpl @Inject constructor(
     override suspend fun setFavorite(itemId: String, favorite: Boolean) = dao.setFavorite(itemId, favorite)
 
     override suspend fun recordOpened(itemId: String) = dao.recordOpened(itemId, System.currentTimeMillis())
+
+    override suspend fun loadItem(itemId: String): Result<ReadingItem> = runCatching {
+        requireNotNull(dao.findById(itemId)?.toDomain()) { "本地条目不存在：$itemId" }
+    }
 
     override suspend fun loadSections(): Result<List<LibrarySection>> = withOfflineFallback(
         remote = {
@@ -129,8 +141,8 @@ class ReadingRepositoryImpl @Inject constructor(
         remote = {
             val response = api.yearItems(yearId)
             require(response.code == 0) { response.message }
-            val existing = dao.observeAllOnce()
-            response.data?.items.orEmpty().map { it.toEntity(existing[it.id]) }.also { dao.upsertAll(it) }.map(ItemEntity::toDomain)
+            val existing = dao.importStatesOnce()
+            response.data?.items.orEmpty().map { it.toImportedEntity(existing[it.id]) }.also { dao.upsertAll(it) }.map(ItemEntity::toDomain)
         },
         fallback = { localItems(yearId = yearId) },
     )
@@ -186,10 +198,10 @@ class ReadingRepositoryImpl @Inject constructor(
     private suspend fun ensureLocalSeed() {
         localContentMutex.withLock {
             if (localContentReady) return@withLock
-            val existing = dao.observeAllOnce()
             val hasBundledContent = hasBundledContentAsset()
             if (!hasBundledContent) {
-                val missing = OfflineSeed.items.filterNot { it.id in existing }
+                val existingIds = dao.existingIds().toSet()
+                val missing = OfflineSeed.items.filterNot { it.id in existingIds }
                 if (missing.isNotEmpty()) {
                     dao.upsertAll(missing.map { it.toEntity() })
                 }
@@ -213,23 +225,16 @@ class ReadingRepositoryImpl @Inject constructor(
     private suspend fun importBundledContent(): Boolean {
         try {
             withContext(Dispatchers.IO) {
-                val previous = dao.observeAllOnce()
-                val imported = ArrayList<ItemEntity>()
-                openBundledContentAsset().use { input ->
-                    contentAssetReader(input).use { reader ->
-                        while (true) {
-                            val line = reader.readLine() ?: break
-                            if (line.isBlank()) continue
-                            val dto = json.decodeFromString<ItemDto>(line)
-                            imported += dto.toEntity(previous[dto.id])
-                        }
+                // Validate the complete stream before touching Room. This catches
+                // truncated assets without replacing a working local corpus.
+                streamBundledContent { }
+                val previous = dao.importStatesOnce()
+                database.withTransaction {
+                    dao.deleteImportedContent()
+                    streamBundledContent { batch ->
+                        dao.upsertAll(batch.map { it.toImportedEntity(previous[it.id]) })
                     }
                 }
-                require(imported.isNotEmpty()) { "offline content asset is empty" }
-                // Replace the imported corpus only after the new asset has been
-                // fully parsed, while retaining local favorites and history.
-                dao.deleteImportedContent()
-                imported.chunked(ASSET_BATCH_SIZE).forEach { dao.upsertAll(it) }
             }
             return true
         } catch (error: IOException) {
@@ -282,8 +287,10 @@ class ReadingRepositoryImpl @Inject constructor(
         bundledKnowledge ?: run {
             val loaded = try {
                 withContext(Dispatchers.IO) {
-                    context.assets.open(OFFLINE_KNOWLEDGE_ASSET).bufferedReader().use { reader ->
-                        json.decodeFromString<List<KnowledgeDto>>(reader.readText()).map { it.toDomain() }
+                    context.assets.open(OFFLINE_KNOWLEDGE_ASSET).use { input ->
+                        json.decodeToSequence<KnowledgeDto>(input, DecodeSequenceMode.ARRAY_WRAPPED)
+                            .map { it.toDomain() }
+                            .toList()
                     }
                 }
             } catch (error: Exception) {
@@ -302,26 +309,32 @@ class ReadingRepositoryImpl @Inject constructor(
             emptyList()
         } else {
             runCatching {
-                dao.searchFts(
+                dao.searchFtsSummaries(
                     SimpleSQLiteQuery(
-                        "SELECT reading_items.* FROM reading_items JOIN reading_items_fts ON reading_items_fts.id = reading_items.id " +
-                            "WHERE reading_items_fts MATCH ? ORDER BY reading_items.updatedAt DESC, reading_items.title ASC",
+                        "SELECT reading_items.id, reading_items.title, reading_items.category, reading_items.dynasty, " +
+                            "reading_items.summary, reading_items.sourceUrl, reading_items.updatedAt, reading_items.section, " +
+                            "reading_items.volumeId, reading_items.yearId, reading_items.tags, reading_items.isFavorite, " +
+                            "reading_items.lastOpenedAt FROM reading_items JOIN reading_items_fts ON reading_items_fts.id = reading_items.id " +
+                            "WHERE reading_items_fts MATCH ? ORDER BY reading_items.updatedAt DESC, reading_items.title ASC LIMIT 200",
                         arrayOf(ftsQuery(needle)),
                     ),
                 )
             }.getOrDefault(emptyList())
         }
-        val source = if (indexed.isNotEmpty()) indexed else dao.observeAll().first()
+        val source = if (indexed.isNotEmpty()) {
+            indexed
+        } else if (yearId != null) {
+            dao.findSummariesByYear(yearId)
+        } else {
+            dao.observeSummaries().first()
+        }
         return source
-            .map(ItemEntity::toDomain)
+            .map(ItemSummaryEntity::toDomain)
             .filter { item ->
                 (yearId == null || item.yearId == yearId) &&
                     (needle == null || listOf(
                         item.title,
                         item.summary,
-                        item.content,
-                        item.original,
-                        item.translation,
                         item.dynasty,
                         item.tags.joinToString(" "),
                     ).any { it.lowercase().contains(needle) })
@@ -336,9 +349,55 @@ class ReadingRepositoryImpl @Inject constructor(
             "$clean*"
         }
 
-    private suspend fun ItemDao.observeAllOnce(): Map<String, ItemEntity> = observeAll().first().associateBy { it.id }
+    private suspend fun ItemDao.importStatesOnce(): Map<String, ItemLocalState> = importStates().associateBy { it.id }
+
+    private suspend fun streamBundledContent(onBatch: suspend (List<ItemDto>) -> Unit) {
+        var count = 0
+        val seenIds = HashSet<String>(OFFLINE_CONTENT_RECORD_COUNT)
+        val batch = ArrayList<ItemDto>(ASSET_BATCH_SIZE)
+        openBundledContentAsset().use { input ->
+            contentAssetReader(input).use { reader ->
+                while (true) {
+                    val line = reader.readLine() ?: break
+                    if (line.isBlank()) continue
+                    val dto = json.decodeFromString<ItemDto>(line)
+                    require(seenIds.add(dto.id)) { "duplicate offline content id: ${dto.id}" }
+                    count += 1
+                    batch += dto
+                    if (batch.size == ASSET_BATCH_SIZE) {
+                        onBatch(batch.toList())
+                        batch.clear()
+                    }
+                }
+            }
+        }
+        if (batch.isNotEmpty()) onBatch(batch.toList())
+        require(count == OFFLINE_CONTENT_RECORD_COUNT) {
+            "offline content record count mismatch: expected $OFFLINE_CONTENT_RECORD_COUNT, got $count"
+        }
+    }
 
     private fun ItemDto.toEntity(previous: ItemEntity? = null) = ItemEntity(
+        id = id,
+        title = title,
+        category = category,
+        dynasty = dynasty,
+        summary = summary,
+        content = content,
+        sourceUrl = source_url,
+        updatedAt = updated_at,
+        section = section,
+        volumeId = volume_id,
+        yearId = year_id,
+        original = original,
+        translation = translation,
+        notes = notes,
+        tags = tags.joinToString("|"),
+        isFavorite = previous?.isFavorite ?: false,
+        lastOpenedAt = previous?.lastOpenedAt,
+    )
+
+    private fun ItemDto.toImportedEntity(previous: ItemLocalState? = null) = ItemEntity(
         id = id,
         title = title,
         category = category,

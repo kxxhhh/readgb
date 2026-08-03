@@ -25,6 +25,28 @@ data class ItemEntity(
     val lastOpenedAt: Long?,
 )
 
+data class ItemLocalState(
+    val id: String,
+    val isFavorite: Boolean,
+    val lastOpenedAt: Long?,
+)
+
+data class ItemSummaryEntity(
+    val id: String,
+    val title: String,
+    val category: String,
+    val dynasty: String,
+    val summary: String,
+    val sourceUrl: String,
+    val updatedAt: String,
+    val section: String,
+    val volumeId: String?,
+    val yearId: String?,
+    val tags: String,
+    val isFavorite: Boolean,
+    val lastOpenedAt: Long?,
+)
+
 fun ItemEntity.toDomain() = ReadingItem(
     id = id,
     title = title,
@@ -40,6 +62,23 @@ fun ItemEntity.toDomain() = ReadingItem(
     original = original,
     translation = translation,
     notes = notes,
+    tags = tags.split("|").filter(String::isNotBlank),
+    isFavorite = isFavorite,
+    lastOpenedAt = lastOpenedAt,
+)
+
+fun ItemSummaryEntity.toDomain() = ReadingItem(
+    id = id,
+    title = title,
+    category = category,
+    dynasty = dynasty,
+    summary = summary,
+    content = "",
+    sourceUrl = sourceUrl,
+    updatedAt = updatedAt,
+    section = section,
+    volumeId = volumeId,
+    yearId = yearId,
     tags = tags.split("|").filter(String::isNotBlank),
     isFavorite = isFavorite,
     lastOpenedAt = lastOpenedAt,

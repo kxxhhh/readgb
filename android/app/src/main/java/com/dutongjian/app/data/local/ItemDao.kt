@@ -12,6 +12,18 @@ interface ItemDao {
     @Query("SELECT * FROM reading_items ORDER BY updatedAt DESC, title ASC")
     fun observeAll(): Flow<List<ItemEntity>>
 
+    @Query("SELECT id, title, category, dynasty, summary, sourceUrl, updatedAt, section, volumeId, yearId, tags, isFavorite, lastOpenedAt FROM reading_items ORDER BY updatedAt DESC, title ASC")
+    fun observeSummaries(): Flow<List<ItemSummaryEntity>>
+
+    @Query("SELECT id, title, category, dynasty, summary, sourceUrl, updatedAt, section, volumeId, yearId, tags, isFavorite, lastOpenedAt FROM reading_items WHERE yearId = :yearId ORDER BY updatedAt DESC, title ASC")
+    suspend fun findSummariesByYear(yearId: String): List<ItemSummaryEntity>
+
+    @Query("SELECT id FROM reading_items")
+    suspend fun existingIds(): List<String>
+
+    @Query("SELECT id, isFavorite, lastOpenedAt FROM reading_items")
+    suspend fun importStates(): List<ItemLocalState>
+
     @Query("SELECT * FROM reading_items WHERE id = :id LIMIT 1")
     suspend fun findById(id: String): ItemEntity?
 
@@ -32,6 +44,9 @@ interface ItemDao {
 
     @RawQuery
     suspend fun searchFts(query: SupportSQLiteQuery): List<ItemEntity>
+
+    @RawQuery
+    suspend fun searchFtsSummaries(query: SupportSQLiteQuery): List<ItemSummaryEntity>
 
     @Upsert
     suspend fun upsertAll(items: List<ItemEntity>)

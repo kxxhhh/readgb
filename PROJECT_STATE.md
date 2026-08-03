@@ -1,6 +1,6 @@
 # 读通鉴当前任务清单与恢复日志
 
-更新时间：2026-08-03 23:20（Asia/Shanghai）
+更新时间：2026-08-04 01:17（Asia/Shanghai）
 
 本文件是项目的单一状态源，同时承担项目清单、断点恢复记录和开发日志。PROJECT_STATE_HISTORY.md 只保留旧历史，不作为当前事实来源；DEVELOPMENT_LOG.md 是本文件的合并入口说明，不再单独维护第二套日志。
 
@@ -31,6 +31,8 @@ jq '{total_reigns, completed: (.completed_reign_ids | length), failed: (.failed_
 - [x] 全量正文、目录和百科 Android assets 已导出并通过数量/分类校验；正文 `30,989`、目录 `294` 卷/`1,405` 年、百科 `61,696` 条，五类齐全。✅
 - [x] Android 图表代码已改为按纪年/纪·朝代覆盖全部分组，并把人物图谱改为全人物索引 + 中心人物下钻；Kotlin 编译、测试和 lint 已通过。✅
 - [x] 研读页新增正文/纪年/卷三项真实 `zztj-*` 覆盖率卡片，不把 OfflineSeed 计入数据覆盖。✅
+- [x] 定位 `0.1.15` 首启闪退/卡启动的主要内存路径：全量正文导入和 `SELECT *` 列表同时保留重文本；已改为 500 条批次流式导入、摘要投影和点击后单条加载，失败时保留原数据库。✅
+- [x] `0.1.16` 已完成签名构建：`versionCode=13`、`versionName=0.1.16`，Release APK v2 签名通过，证书 SHA-256 为 `0bd6d2260b1da032d761c16e7d31fee2767c80362295353e3f7ea10ebd111c57`。✅
 
 ### 当前同步速度判断
 
@@ -56,7 +58,7 @@ jq '{total_reigns, completed: (.completed_reign_ids | length), failed: (.failed_
 
 正在进行：
 
-- [ ] 外部验收：等待可用 OpenAI-compatible 服务、Edge-TTS 端点、实体设备/KVM、可信历法/战役数据和生产 keystore；源码、全量数据、资产和 APK Release 已完成。
+- [ ] 外部验收：AI/Edge-TTS/历法/战役数据仍有外部依赖；4GB AVD 已配置但 API 35 软件 TCG 首次启动仍慢，最终 `0.1.16` 安装和应用进程日志待完成。
 
 接下来按顺序执行：
 
@@ -66,13 +68,16 @@ jq '{total_reigns, completed: (.completed_reign_ids | length), failed: (.failed_
 - [x] 用全量 assets 重跑 Android JVM test、lint、Debug/Inspection/Release 构建；三种 APK 均核对正文 `30,989`、目录 `294/1,405`、百科 `61,696` 和五类分类。✅
 - [x] 更新当前数量、快照哈希和 APK 产物记录，提交并 push 全量资产与爬取快照；代码/资产 commit `7bf598a`，AI 代码 commit `11eb34a`。✅
 - [x] 用 `gh release create v0.1.14` 直接上传三个 APK；Release URL：`https://github.com/kxxhhh/readgb/releases/tag/v0.1.14`。APK 未提交到项目仓库。✅
+- [x] 修复全量导入/列表内存峰值并完成 `0.1.16` 签名 Debug/Inspection/Release 构建；JVM test、lint 全部通过，APK 内正文/目录/百科资产仍为 `30,989/294/1,405/61,696`。✅
+- [ ] 安装并启动签名 `0.1.16`：继续等待 AVD `first_boot_completed=1`，然后用 ADB 验证冷启动、导入数量、打开正文和崩溃日志；当前阻塞是 API 35 软件 TCG 首启/PackageInstaller，不是已确认的 App 进程崩溃。
+- [ ] 创建并上传 `v0.1.16` GitHub Release；完成 ADB 验收后上传 signed `app-release.apk`、debug 和 inspection APK，APK 不进入 Git。
 
 仍未完成或有外部阻塞：
 
-- [ ] 全本规模图表滚动、文字截断、节点重叠、关系准确性、搜索性能和真实设备验收；当前容器无 KVM/实体设备。
+- [ ] 全本规模图表滚动、文字截断、节点重叠、关系准确性、搜索性能和真实设备验收；当前 AVD 使用软件 TCG，无 KVM，已验证物理坐标为 `1080x1920/420dpi`，仍需完成应用级操作回归。
 - [ ] AI 兼容服务真实请求/错误/超时验收，以及模型实际遵守史料边界的质量验收；本地 prompt 边界、反事实模板、角色多轮会话和语法原文定位 UI 已实现。
 - [ ] 历史上的今天可信月日映射、Edge-TTS 真实端点音频、战役地图/兵力/粮道沙盘；缺少可信数据或端点。
-- [ ] Codespace/Actions 生产 keystore 签名和 gh release 演练；当前只有 gh 登录，没有生产签名凭据。
+- [ ] Codespace/Actions 生产 keystore 签名和 gh release 演练；本地 `0.1.16` 专用 keystore 已创建并使用，GitHub Actions secrets 仍未注入。
 
 ### 阅读界面与研读图表
 
@@ -169,7 +174,7 @@ android/app/src/main/assets/            校验后的 APK 资产
 - [x] 事项：递归阅读 Git 跟踪的 11 份 Markdown/TXT 项目文档及完整历史归档；结果：识别并区分全量数据、百科/标注、图表验收、历法、TTS、AI、沙盘、签名和发布自动化任务；路径：`README.md`、`DOCS.md`、`guide.txt`、`plugin.md`、`PROJECT_STATE.md`、`PROJECT_STATE_HISTORY.md`、`TASK_PROGRESS_2026-08-03.md`、`issue/Unable2Install.txt`、`docs/site-analysis.md`、`DEVELOPMENT_LOG.md`、`service/requirements.txt`。✅
 - [x] 事项：补充只读数据集校验器和 Android 覆盖率卡片；命令：`PYTHONPATH=service .venv/bin/python -m pytest -q service/tests/test_validate_tongjian.py`、`./gradlew :app:testDebugUnitTest`；结果：校验器测试 `3 passed`，观察到真实正文 `14,195`、纪年 `911/1405`、卷 `150/294`，字段/层级/关联错误 `0`；路径：`service/app/validate_tongjian.py`、`android/app/src/main/java/com/dutongjian/app/ui/StudyCoverage.kt`。✅
 - [x] 事项：加入签名发布自动化骨架；结果：`.github/workflows/release.yml` 仅接受手动/版本标签触发，要求生产 keystore secrets，执行 Android 测试、lint、签名 APK、apksigner、SHA-256 和 gh release 上传；当前未使用真实 secrets。✅
-- [x] 事项：配置 Android API 35 模拟器环境；命令：`avdmanager create avd --name readgb-api35-workspace ...`、`emulator -avd readgb-api35-workspace -no-window ...`；结果：system image 和 AVD 创建成功，但启动被宿主机缺少 KVM/VMX/SVM 阻塞；路径：`.android-sdk/`、`.android-avd/`；恢复：有硬件加速的主机上复用 AVD，当前不把设备验收写成完成。✅
+- [x] 事项：配置 Android API 35 模拟器环境；命令：`emulator -avd readgb-api35-workspace -no-window -gpu swiftshader_indirect -accel off`；结果：AVD 已调整为 `4GB RAM`、`1080x1920`、`420dpi`，ADB 坐标与物理屏幕一致；宿主机无 KVM，使用软件 TCG，首次启动/包扫描很慢。应用级验收仍未完成，不把模拟器启动写成 App 验收完成。✅
 - [ ] 事项：继续公开 API 同步；结果：PID `9878`，checkpoint `957/1405`，真实正文 `16,285`，失败 `0`；下一步：复用项目内数据库/cache/checkpoint，结束后执行严格校验、资产导出、Android 全量构建和快照推送。
 
 ### 2026-08-03 14:59 Asia/Shanghai
@@ -213,6 +218,14 @@ android/app/src/main/assets/            校验后的 APK 资产
 - [x] 事项：实现本地 AI 未完成能力；命令：`./gradlew --no-daemon :app:testDebugUnitTest :app:lintDebug :app:assembleDebug :app:assembleInspection :app:assembleRelease`；结果：`BUILD SUCCESSFUL`，JVM `32` 项通过；角色多轮追问、史料边界、Room 转录更新和语法原文高亮已加入。✅
 - [x] 事项：按要求不把 APK 提交到项目；结果：三种 APK 直接上传 GitHub `v0.1.14` 预发布，Release 资产状态均为 `uploaded`；没有生产 keystore，因此明确标记为未签名。✅
 - [x] 事项：第二批源码和文档 push；结果：`11eb34a` 已推送 `origin/main`，工作区干净；路径：`android/app/`、`PROJECT_STATE.md`、`DOCS.md`、`guide.txt`、`plugin.md`。✅
+
+### 2026-08-04 01:17 Asia/Shanghai
+
+- [x] 事项：排查 `0.1.15` 闪退/文本导入不全；命令：旧版 ADB 冷启动、logcat、源码审查；结果：旧实现一次性解析全量重文本并把 `SELECT *` 全量映射到 UI，存在 Android 堆内存峰值；旧版在模拟器中停留启动画面，未观察到 App `FATAL EXCEPTION`。✅
+- [x] 事项：修复离线导入与列表内存路径；路径：`ReadingRepositoryImpl.kt`、`ItemDao.kt`、`ItemEntity.kt`、`ReadingViewModel.kt`；结果：两遍流式校验/导入、500 条批处理、事务替换、摘要投影、单条正文加载；Android JVM test/lint/三种 APK 构建 `BUILD SUCCESSFUL`。✅
+- [x] 事项：准备并验证 `0.1.16` 签名；命令：`apksigner verify --verbose --print-certs app-release.apk`；结果：v2 `true`，版本 `13/0.1.16`，证书指纹 `0bd6d2260b1da032d761c16e7d31fee2767c80362295353e3f7ea10ebd111c57`；APK 仍只留在本地构建目录，待 Release 上传。✅
+- [x] 事项：配置并调试 AVD/ADB；结果：先观察到宿主机 `109MB` 可用导致 system_server 重启，停止 Gradle daemon 后恢复；随后 2GB AVD 在安装阶段被来宾 lowmemorykiller 杀掉 system_server，已调为 4GB；swap 文件因容器无 `CAP_SYS_ADMIN` 无法启用，失败文件已清理。✅
+- [ ] 事项：应用级 ADB 回归和崩溃日志；恢复：复用 `readgb-api35-workspace`，等待 `first_boot_completed=1` 后安装 `android/app/build/outputs/apk/release/app-release.apk`；下一步：抓取 `logcat`、截图，操作首页/搜索/目录/正文和导入数量，再决定是否发布 `v0.1.16`。
 
 ## 记录协议
 

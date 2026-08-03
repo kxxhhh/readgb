@@ -17,6 +17,7 @@ interface ReadingRepository {
     suspend fun search(query: String): Result<List<ReadingItem>>
     suspend fun setFavorite(itemId: String, favorite: Boolean)
     suspend fun recordOpened(itemId: String)
+    suspend fun loadItem(itemId: String): Result<ReadingItem>
     suspend fun loadSections(): Result<List<LibrarySection>>
     suspend fun loadVolumes(sectionId: String): Result<List<Volume>>
     suspend fun loadYears(volumeId: String): Result<List<ReadingYear>>

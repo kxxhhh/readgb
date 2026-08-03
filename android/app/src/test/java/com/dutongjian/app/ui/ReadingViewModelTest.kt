@@ -169,6 +169,8 @@ private class FakeRepository(
 
     override suspend fun recordOpened(itemId: String) = Unit
 
+    override suspend fun loadItem(itemId: String) = Result.success(items.value.first { it.id == itemId })
+
     override suspend fun loadSections() = Result.success(emptyList<LibrarySection>())
 
     override suspend fun loadVolumes(sectionId: String) = Result.success(volumesGate?.await() ?: emptyList())

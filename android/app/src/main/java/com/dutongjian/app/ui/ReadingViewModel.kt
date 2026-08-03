@@ -199,7 +199,20 @@ class ReadingViewModel @Inject constructor(
 
     fun open(item: ReadingItem) = viewModelScope.launch {
         repository.recordOpened(item.id)
-        _state.update { it.copy(stats = statsStore.open(item)) }
+        repository.loadItem(item.id)
+            .onSuccess { detail ->
+                _state.update { current ->
+                    current.copy(
+                        items = current.items.map { existing ->
+                            if (existing.id == detail.id) detail else existing
+                        },
+                        stats = statsStore.open(detail),
+                    )
+                }
+            }
+            .onFailure {
+                _state.update { current -> current.copy(stats = statsStore.open(item)) }
+            }
     }
 
     fun stopReadingSession() {
