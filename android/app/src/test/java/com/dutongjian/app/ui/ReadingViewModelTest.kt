@@ -103,6 +103,26 @@ class ReadingViewModelTest {
     }
 
     @Test
+    fun loadedDetailSurvivesSummaryRefresh() = runTest {
+        val summary = item("item", "正文").copy(content = "", original = "", translation = "")
+        val detail = item("item", "正文").copy(
+            content = "正文内容",
+            original = "原文内容",
+            translation = "白话内容",
+        )
+        val repository = FakeRepository(listOf(summary), emptyList(), loadedItem = detail)
+        val viewModel = ReadingViewModel(repository, FakeAiRepository(), FakeTtsPlayer(), FakeReadingStatsRecorder())
+
+        viewModel.open(summary)
+        advanceUntilIdle()
+        repository.emitItems(listOf(summary))
+        advanceUntilIdle()
+
+        assertEquals("原文内容", viewModel.state.value.items.single().original)
+        assertEquals("白话内容", viewModel.state.value.items.single().translation)
+    }
+
+    @Test
     fun aiResultsAreSavedReopenedAndDeleted() = runTest {
         val repository = FakeRepository(listOf(item("item", "正文")), emptyList())
         val readingItem = repository.observeItems().first().first()
@@ -155,9 +175,14 @@ private class FakeRepository(
     initialItems: List<ReadingItem>,
     private val searchResults: List<ReadingItem>,
     private val volumesGate: CompletableDeferred<List<Volume>>? = null,
+    private val loadedItem: ReadingItem? = null,
 ) : ReadingRepository {
     private val items = MutableStateFlow(initialItems)
     private val aiResults = MutableStateFlow<List<AiResult>>(emptyList())
+
+    fun emitItems(value: List<ReadingItem>) {
+        items.value = value
+    }
 
     override fun observeItems(): Flow<List<ReadingItem>> = items
 
@@ -169,7 +194,7 @@ private class FakeRepository(
 
     override suspend fun recordOpened(itemId: String) = Unit
 
-    override suspend fun loadItem(itemId: String) = Result.success(items.value.first { it.id == itemId })
+    override suspend fun loadItem(itemId: String) = Result.success(loadedItem ?: items.value.first { it.id == itemId })
 
     override suspend fun loadSections() = Result.success(emptyList<LibrarySection>())
 

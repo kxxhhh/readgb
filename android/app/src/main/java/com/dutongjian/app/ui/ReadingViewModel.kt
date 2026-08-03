@@ -99,6 +99,7 @@ class ReadingViewModel @Inject constructor(
     private val volumeCache = mutableMapOf<String, List<Volume>>()
     private val yearCache = mutableMapOf<String, List<ReadingYear>>()
     private val itemCache = mutableMapOf<String, List<ReadingItem>>()
+    private val loadedItemDetails = mutableMapOf<String, ReadingItem>()
     private val _state = MutableStateFlow(
         ReadingUiState(
             items = OfflineSeed.items,
@@ -116,11 +117,12 @@ class ReadingViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             repository.observeItems().collectLatest { items ->
+                val mergedItems = items.map(::mergeLoadedDetail)
                 _state.update {
                     it.copy(
-                        items = items,
+                        items = mergedItems,
                         isLoading = false,
-                        featuredOffset = if (items.isEmpty()) 0 else it.featuredOffset % items.size,
+                        featuredOffset = if (mergedItems.isEmpty()) 0 else it.featuredOffset % mergedItems.size,
                     )
                 }
             }
@@ -201,12 +203,18 @@ class ReadingViewModel @Inject constructor(
         repository.recordOpened(item.id)
         repository.loadItem(item.id)
             .onSuccess { detail ->
+                val current = _state.value.items.firstOrNull { it.id == detail.id }
+                val loaded = detail.copy(
+                    isFavorite = current?.isFavorite ?: detail.isFavorite,
+                    lastOpenedAt = current?.lastOpenedAt ?: detail.lastOpenedAt,
+                )
+                loadedItemDetails[loaded.id] = loaded
                 _state.update { current ->
                     current.copy(
                         items = current.items.map { existing ->
-                            if (existing.id == detail.id) detail else existing
+                            if (existing.id == loaded.id) loaded else existing
                         },
-                        stats = statsStore.open(detail),
+                        stats = statsStore.open(loaded),
                     )
                 }
             }
@@ -217,6 +225,24 @@ class ReadingViewModel @Inject constructor(
 
     fun stopReadingSession() {
         _state.update { it.copy(stats = statsStore.close()) }
+    }
+
+    private fun mergeLoadedDetail(item: ReadingItem): ReadingItem {
+        val detail = loadedItemDetails[item.id] ?: return item
+        return detail.copy(
+            title = item.title,
+            category = item.category,
+            dynasty = item.dynasty,
+            summary = item.summary,
+            sourceUrl = item.sourceUrl,
+            updatedAt = item.updatedAt,
+            section = item.section,
+            volumeId = item.volumeId,
+            yearId = item.yearId,
+            tags = item.tags,
+            isFavorite = item.isFavorite,
+            lastOpenedAt = item.lastOpenedAt,
+        )
     }
 
     fun selectTtsEngine(engine: TtsEngineType) = ttsController.selectEngine(engine)

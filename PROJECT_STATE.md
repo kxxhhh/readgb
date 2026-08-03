@@ -1,6 +1,6 @@
 # 读通鉴当前任务清单与恢复日志
 
-更新时间：2026-08-04 01:35（Asia/Shanghai）
+更新时间：2026-08-04 01:45（Asia/Shanghai）
 
 本文件是项目的单一状态源，同时承担项目清单、断点恢复记录和开发日志。PROJECT_STATE_HISTORY.md 只保留旧历史，不作为当前事实来源；DEVELOPMENT_LOG.md 是本文件的合并入口说明，不再单独维护第二套日志。
 
@@ -33,6 +33,8 @@ jq '{total_reigns, completed: (.completed_reign_ids | length), failed: (.failed_
 - [x] 研读页新增正文/纪年/卷三项真实 `zztj-*` 覆盖率卡片，不把 OfflineSeed 计入数据覆盖。✅
 - [x] 定位 `0.1.15` 首启闪退/卡启动的主要内存路径：全量正文导入和 `SELECT *` 列表同时保留重文本；已改为 500 条批次流式导入、摘要投影和点击后单条加载，失败时保留原数据库。✅
 - [x] `0.1.16` 已完成签名构建：`versionCode=13`、`versionName=0.1.16`，Release APK v2 签名通过，证书 SHA-256 为 `0bd6d2260b1da032d761c16e7d31fee2767c80362295353e3f7ea10ebd111c57`。✅
+- [x] 修复正文详情被 Room 摘要流覆盖的问题：ViewModel 保留已加载详情，并在收藏/阅读时间更新后合并摘要状态，不再让“原文/原文与白话/白话”内容消失。✅
+- [x] `0.1.17` 已完成签名构建：`versionCode=14`、`versionName=0.1.17`，Release APK v2 签名通过，离线正文/目录/百科资源校验通过。✅
 
 ### 当前同步速度判断
 
@@ -71,13 +73,15 @@ jq '{total_reigns, completed: (.completed_reign_ids | length), failed: (.failed_
 - [x] 修复全量导入/列表内存峰值并完成 `0.1.16` 签名 Debug/Inspection/Release 构建；JVM test、lint 全部通过，APK 内正文/目录/百科资产仍为 `30,989/294/1,405/61,696`。✅
 - [x] 按要求取消本地虚拟机路线并清理 `readgb-api35-lite`、`readgb-api35-workspace` 及 API 35 系统镜像；当前无 emulator/qemu 进程和可用 AVD。✅
 - [x] 创建并上传正式 `v0.1.16` GitHub Release；signed `app-release.apk`、debug 和 inspection APK 均已上传，APK 不进入 Git。✅
+- [x] 修复正文详情显示回归并补充 `loadedDetailSurvivesSummaryRefresh` 测试；Android JVM test、lint 和 `0.1.17` 三种 APK 构建均通过。✅
+- [x] 创建并上传正式 `v0.1.17` GitHub Release；signed `app-release.apk`、debug 和 inspection APK 均已上传，APK 不进入 Git。✅
 
 仍未完成或有外部阻塞：
 
 - [ ] 全本规模图表滚动、文字截断、节点重叠、关系准确性、搜索性能和真实设备验收；本地无 KVM 且虚拟机路线已取消，需接入真实 Android 设备后回归。
 - [ ] AI 兼容服务真实请求/错误/超时验收，以及模型实际遵守史料边界的质量验收；本地 prompt 边界、反事实模板、角色多轮会话和语法原文定位 UI 已实现。
 - [ ] 历史上的今天可信月日映射、Edge-TTS 真实端点音频、战役地图/兵力/粮道沙盘；缺少可信数据或端点。
-- [ ] Codespace/Actions 生产 keystore 签名和 gh release 演练；本地 `0.1.16` 专用 keystore 已创建并使用，GitHub Actions secrets 仍未注入。
+- [ ] Codespace/Actions 生产 keystore 签名和 gh release 演练；本地 release keystore 已创建并使用，GitHub Actions secrets 仍未注入。
 
 ### 阅读界面与研读图表
 
@@ -232,6 +236,12 @@ android/app/src/main/assets/            校验后的 APK 资产
 - [x] 事项：按用户要求先发布 `0.1.16`；结果：正式 Release 已创建并上传 `app-release.apk`、`app-debug.apk`、`app-inspection.apk`，地址：`https://github.com/kxxhhh/readgb/releases/tag/v0.1.16`。✅
 - [x] 事项：取消本地虚拟机方案；结果：停止后删除 `readgb-api35-lite`、`readgb-api35-workspace` 及 API 35 系统镜像，当前无 emulator/qemu 进程和 AVD。✅
 - [ ] 事项：应用级崩溃日志和真实设备回归；当前不再使用虚拟机，待接入真实 Android 设备后通过 ADB 完成。
+
+### 2026-08-04 01:45 Asia/Shanghai
+
+- [x] 事项：修复正文“原文/原文与白话/白话”内容一闪消失；原因：`recordOpened` 引起摘要 Flow 更新，覆盖了刚加载的完整条目；结果：增加详情缓存与摘要状态合并，补充 ViewModel 回归测试。✅
+- [x] 事项：构建并验证 `0.1.17`；结果：`versionCode=14`，JVM test、lint、Debug/Inspection/Release 均成功，Release v2 签名和离线资源校验通过。✅
+- [ ] 事项：真实 Android 设备回归；本地虚拟机路线已取消，待实体设备接入后验证 Tab 切换、正文显示和崩溃日志。
 
 ## 记录协议
 
