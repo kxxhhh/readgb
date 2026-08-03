@@ -106,64 +106,54 @@ class ReadingRepositoryImpl @Inject constructor(
         requireNotNull(dao.findById(itemId)?.toDomain()) { "本地条目不存在：$itemId" }
     }
 
-    override suspend fun loadSections(): Result<List<LibrarySection>> = withOfflineFallback(
-        remote = {
-            val response = api.sections()
-            require(response.code == 0) { response.message }
-            response.data?.sections.orEmpty().map { LibrarySection(it.id, it.title, it.description, it.source_url, it.sort_order) }
-        },
-        fallback = { bundledCatalog().sections.map { it.toDomain() } },
-    )
-
-    override suspend fun loadVolumes(sectionId: String): Result<List<Volume>> = withOfflineFallback(
-        remote = {
-            val response = api.volumes(sectionId)
-            require(response.code == 0) { response.message }
-            response.data?.volumes.orEmpty().map { Volume(it.id, it.section_id, it.title, it.dynasty, it.sort_order) }
-        },
-        fallback = { bundledCatalog().volumes.filter { it.section_id == sectionId }.map { it.toDomain() } },
-    )
-
-    override suspend fun loadYears(volumeId: String): Result<List<ReadingYear>> = withOfflineFallback(
-        remote = {
-            val response = api.years(volumeId)
-            require(response.code == 0) { response.message }
-            response.data?.years.orEmpty().map { ReadingYear(it.id, it.volume_id, it.title, it.era, it.sort_order) }
-        },
-        fallback = { bundledCatalog().years.filter { it.volume_id == volumeId }.map { it.toDomain() } },
-    )
-
-    override suspend fun loadAllYears(): Result<List<ReadingYear>> = runCatching {
-        bundledCatalog().years.map { it.toDomain() }.sortedBy { it.yearInt ?: Int.MAX_VALUE }
+    override suspend fun loadSections(): Result<List<LibrarySection>> = runCatching {
+        bundledCatalog().sections.map { it.toDomain() }.ifEmpty { OfflineSeed.sections }
     }
 
-    override suspend fun loadYearItems(yearId: String): Result<List<ReadingItem>> = withOfflineFallback(
-        remote = {
-            val response = api.yearItems(yearId)
-            require(response.code == 0) { response.message }
-            val existing = dao.importStatesOnce()
-            response.data?.items.orEmpty().map { it.toImportedEntity(existing[it.id]) }.also { dao.upsertAll(it) }.map(ItemEntity::toDomain)
-        },
-        fallback = { localItems(yearId = yearId) },
-    )
+    override suspend fun loadVolumes(sectionId: String): Result<List<Volume>> = runCatching {
+        offlineVolumes(sectionId)
+    }
 
-    override suspend fun loadKnowledge(query: String?, category: String?): Result<List<KnowledgeEntry>> = withOfflineFallback(
-        remote = {
-            val response = api.knowledge(query, category)
-            require(response.code == 0) { response.message }
-            response.data?.items.orEmpty().map {
-                KnowledgeEntry(it.id, it.title, it.category, it.summary, it.content, it.source_url, it.updated_at)
-            }
-        },
-        fallback = {
-            val needle = query?.trim()?.lowercase()?.takeIf(String::isNotBlank)
-            val source = bundledKnowledgeEntries().ifEmpty { OfflineSeed.knowledge }
-            source.filter { entry ->
-                (category == null || entry.category == category) &&
-                    (needle == null || listOf(entry.title, entry.summary, entry.content).any { it.lowercase().contains(needle) })
-            }
-        },
-    )
+    override suspend fun loadYears(volumeId: String): Result<List<ReadingYear>> = runCatching {
+        offlineYears(volumeId)
+    }
+
+    override suspend fun loadAllYears(): Result<List<ReadingYear>> = runCatching {
+        offlineAllYears()
+    }
+
+    override suspend fun loadYearItems(yearId: String): Result<List<ReadingItem>> {
+        val seedItems = OfflineSeed.items.filter { it.yearId == yearId }
+        if (seedItems.isNotEmpty()) return Result.success(seedItems)
+        val cachedItems = localItems(yearId = yearId)
+        if (cachedItems.isNotEmpty()) return Result.success(cachedItems)
+        return withOfflineFallback(
+            remote = {
+                val response = api.yearItems(yearId)
+                require(response.code == 0) { response.message }
+                val existing = dao.importStatesOnce()
+                response.data?.items.orEmpty().map { it.toImportedEntity(existing[it.id]) }.also { dao.upsertAll(it) }.map(ItemEntity::toDomain)
+            },
+            fallback = { localItems(yearId = yearId) },
+            isUsable = { it.isNotEmpty() },
+        )
+    }
+
+    override suspend fun loadKnowledge(query: String?, category: String?): Result<List<KnowledgeEntry>> {
+        val cachedEntries = offlineKnowledge(query, category)
+        if (cachedEntries.isNotEmpty()) return Result.success(cachedEntries)
+        return withOfflineFallback(
+            remote = {
+                val response = api.knowledge(query, category)
+                require(response.code == 0) { response.message }
+                response.data?.items.orEmpty().map {
+                    KnowledgeEntry(it.id, it.title, it.category, it.summary, it.content, it.source_url, it.updated_at)
+                }
+            },
+            fallback = { offlineKnowledge(query, category) },
+            isUsable = { it.isNotEmpty() },
+        )
+    }
 
     override fun observeNotes(): Flow<List<Note>> = noteDao.observeAll().map { notes -> notes.map { it.toDomain() } }
 
@@ -187,8 +177,10 @@ class ReadingRepositoryImpl @Inject constructor(
     private suspend fun <T> withOfflineFallback(
         remote: suspend () -> T,
         fallback: suspend () -> T,
+        isUsable: (T) -> Boolean = { true },
     ): Result<T> = try {
-        Result.success(remote())
+        val value = remote()
+        if (isUsable(value)) Result.success(value) else Result.success(fallback())
     } catch (cancelled: CancellationException) {
         throw cancelled
     } catch (_: Exception) {
@@ -199,12 +191,12 @@ class ReadingRepositoryImpl @Inject constructor(
         localContentMutex.withLock {
             if (localContentReady) return@withLock
             val hasBundledContent = hasBundledContentAsset()
-            if (!hasBundledContent) {
-                val existingIds = dao.existingIds().toSet()
-                val missing = OfflineSeed.items.filterNot { it.id in existingIds }
-                if (missing.isNotEmpty()) {
-                    dao.upsertAll(missing.map { it.toEntity() })
-                }
+            val existingIds = dao.existingIds().toSet()
+            val missing = OfflineSeed.items
+                .filterNot { it.id in existingIds }
+                .filter { !hasBundledContent || it.section != "资治通鉴" }
+            if (missing.isNotEmpty()) {
+                dao.upsertAll(missing.map { it.toEntity() })
             }
             val importedVersion = assetPreferences.getString(OFFLINE_ASSET_VERSION_KEY, null)
             if (hasBundledContent && (importedVersion != OFFLINE_ASSET_VERSION || dao.fullContentCount() < OFFLINE_CONTENT_RECORD_COUNT)) {
@@ -283,6 +275,36 @@ class ReadingRepositoryImpl @Inject constructor(
         }
     }
 
+    private suspend fun offlineVolumes(sectionId: String): List<Volume> {
+        val bundled = bundledCatalog().volumes
+            .filter { it.section_id == sectionId }
+            .map { it.toDomain() }
+        return if (bundled.isNotEmpty()) {
+            bundled
+        } else {
+            OfflineSeed.volumes.filter { it.sectionId == sectionId }.sortedBy { it.sortOrder }
+        }
+    }
+
+    private suspend fun offlineYears(volumeId: String): List<ReadingYear> {
+        val bundled = bundledCatalog().years
+            .filter { it.volume_id == volumeId }
+            .map { it.toDomain() }
+        return if (bundled.isNotEmpty()) {
+            bundled
+        } else {
+            OfflineSeed.years.filter { it.volumeId == volumeId }.sortedBy { it.sortOrder }
+        }
+    }
+
+    private suspend fun offlineAllYears(): List<ReadingYear> {
+        val bundled = bundledCatalog().years.map { it.toDomain() }
+        val seed = OfflineSeed.years.filterNot { it.volumeId.startsWith("zizhi-") }
+        return (bundled + seed)
+            .distinctBy(ReadingYear::id)
+            .sortedBy { it.yearInt ?: Int.MAX_VALUE }
+    }
+
     private suspend fun bundledKnowledgeEntries(): List<KnowledgeEntry> = knowledgeMutex.withLock {
         bundledKnowledge ?: run {
             val loaded = try {
@@ -299,6 +321,15 @@ class ReadingRepositoryImpl @Inject constructor(
             }
             bundledKnowledge = loaded
             loaded
+        }
+    }
+
+    private suspend fun offlineKnowledge(query: String?, category: String?): List<KnowledgeEntry> {
+        val needle = query?.trim()?.lowercase()?.takeIf(String::isNotBlank)
+        val source = bundledKnowledgeEntries().ifEmpty { OfflineSeed.knowledge }
+        return source.filter { entry ->
+            (category == null || entry.category == category) &&
+                (needle == null || listOf(entry.title, entry.summary, entry.content).any { it.lowercase().contains(needle) })
         }
     }
 
@@ -328,8 +359,12 @@ class ReadingRepositoryImpl @Inject constructor(
         } else {
             dao.observeSummaries().first()
         }
-        return source
-            .map(ItemSummaryEntity::toDomain)
+        val localItems = source.map(ItemSummaryEntity::toDomain)
+        val seedItems = yearId?.let { requestedYearId ->
+            OfflineSeed.items.filter { it.yearId == requestedYearId }
+        }.orEmpty()
+        return (localItems + seedItems)
+            .distinctBy(ReadingItem::id)
             .filter { item ->
                 (yearId == null || item.yearId == yearId) &&
                     (needle == null || listOf(

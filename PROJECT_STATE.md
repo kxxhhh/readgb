@@ -1,6 +1,6 @@
 # 读通鉴当前任务清单与恢复日志
 
-更新时间：2026-08-04 01:45（Asia/Shanghai）
+更新时间：2026-08-04 02:14（Asia/Shanghai）
 
 本文件是项目的单一状态源，同时承担项目清单、断点恢复记录和开发日志。PROJECT_STATE_HISTORY.md 只保留旧历史，不作为当前事实来源；DEVELOPMENT_LOG.md 是本文件的合并入口说明，不再单独维护第二套日志。
 
@@ -35,6 +35,8 @@ jq '{total_reigns, completed: (.completed_reign_ids | length), failed: (.failed_
 - [x] `0.1.16` 已完成签名构建：`versionCode=13`、`versionName=0.1.16`，Release APK v2 签名通过，证书 SHA-256 为 `0bd6d2260b1da032d761c16e7d31fee2767c80362295353e3f7ea10ebd111c57`。✅
 - [x] 修复正文详情被 Room 摘要流覆盖的问题：ViewModel 保留已加载详情，并在收藏/阅读时间更新后合并摘要状态，不再让“原文/原文与白话/白话”内容消失。✅
 - [x] `0.1.17` 已完成签名构建：`versionCode=14`、`versionName=0.1.17`，Release APK v2 签名通过，离线正文/目录/百科资源校验通过。✅
+- [x] 修复目录、子目录和扩展入口为空/加载慢：目录本地优先，空 API 响应触发回退，纪事本末/读通鉴论补种子层级，百科入口切换知识库，正文查询先于阅读记录写入。✅
+- [x] `0.1.18` 已完成签名构建：`versionCode=15`、`versionName=0.1.18`，Release APK v2 签名通过。✅
 
 ### 当前同步速度判断
 
@@ -75,6 +77,8 @@ jq '{total_reigns, completed: (.completed_reign_ids | length), failed: (.failed_
 - [x] 创建并上传正式 `v0.1.16` GitHub Release；signed `app-release.apk`、debug 和 inspection APK 均已上传，APK 不进入 Git。✅
 - [x] 修复正文详情显示回归并补充 `loadedDetailSurvivesSummaryRefresh` 测试；Android JVM test、lint 和 `0.1.17` 三种 APK 构建均通过。✅
 - [x] 创建并上传正式 `v0.1.17` GitHub Release；signed `app-release.apk`、debug 和 inspection APK 均已上传，APK 不进入 Git。✅
+- [x] 修复目录/百科空数据和 API 超时等待；Android JVM test、lint 和 `0.1.18` 三种 APK 构建均通过。✅
+- [ ] 创建并上传正式 `v0.1.18` GitHub Release；签名 APK 构建已完成，上传后更新 URL。
 
 仍未完成或有外部阻塞：
 
@@ -242,6 +246,12 @@ android/app/src/main/assets/            校验后的 APK 资产
 - [x] 事项：修复正文“原文/原文与白话/白话”内容一闪消失；原因：`recordOpened` 引起摘要 Flow 更新，覆盖了刚加载的完整条目；结果：增加详情缓存与摘要状态合并，补充 ViewModel 回归测试。✅
 - [x] 事项：构建并验证 `0.1.17`；结果：`versionCode=14`，JVM test、lint、Debug/Inspection/Release 均成功，Release v2 签名和离线资源校验通过。✅
 - [ ] 事项：真实 Android 设备回归；本地虚拟机路线已取消，待实体设备接入后验证 Tab 切换、正文显示和崩溃日志。
+
+### 2026-08-04 02:14 Asia/Shanghai
+
+- [x] 事项：修复目录与扩展入口空数据/加载慢；结果：目录、卷、纪年、百科改为本地优先，API 空响应不再覆盖离线数据；纪事本末和读通鉴论补齐种子卷/年/条目，通鉴百科从目录入口切到知识库。✅
+- [x] 事项：优化正文打开耗时；结果：先加载正文详情并刷新界面，再安全写入阅读历史，避免记录写入阻塞正文首屏。✅
+- [x] 事项：构建 `0.1.18`；结果：`versionCode=15`，JVM test、lint、Debug/Inspection/Release 成功，Release v2 签名通过；待创建 GitHub Release。
 
 ## 记录协议
 

@@ -416,7 +416,9 @@ fun DutongjianApp(
                                 )
                                 AppTab.CATALOG -> CatalogScreen(
                                     state = state,
-                                    onSectionSelected = onSectionSelected,
+                                    onSectionSelected = { section ->
+                                        if (section.id == "wiki") tab = AppTab.KNOWLEDGE else onSectionSelected(section)
+                                    },
                                     onVolumeSelected = onVolumeSelected,
                                     onYearSelected = onYearSelected,
                                     onBack = onCatalogBack,

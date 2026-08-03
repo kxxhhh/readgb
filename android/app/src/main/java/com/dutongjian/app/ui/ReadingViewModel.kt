@@ -200,27 +200,32 @@ class ReadingViewModel @Inject constructor(
     }
 
     fun open(item: ReadingItem) = viewModelScope.launch {
-        repository.recordOpened(item.id)
-        repository.loadItem(item.id)
-            .onSuccess { detail ->
-                val current = _state.value.items.firstOrNull { it.id == detail.id }
-                val loaded = detail.copy(
-                    isFavorite = current?.isFavorite ?: detail.isFavorite,
-                    lastOpenedAt = current?.lastOpenedAt ?: detail.lastOpenedAt,
-                )
-                loadedItemDetails[loaded.id] = loaded
-                _state.update { current ->
-                    current.copy(
-                        items = current.items.map { existing ->
-                            if (existing.id == loaded.id) loaded else existing
-                        },
-                        stats = statsStore.open(loaded),
-                    )
-                }
-            }
-            .onFailure {
-                _state.update { current -> current.copy(stats = statsStore.open(item)) }
-            }
+        val detail = repository.loadItem(item.id).getOrNull() ?: item
+        val current = _state.value.items.firstOrNull { it.id == detail.id }
+        val loaded = detail.copy(
+            isFavorite = current?.isFavorite ?: detail.isFavorite,
+            lastOpenedAt = current?.lastOpenedAt ?: detail.lastOpenedAt,
+        )
+        loadedItemDetails[loaded.id] = loaded
+        _state.update { state ->
+            state.copy(
+                items = state.items.map { existing ->
+                    if (existing.id == loaded.id) loaded else existing
+                },
+                stats = statsStore.open(loaded),
+            )
+        }
+        recordOpenedSafely(item.id)
+    }
+
+    private suspend fun recordOpenedSafely(itemId: String) {
+        try {
+            repository.recordOpened(itemId)
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            // Reading should remain available when a legacy/seed row has no local state yet.
+        }
     }
 
     fun stopReadingSession() {
