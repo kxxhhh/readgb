@@ -1,6 +1,6 @@
 # 读通鉴当前任务清单与恢复日志
 
-更新时间：2026-08-04 03:28（Asia/Shanghai）
+更新时间：2026-08-04 03:43（Asia/Shanghai）
 
 本文件是项目的单一状态源，同时承担项目清单、断点恢复记录和开发日志。PROJECT_STATE_HISTORY.md 只保留旧历史，不作为当前事实来源；DEVELOPMENT_LOG.md 是本文件的合并入口说明，不再单独维护第二套日志。
 
@@ -38,7 +38,7 @@ jq '{total_reigns, completed: (.completed_reign_ids | length), failed: (.failed_
 - [x] 修复目录、子目录和扩展入口为空/加载慢：目录本地优先，空 API 响应触发回退，纪事本末/读通鉴论补种子层级，百科入口切换知识库，正文查询先于阅读记录写入。✅
 - [x] `0.1.18` 已完成签名构建：`versionCode=15`、`versionName=0.1.18`，Release APK v2 签名通过。✅
 - [x] `0.1.19` 发布快照已导出：正文 `46,110` 篇（资治通鉴 `30,989`、纪事本末 `14,176`、读通鉴论 `945`），目录 `544` 卷/`1,985` 纪年，百科 `61,696` 条。✅
-- [ ] 扩展内容仍在后台断点同步：事件 `239/239`，史论主题当前 `354/912`，当前 checkpoint 错误 `0`；Android 本次 Release 固定使用已校验的 `341` 主题快照，后续增量继续写入同一 cache/database。⏳
+- [ ] 扩展内容仍在后台断点同步：事件 `239/239`，史论主题当前 `462/912`，当前 checkpoint 错误 `0`；Android 本次 Release 固定使用已校验的 `341` 主题快照，后续增量继续写入同一 cache/database。⏳
 
 ### 当前同步速度判断
 
@@ -265,7 +265,12 @@ android/app/src/main/assets/            校验后的 APK 资产
 - [x] 事项：补抓扩展公开内容；命令：`./scripts/resume_extended_crawler.sh`；结果：事件接口已成功 `239/239`，史论按 5 秒节奏持续同步；进度逐条保存到 `service/data/extended-progress.json`。✅
 - [x] 事项：导出当前 Android 离线快照；命令：`PYTHONPATH=service .venv/bin/python -m app.export_android`；结果：正文 `46,110`，目录 `544/1,985`，百科 `61,696`；本次资产包含 `341` 个已完成史论主题。✅
 - [x] 事项：完善 Android 设置与动效；结果：主题持久化、阅读偏好、动效开关、AnimatedContent/AnimatedVisibility、animateContentSize、Android 12+ blur 兼容层已加入；Compose Kotlin 编译通过。✅
-- [ ] 事项：提交并发布 `0.1.19`；下一步：提交源码/离线资产并 push，运行 JVM test、lint、Debug/Inspection/签名 Release，校验 APK 资产后创建 GitHub Release。⏳
+- [x] 事项：提交并发布 `0.1.19`；结果：commit `6db2b20` 已 push，JVM `34` 项、lint、Debug/Inspection/签名 Release 均通过；三种 APK 内正文 `46,110`、目录 `544/1,985`、百科 `61,696`；Release：`https://github.com/kxxhhh/readgb/releases/tag/v0.1.19`。✅
+
+### 2026-08-04 03:43 Asia/Shanghai
+
+- [x] 事项：核验发布资产；命令：`apksigner verify --verbose --print-certs`、`aapt dump badging`、APK asset 解包统计；结果：Release v2 签名通过，版本 `16/0.1.19`，证书 SHA-256 `0bd6d2260b1da032d761c16e7d31fee2767c80362295353e3f7ea10ebd111c57`，三个 APK 均含 `46,110/544/1,985/61,696`。✅
+- [ ] 事项：扩展史论继续补抓；当前 `239/239` 事件、`462/912` 史论主题、错误 `0`；恢复命令：`EXTENDED_MIN_INTERVAL=5 ./scripts/resume_extended_crawler.sh`。⏳
 
 ## 记录协议
 
