@@ -219,14 +219,10 @@ service/app/export_android.py 有三种边界：
 全量导出命令：
 
 ~~~bash
-PYTHONPATH=service python -m app.export_android \
-  --database service/data/dutongjian.db \
-  --output android/app/src/main/assets/offline_content.ndjson.gz \
-  --catalog-output android/app/src/main/assets/offline_catalog.json \
-  --knowledge-output android/app/src/main/assets/offline_knowledge.json
+./scripts/finalize_tongjian.sh
 ~~~
 
-当前新抓取未达到全量门槛，因此不要运行全量导出，也不要把阶段性数据伪装成完整资产。导出后必须重新运行 Android 测试、构建并更新状态文件中的数量、版本标识和校验结果。
+该脚本会占用同步锁，先执行 `validate_tongjian --strict`，再调用导出器并检查正文、目录和五类百科关联，最后用 SQLite backup 生成可推送快照。当前新抓取未达到全量门槛，因此不要运行全量收尾，也不要把阶段性数据伪装成完整资产。导出后必须重新运行 Android 测试、构建并更新状态文件中的数量、版本标识和校验结果。
 
 ### 7.1 数据集覆盖报告
 

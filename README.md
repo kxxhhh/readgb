@@ -140,14 +140,10 @@ systemd unit 使用 scripts/resume_crawler.sh，不带 --reset，失败后自动
 同步完成并通过严格校验后：
 
 ~~~bash
-PYTHONPATH=service python -m app.export_android \
-  --database service/data/dutongjian.db \
-  --output android/app/src/main/assets/offline_content.ndjson.gz \
-  --catalog-output android/app/src/main/assets/offline_catalog.json \
-  --knowledge-output android/app/src/main/assets/offline_knowledge.json
+./scripts/finalize_tongjian.sh
 ~~~
 
-默认要求 30,989 条真实正文、294 卷和 1,405 个纪年。阶段性导出必须显式使用 --allow-partial --checkpoint，并在 PROJECT_STATE.md 标明快照范围。
+脚本会占用同步锁，严格要求 30,989 条真实正文、294 卷和 1,405 个纪年，检查五类百科关联，原子导出 Android assets，并生成 `service/data/tongjian-snapshot-latest.tar.gz` 及 SHA-256。阶段性导出必须显式使用 `--allow-partial --checkpoint`，并在 PROJECT_STATE.md 标明快照范围。
 
 ## 项目结构
 
@@ -165,7 +161,7 @@ service/app/
   export_android.py   Android 资产校验和导出
 service/tests/        API、crawler、parser、sync 测试
 deploy/               systemd unit
-scripts/               续跑和安装脚本
+ scripts/               续跑、安装和全量收尾脚本
 docs/site-analysis.md  站点和数据边界
 plugin.md              功能验收清单
 PROJECT_STATE.md       当前任务清单与合并日志

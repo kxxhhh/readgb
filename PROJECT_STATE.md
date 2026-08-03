@@ -155,6 +155,7 @@ android/app/src/main/assets/            校验后的 APK 资产
 
 - [x] 事项：补齐 AI 结果持久化。命令：`./gradlew --no-daemon :app:testDebugUnitTest :app:lintDebug :app:assembleDebug`；结果：`BUILD SUCCESSFUL`，新增 Room `ai_results` 表、`4→5` 迁移、保存/删除/重开流程和 JVM 覆盖；路径：`android/app/src/main/java/com/dutongjian/app/data/local/`、`ReadingViewModel.kt`、`DutongjianApp.kt`。✅
 - [x] 事项：排除本机模拟器状态。结果：`.android-avd/` 已加入 `.gitignore`，不进入源码或远程仓库。✅
+- [x] 事项：增加全量收尾脚本。命令：`bash -n scripts/finalize_tongjian.sh`、在 PID `9878` 持锁期间执行脚本；结果：脚本通过语法检查，并以退出码 `2` 拒绝并发收尾；路径：`scripts/finalize_tongjian.sh`、`README.md`、`DOCS.md`。✅
 - [ ] 事项：继续公开 API 同步；结果：PID `9878`，checkpoint `1069/1405`，真实正文 `17,900`，失败 `0`；下一步：完成同步后执行严格校验、资产导出、Android 全量构建和快照推送。
 
 ## 记录协议
