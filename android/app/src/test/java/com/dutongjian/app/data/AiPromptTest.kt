@@ -24,6 +24,7 @@ class AiPromptTest {
     @Test
     fun advancedTasksProduceTaskSpecificPrompts() {
         assertTrue(aiPrompt(item, AiTask.ROLE_DIALOGUE).contains("主要人物"))
+        assertTrue(aiPrompt(item, AiTask.ROLE_DIALOGUE, listOf("智伯", "赵襄子")).contains("智伯、赵襄子"))
         assertTrue(aiPrompt(item, AiTask.ROLE_DIALOGUE).contains("史料记录 id=item-1"))
         assertTrue(aiPrompt(item, AiTask.COUNTERFACTUAL).contains("反事实"))
         assertTrue(aiPrompt(item, AiTask.GRAMMAR_ANALYSIS).contains("主谓宾"))

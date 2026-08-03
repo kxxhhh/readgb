@@ -87,8 +87,10 @@ def test_extended_sync_imports_events_and_comments(tmp_path):
     event = store.get_item("tongjian-jishi-001")
     comment = store.get_item("dutongjian-lun-001")
     assert event is not None and event.section == "纪事本末"
+    assert event.sort_order == 1
     assert event.original.startswith("初命晋")
     assert comment is not None and comment.section == "读通鉴论"
+    assert comment.sort_order == 1
     assert comment.translation.startswith("名分端正")
     assert len(store.volumes("jishi")) == 1
     assert len(store.volumes("lun")) == 1

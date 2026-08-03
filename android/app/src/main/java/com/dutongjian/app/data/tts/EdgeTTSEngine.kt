@@ -77,6 +77,7 @@ class EdgeTTSEngine(context: Context) : TTSEngine {
 
     private inner class EdgeListener(private val text: String, private val requestId: String) : WebSocketListener() {
         private val audio = java.io.ByteArrayOutputStream()
+        private var finished = false
 
         override fun onOpen(webSocket: WebSocket, response: Response) {
             sendConfig(webSocket)
@@ -84,7 +85,10 @@ class EdgeTTSEngine(context: Context) : TTSEngine {
         }
 
         override fun onMessage(webSocket: WebSocket, text: String) {
-            if (text.contains("Path:turn.end", ignoreCase = true)) finishAudio()
+            if (!finished && text.contains("Path:turn.end", ignoreCase = true)) {
+                finished = true
+                finishAudio()
+            }
         }
 
         override fun onMessage(webSocket: WebSocket, bytes: ByteString) {
@@ -99,6 +103,8 @@ class EdgeTTSEngine(context: Context) : TTSEngine {
         }
 
         override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+            if (finished) return
+            finished = true
             val status = response?.code ?: -1
             val code = if (status > 0) "EDGE_HTTP_$status" else "EDGE_CONNECTION_FAILED"
             val reason = if (status == 403) {
@@ -124,23 +130,29 @@ class EdgeTTSEngine(context: Context) : TTSEngine {
                 val current = callbacks ?: return@post
                 val media = MediaPlayer()
                 player = media
-                media.setDataSource(file.absolutePath)
-                media.setOnPreparedListener {
-                    current.onProgress(0)
-                    it.start()
-                }
-                media.setOnCompletionListener {
-                    current.onProgress(100)
+                try {
+                    media.setDataSource(file.absolutePath)
+                    media.setOnPreparedListener {
+                        current.onProgress(0)
+                        it.start()
+                    }
+                    media.setOnCompletionListener {
+                        current.onProgress(100)
+                        stop()
+                        current.onComplete()
+                    }
+                    media.setOnErrorListener { _, what, extra ->
+                        logAudioError("EDGE_DECODE_FAILED", "Edge-TTS 音频解码失败：$what/$extra", -1)
+                        current.onError(IllegalStateException("Edge-TTS 音频解码失败：$what/$extra"))
+                        stop()
+                        true
+                    }
+                    media.prepareAsync()
+                } catch (error: Exception) {
+                    logAudioError("EDGE_PLAYER_FAILED", "Edge-TTS 播放器启动失败：${error.message ?: "未知错误"}", -1)
+                    current.onError(IllegalStateException("Edge-TTS 播放器启动失败", error))
                     stop()
-                    current.onComplete()
                 }
-                media.setOnErrorListener { _, what, extra ->
-                    logAudioError("EDGE_DECODE_FAILED", "Edge-TTS 音频解码失败：$what/$extra", -1)
-                    current.onError(IllegalStateException("Edge-TTS 音频解码失败：$what/$extra"))
-                    stop()
-                    true
-                }
-                media.prepareAsync()
             }
         }
 
@@ -151,7 +163,9 @@ class EdgeTTSEngine(context: Context) : TTSEngine {
 
         private fun sendSsml(webSocket: WebSocket, value: String) {
             val escaped = value.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;").replace("'", "&apos;")
-            val body = "<speak version=\"1.0\" xmlns=\"http://www.w3.org/2001/10/synthesis\" xml:lang=\"zh-CN\"><voice name=\"zh-CN-YunxiNeural\"><prosody rate=\"+0%\" pitch=\"+0Hz\" volume=\"+0%\"><s>$escaped</s></prosody></voice></speak>"
+            // Edge's endpoint rejects the SSML <s> sentence tag with close code 1007.
+            // Sentence boundaries are already controlled by TtsController, one request per sentence.
+            val body = "<speak version=\"1.0\" xmlns=\"http://www.w3.org/2001/10/synthesis\" xml:lang=\"zh-CN\"><voice name=\"zh-CN-YunxiNeural\"><prosody rate=\"+0%\" pitch=\"+0Hz\" volume=\"+0%\">$escaped</prosody></voice></speak>"
             webSocket.send("X-RequestId:$requestId\r\nContent-Type:application/ssml+xml\r\nX-Timestamp:${edgeTimestamp()}Z\r\nPath:ssml\r\n\r\n$body")
         }
     }

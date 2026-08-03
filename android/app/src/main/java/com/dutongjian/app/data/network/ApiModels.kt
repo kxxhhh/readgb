@@ -22,6 +22,7 @@ data class ItemDto(
     val section: String = "资治通鉴",
     val volume_id: String? = null,
     val year_id: String? = null,
+    val sort_order: Int = 0,
     val original: String = "",
     val translation: String = "",
     val notes: String = "",

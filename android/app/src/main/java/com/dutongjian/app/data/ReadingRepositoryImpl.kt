@@ -107,7 +107,7 @@ class ReadingRepositoryImpl @Inject constructor(
     }
 
     override suspend fun loadSections(): Result<List<LibrarySection>> = runCatching {
-        bundledCatalog().sections.map { it.toDomain() }.ifEmpty { OfflineSeed.sections }
+        bundledCatalog().sections.sortedBy { it.sort_order }.map { it.toDomain() }.ifEmpty { OfflineSeed.sections }
     }
 
     override suspend fun loadVolumes(sectionId: String): Result<List<Volume>> = runCatching {
@@ -278,6 +278,7 @@ class ReadingRepositoryImpl @Inject constructor(
     private suspend fun offlineVolumes(sectionId: String): List<Volume> {
         val bundled = bundledCatalog().volumes
             .filter { it.section_id == sectionId }
+            .sortedBy { it.sort_order }
             .map { it.toDomain() }
         return if (bundled.isNotEmpty()) {
             bundled
@@ -289,6 +290,7 @@ class ReadingRepositoryImpl @Inject constructor(
     private suspend fun offlineYears(volumeId: String): List<ReadingYear> {
         val bundled = bundledCatalog().years
             .filter { it.volume_id == volumeId }
+            .sortedBy { it.sort_order }
             .map { it.toDomain() }
         return if (bundled.isNotEmpty()) {
             bundled
@@ -344,7 +346,7 @@ class ReadingRepositoryImpl @Inject constructor(
                     SimpleSQLiteQuery(
                         "SELECT reading_items.id, reading_items.title, reading_items.category, reading_items.dynasty, " +
                             "reading_items.summary, reading_items.sourceUrl, reading_items.updatedAt, reading_items.section, " +
-                            "reading_items.volumeId, reading_items.yearId, reading_items.tags, reading_items.isFavorite, " +
+                            "reading_items.volumeId, reading_items.yearId, reading_items.sortOrder, reading_items.tags, reading_items.isFavorite, " +
                             "reading_items.lastOpenedAt FROM reading_items JOIN reading_items_fts ON reading_items_fts.id = reading_items.id " +
                             "WHERE reading_items_fts MATCH ? ORDER BY reading_items.updatedAt DESC, reading_items.title ASC LIMIT 200",
                         arrayOf(ftsQuery(needle)),
@@ -424,6 +426,7 @@ class ReadingRepositoryImpl @Inject constructor(
         section = section,
         volumeId = volume_id,
         yearId = year_id,
+        sortOrder = sort_order,
         original = original,
         translation = translation,
         notes = notes,
@@ -444,6 +447,7 @@ class ReadingRepositoryImpl @Inject constructor(
         section = section,
         volumeId = volume_id,
         yearId = year_id,
+        sortOrder = sort_order,
         original = original,
         translation = translation,
         notes = notes,
@@ -472,6 +476,7 @@ class ReadingRepositoryImpl @Inject constructor(
         section = section,
         volumeId = volumeId,
         yearId = yearId,
+        sortOrder = sortOrder,
         original = original,
         translation = translation,
         notes = notes,
@@ -486,7 +491,7 @@ private const val LEGACY_CONTENT_ASSET = "offline_content.ndjson.gz"
 private const val OFFLINE_CATALOG_ASSET = "offline_catalog.json"
 private const val OFFLINE_KNOWLEDGE_ASSET = "offline_knowledge.json"
 private const val OFFLINE_CONTENT_RECORD_COUNT = 48_126
-private const val OFFLINE_ASSET_VERSION = "2026-08-04-extended-crawled-912-topics-2"
+private const val OFFLINE_ASSET_VERSION = "2026-08-04-extended-crawled-912-topics-3"
 private const val OFFLINE_ASSET_PREFERENCES = "offline_assets"
 private const val OFFLINE_ASSET_VERSION_KEY = "content_version"
 private const val ASSET_BATCH_SIZE = 500

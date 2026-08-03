@@ -51,6 +51,7 @@ class AiRepositoryImpl @Inject constructor(
         task: AiTask,
         conversation: List<AiConversationTurn>,
         followUp: String?,
+        roleNames: List<String>,
     ): Result<String> = withContext(Dispatchers.IO) {
         try {
             val settings = settingsStore.load()
@@ -69,7 +70,7 @@ class AiRepositoryImpl @Inject constructor(
                     })
                     add(buildJsonObject {
                         put("role", "user")
-                        put("content", aiPrompt(item, task))
+                        put("content", aiPrompt(item, task, roleNames))
                     })
                     conversation.takeLast(MAX_CONVERSATION_TURNS).forEach { turn ->
                         add(buildJsonObject {
@@ -154,7 +155,7 @@ class AiRepositoryImpl @Inject constructor(
     private fun StoredAiSettings.toDomain() = AiSettings(baseUrl = baseUrl, model = model, hasApiKey = apiKey.isNotBlank())
 }
 
-internal fun aiPrompt(item: ReadingItem, task: AiTask): String {
+internal fun aiPrompt(item: ReadingItem, task: AiTask, roleNames: List<String> = emptyList()): String {
     val original = item.original.ifBlank { item.content }.take(MAX_AI_TEXT_LENGTH)
     val translation = item.translation.ifBlank { item.content }.take(MAX_AI_TEXT_LENGTH)
     val notes = item.notes.take(MAX_AI_NOTES_LENGTH)
@@ -175,8 +176,9 @@ internal fun aiPrompt(item: ReadingItem, task: AiTask): String {
         """.trimIndent()
         AiTask.ROLE_DIALOGUE -> """
             $source
+            用户指定的对话人物（只能从这两人出发）：${roleNames.take(2).joinToString("、").ifBlank { "未指定" }}
             关键人物与标签（仅作待核对线索）：${item.tags.joinToString("、")}
-            请先从史料中识别最适合代入的主要人物，再以该人物口吻回答：他面对本条事件最关心什么、会如何解释自己的选择？最后列出回答所依据的原文证据。
+            请让用户指定的两位主要人物围绕本条史料进行对话：两人必须分别发言，明确姓名；只能使用史料中能找到的证据，不要补造生平、心理或结果。用户后续会插话，每次都让两位人物分别回应，并把无法确认的内容标为推测。最后列出双方发言所依据的原文证据。
         """.trimIndent()
         AiTask.COUNTERFACTUAL -> """
             $source

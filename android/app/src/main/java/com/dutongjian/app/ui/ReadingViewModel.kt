@@ -48,6 +48,7 @@ data class AiUiState(
     val resultId: String? = null,
     val result: String? = null,
     val conversation: List<AiConversationTurn> = emptyList(),
+    val roleNames: List<String> = emptyList(),
     val error: String? = null,
     val notice: String? = null,
 )
@@ -245,6 +246,7 @@ class ReadingViewModel @Inject constructor(
             section = item.section,
             volumeId = item.volumeId,
             yearId = item.yearId,
+            sortOrder = item.sortOrder,
             tags = item.tags,
             isFavorite = item.isFavorite,
             lastOpenedAt = item.lastOpenedAt,
@@ -295,7 +297,16 @@ class ReadingViewModel @Inject constructor(
             .onFailure { failure -> _state.update { it.copy(ai = it.ai.copy(error = failure.message ?: "API Key 清除失败", notice = null)) } }
     }
 
-    fun generateAi(item: ReadingItem, task: AiTask) = viewModelScope.launch {
+    fun generateAi(item: ReadingItem, task: AiTask) = generateAiWithRoles(item, task, emptyList())
+
+    fun generateRoleDialogue(item: ReadingItem, roleNames: List<String>) = generateAiWithRoles(item, AiTask.ROLE_DIALOGUE, roleNames)
+
+    private fun generateAiWithRoles(item: ReadingItem, task: AiTask, roleNames: List<String>) = viewModelScope.launch {
+        val selectedRoles = roleNames.map(String::trim).filter(String::isNotBlank).distinct().take(2)
+        if (task == AiTask.ROLE_DIALOGUE && selectedRoles.size != 2) {
+            _state.update { it.copy(ai = it.ai.copy(error = "历史角色对话需要先选择两位不同的人物")) }
+            return@launch
+        }
         _state.update {
             it.copy(
                 ai = it.ai.copy(
@@ -305,11 +316,12 @@ class ReadingViewModel @Inject constructor(
                     resultId = null,
                     result = null,
                     conversation = emptyList(),
+                    roleNames = selectedRoles,
                     error = null,
                 ),
             )
         }
-        aiRepository.generate(item, task)
+        aiRepository.generate(item, task, roleNames = selectedRoles)
             .onSuccess { result ->
                 val saved = AiResult(
                     id = UUID.randomUUID().toString(),
@@ -317,6 +329,7 @@ class ReadingViewModel @Inject constructor(
                     task = task,
                     result = result,
                     createdAt = System.currentTimeMillis(),
+                    roleNames = selectedRoles,
                 )
                 repository.saveAiResult(saved)
                 _state.update {
@@ -327,8 +340,9 @@ class ReadingViewModel @Inject constructor(
                             resultItemId = item.id,
                             resultId = saved.id,
                             result = result,
+                            roleNames = selectedRoles,
                             conversation = if (task == AiTask.ROLE_DIALOGUE) {
-                                listOf(AiConversationTurn("首轮角色回答", result))
+                                listOf(AiConversationTurn("开场", result))
                             } else {
                                 emptyList()
                             },
@@ -352,7 +366,7 @@ class ReadingViewModel @Inject constructor(
             return@launch
         }
         _state.update { it.copy(ai = it.ai.copy(isGenerating = true, error = null)) }
-        aiRepository.generate(item, AiTask.ROLE_DIALOGUE, current.conversation, trimmed)
+        aiRepository.generate(item, AiTask.ROLE_DIALOGUE, current.conversation, trimmed, current.roleNames)
             .onSuccess { response ->
                 val turns = current.conversation + AiConversationTurn(trimmed, response)
                 val saved = AiResult(
@@ -361,6 +375,7 @@ class ReadingViewModel @Inject constructor(
                     task = AiTask.ROLE_DIALOGUE,
                     result = renderConversation(turns),
                     createdAt = System.currentTimeMillis(),
+                    roleNames = current.roleNames,
                 )
                 repository.saveAiResult(saved)
                 _state.update {
@@ -369,6 +384,7 @@ class ReadingViewModel @Inject constructor(
                             isGenerating = false,
                             resultId = saved.id,
                             result = saved.result,
+                            roleNames = current.roleNames,
                             conversation = turns,
                             error = null,
                         ),
@@ -379,7 +395,7 @@ class ReadingViewModel @Inject constructor(
     }
 
     fun clearAiResult() {
-        _state.update { it.copy(ai = it.ai.copy(task = null, resultItemId = null, resultId = null, result = null, conversation = emptyList(), error = null)) }
+        _state.update { it.copy(ai = it.ai.copy(task = null, resultItemId = null, resultId = null, result = null, conversation = emptyList(), roleNames = emptyList(), error = null)) }
     }
 
     fun openAiResult(result: AiResult) {
@@ -390,6 +406,7 @@ class ReadingViewModel @Inject constructor(
                     resultItemId = result.itemId,
                     resultId = result.id,
                     result = result.result,
+                    roleNames = result.roleNames,
                     conversation = if (result.task == AiTask.ROLE_DIALOGUE) {
                         listOf(AiConversationTurn("已保存的角色回答", result.result))
                     } else {
@@ -578,5 +595,6 @@ class ReadingViewModel @Inject constructor(
 }
 
 private fun renderConversation(turns: List<AiConversationTurn>): String = turns.joinToString("\n\n") { turn ->
-    "追问：${turn.userMessage}\n角色：${turn.assistantMessage}"
+    val speaker = if (turn.userMessage == "开场" || turn.userMessage == "已保存的角色回答") turn.userMessage else "你：${turn.userMessage}"
+    "$speaker\n两位人物：${turn.assistantMessage}"
 }

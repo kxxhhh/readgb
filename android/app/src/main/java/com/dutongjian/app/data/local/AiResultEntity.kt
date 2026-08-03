@@ -16,6 +16,7 @@ data class AiResultEntity(
     val task: String,
     val result: String,
     val createdAt: Long,
+    val roleNames: String = "",
 )
 
 fun AiResultEntity.toDomain() = AiResult(
@@ -24,6 +25,7 @@ fun AiResultEntity.toDomain() = AiResult(
     task = AiTask.entries.firstOrNull { it.name == task } ?: AiTask.SUMMARY,
     result = result,
     createdAt = createdAt,
+    roleNames = roleNames.split(ROLE_SEPARATOR).map(String::trim).filter(String::isNotBlank),
 )
 
 fun AiResult.toEntity() = AiResultEntity(
@@ -32,4 +34,7 @@ fun AiResult.toEntity() = AiResultEntity(
     task = task.name,
     result = result,
     createdAt = createdAt,
+    roleNames = roleNames.joinToString(ROLE_SEPARATOR),
 )
+
+private const val ROLE_SEPARATOR = "\u001f"

@@ -19,6 +19,7 @@ class Item:
     translation: str = ""
     notes: str = ""
     tags: tuple[str, ...] = ()
+    sort_order: int = 0
 
     def to_dict(self) -> dict[str, Any]:
         payload = asdict(self)

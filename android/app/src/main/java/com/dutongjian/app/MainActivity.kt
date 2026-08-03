@@ -83,6 +83,7 @@ class MainActivity : ComponentActivity() {
                         onAiSettingsSave = viewModel::saveAiSettings,
                         onAiApiKeyClear = viewModel::clearAiApiKey,
                         onAiGenerate = viewModel::generateAi,
+                        onRoleDialogueGenerate = viewModel::generateRoleDialogue,
                         onAiContinue = viewModel::continueAi,
                         onAiResultClear = viewModel::clearAiResult,
                         onAiResultOpen = viewModel::openAiResult,

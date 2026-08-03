@@ -51,6 +51,7 @@ def test_reading_parser_maps_parallel_content_and_provenance():
     assert item.tags == ("名分", "战国")
     assert item.volume_id == "volume-1"
     assert item.year_id == "year-1"
+    assert item.sort_order == 1
 
 
 def test_knowledge_parser_maps_category_and_summary():

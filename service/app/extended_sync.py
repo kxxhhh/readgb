@@ -118,6 +118,7 @@ def _event_records(base_url: str, event_name: str, order: int, payload: dict[str
             translation=translation or original,
             notes=json.dumps({"event_name": event_name, "path": path}, ensure_ascii=False),
             tags=("事件", event_name),
+            sort_order=index,
         )))
     return volume, year, items
 
@@ -158,6 +159,7 @@ def _comment_records(base_url: str, juan: dict[str, Any], emperor: dict[str, Any
             translation=translation or original,
             notes=json.dumps({"juan": juan_name, "emperor": emperor_name, "topic": topic_name}, ensure_ascii=False),
             tags=("史论", emperor_name, topic_name),
+            sort_order=index,
         )))
     return volume, year, items
 

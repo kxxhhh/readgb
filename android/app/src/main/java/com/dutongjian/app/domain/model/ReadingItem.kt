@@ -12,6 +12,7 @@ data class ReadingItem(
     val section: String = "资治通鉴",
     val volumeId: String? = null,
     val yearId: String? = null,
+    val sortOrder: Int = 0,
     val original: String = "",
     val translation: String = "",
     val notes: String = "",

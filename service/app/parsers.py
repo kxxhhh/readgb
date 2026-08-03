@@ -135,7 +135,7 @@ def parse_reading_entries(
     entries = _entry_nodes(soup, "[data-entry], article, .entry, .reading-entry, .article-entry")
     items: list[Item] = []
     seen_ids: set[str] = set()
-    for entry in entries:
+    for sort_order, entry in enumerate(entries, start=1):
         title = _attribute(entry, "data-title") or _text(entry, ("h1", "h2", "h3", ".entry-title", ".article-title"))
         if not title:
             continue
@@ -171,6 +171,7 @@ def parse_reading_entries(
                 translation=translation,
                 notes=notes,
                 tags=_tags(entry),
+                sort_order=sort_order,
             )
         )
     return items

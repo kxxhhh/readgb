@@ -45,6 +45,7 @@ def test_export_android_requires_verified_full_count_and_writes_ndjson(tmp_path)
         record = json.loads(stream.readline())
         assert record["id"] == "zztj-content-1"
         assert record["content"] == "正文"
+        assert record["sort_order"] == 0
         assert record["original"] == "原文"
         assert record["notes"] == json.dumps({"ExtRef_Children_hu_notes": [{"start_index": 2, "note_content_jianti_auto": "注"}]}, ensure_ascii=False, separators=(",", ":"))
 

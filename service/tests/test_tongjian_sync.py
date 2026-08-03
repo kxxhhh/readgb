@@ -8,6 +8,7 @@ import pytest
 
 from app.store import ContentStore
 from app.tongjian_sync import ReignRef, TongjianApiClient, TongjianSync, parse_reign_items
+from app.models import Item
 
 
 def _catalog():
@@ -92,6 +93,7 @@ def test_sync_imports_catalog_and_preserves_full_public_payload(tmp_path):
     assert store.years("juan-1")[0].year_int == -403
     item = store.get_item("zztj-content-1")
     assert item is not None
+    assert item.sort_order == 1
     assert item.original == "初命晉大夫魏斯、趙籍、韓虔爲諸侯。"
     assert item.content == "初命晋大夫魏斯、赵籍、韩虔为诸侯。"
     assert item.translation.startswith("周威烈王姬午")
@@ -233,3 +235,15 @@ def test_sync_rejects_catalog_size_mismatch(tmp_path):
             checkpoint_path=tmp_path / "progress.json",
             expected_reigns=2,
         ).run()
+
+
+def test_year_item_listing_uses_source_order(tmp_path):
+    store = ContentStore(tmp_path / "ordered.db")
+    store.upsert_items(
+        [
+            Item("zztj-late", "后", "资治通鉴", "周纪", "", "后", "", "", year_id="year-1", original="后", sort_order=2),
+            Item("zztj-first", "前", "资治通鉴", "周纪", "", "前", "", "", year_id="year-1", original="前", sort_order=1),
+        ]
+    )
+
+    assert [item.id for item in store.list_items(year_id="year-1", limit=10)] == ["zztj-first", "zztj-late"]

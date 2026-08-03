@@ -9,13 +9,13 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface ItemDao {
-    @Query("SELECT * FROM reading_items ORDER BY updatedAt DESC, title ASC")
+    @Query("SELECT * FROM reading_items ORDER BY section ASC, volumeId ASC, yearId ASC, sortOrder ASC, title ASC, id ASC")
     fun observeAll(): Flow<List<ItemEntity>>
 
-    @Query("SELECT id, title, category, dynasty, summary, sourceUrl, updatedAt, section, volumeId, yearId, tags, isFavorite, lastOpenedAt FROM reading_items ORDER BY updatedAt DESC, title ASC")
+    @Query("SELECT id, title, category, dynasty, summary, sourceUrl, updatedAt, section, volumeId, yearId, sortOrder, tags, isFavorite, lastOpenedAt FROM reading_items ORDER BY section ASC, volumeId ASC, yearId ASC, sortOrder ASC, title ASC, id ASC")
     fun observeSummaries(): Flow<List<ItemSummaryEntity>>
 
-    @Query("SELECT id, title, category, dynasty, summary, sourceUrl, updatedAt, section, volumeId, yearId, tags, isFavorite, lastOpenedAt FROM reading_items WHERE yearId = :yearId ORDER BY updatedAt DESC, title ASC")
+    @Query("SELECT id, title, category, dynasty, summary, sourceUrl, updatedAt, section, volumeId, yearId, sortOrder, tags, isFavorite, lastOpenedAt FROM reading_items WHERE yearId = :yearId ORDER BY sortOrder ASC, title ASC, id ASC")
     suspend fun findSummariesByYear(yearId: String): List<ItemSummaryEntity>
 
     @Query("SELECT id FROM reading_items")

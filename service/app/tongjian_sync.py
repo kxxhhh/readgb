@@ -246,6 +246,7 @@ def parse_reign_items(payload: dict[str, Any], ref: ReignRef, source_url: str) -
             translation=translation,
             notes=json.dumps(raw, ensure_ascii=False, separators=(",", ":")),
             tags=tags,
+            sort_order=index,
         )
         items.append(normalize_tongjian_item(item))
     return items

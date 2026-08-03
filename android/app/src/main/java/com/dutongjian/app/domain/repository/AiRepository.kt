@@ -14,5 +14,6 @@ interface AiRepository {
         task: AiTask,
         conversation: List<AiConversationTurn> = emptyList(),
         followUp: String? = null,
+        roleNames: List<String> = emptyList(),
     ): Result<String>
 }

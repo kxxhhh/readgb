@@ -149,7 +149,7 @@ class ReadingViewModelTest {
         val readingItem = repository.observeItems().first().first()
         val viewModel = ReadingViewModel(repository, FakeAiRepository(), FakeTtsPlayer(), FakeReadingStatsRecorder())
 
-        viewModel.generateAi(readingItem, AiTask.ROLE_DIALOGUE)
+        viewModel.generateRoleDialogue(readingItem, listOf("人物甲", "人物乙"))
         advanceUntilIdle()
         viewModel.continueAi(readingItem, "你为什么这样判断？")
         advanceUntilIdle()
@@ -239,6 +239,7 @@ private class FakeAiRepository : AiRepository {
         task: AiTask,
         conversation: List<AiConversationTurn>,
         followUp: String?,
+        roleNames: List<String>,
     ) = Result.success(followUp ?: "AI result")
 }
 

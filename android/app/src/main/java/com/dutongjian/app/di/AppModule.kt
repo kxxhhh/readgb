@@ -89,6 +89,13 @@ private val MIGRATION_4_5 = object : androidx.room.migration.Migration(4, 5) {
     }
 }
 
+private val MIGRATION_5_6 = object : androidx.room.migration.Migration(5, 6) {
+    override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE reading_items ADD COLUMN sortOrder INTEGER NOT NULL DEFAULT 0")
+        db.execSQL("ALTER TABLE ai_results ADD COLUMN roleNames TEXT NOT NULL DEFAULT ''")
+    }
+}
+
 @Module
 @InstallIn(SingletonComponent::class)
 object NetworkModule {
@@ -134,7 +141,7 @@ object DatabaseModule {
         context,
         AppDatabase::class.java,
         "dutongjian.db",
-    ).addMigrations(MIGRATION_1_2, MIGRATION_2_4, MIGRATION_4_5)
+    ).addMigrations(MIGRATION_1_2, MIGRATION_2_4, MIGRATION_4_5, MIGRATION_5_6)
         .addCallback(object : RoomDatabase.Callback() {
             override fun onOpen(db: SupportSQLiteDatabase) {
                 ReadingSearchIndex.ensure(db)

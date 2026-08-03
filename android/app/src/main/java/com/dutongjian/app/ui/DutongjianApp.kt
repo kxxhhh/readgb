@@ -64,6 +64,7 @@ import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.automirrored.filled.NoteAdd
@@ -405,6 +406,7 @@ fun DutongjianApp(
     onAiSettingsSave: () -> Unit,
     onAiApiKeyClear: () -> Unit,
     onAiGenerate: (ReadingItem, AiTask) -> Unit,
+    onRoleDialogueGenerate: (ReadingItem, List<String>) -> Unit,
     onAiContinue: (ReadingItem, String) -> Unit,
     onAiResultClear: () -> Unit,
     onAiResultOpen: (AiResult) -> Unit,
@@ -434,6 +436,14 @@ fun DutongjianApp(
     val context = LocalContext.current
     val selectedItemId = selectedItem?.id
     val selectedKnowledgeId = selectedKnowledge?.id
+    val navigationItems = remember(state.items, selectedItemId) {
+        selectedItem?.let { current ->
+            orderedReadingItemsForYear(
+                state.items,
+                state.items.firstOrNull { it.id == current.id } ?: current,
+            )
+        }.orEmpty()
+    }
 
     LaunchedEffect(state.tts.currentItemId, state.tts.isPlaying) {
         if (state.tts.isPlaying) {
@@ -517,6 +527,14 @@ fun DutongjianApp(
                     onFavoriteToggle = { onFavoriteToggle(targetItem) },
                     aiState = aiState,
                     onAiGenerate = onAiGenerate,
+                    onRoleDialogueGenerate = { roles -> onRoleDialogueGenerate(targetItem, roles) },
+                    navigationItems = navigationItems,
+                    onNavigateItem = { next ->
+                        onOpen(next)
+                        selectedItem = next
+                        selectedKnowledge = null
+                        selectedNoteId = null
+                    },
                     onAiContinue = onAiContinue,
                     onAiResultClear = onAiResultClear,
                     savedAiResults = state.aiResults.filter { it.itemId == targetItem.id },
@@ -1098,6 +1116,9 @@ private fun DetailScreen(
     onFavoriteToggle: () -> Unit,
     aiState: AiUiState,
     onAiGenerate: (ReadingItem, AiTask) -> Unit,
+    onRoleDialogueGenerate: (List<String>) -> Unit,
+    navigationItems: List<ReadingItem>,
+    onNavigateItem: (ReadingItem) -> Unit,
     onAiContinue: (ReadingItem, String) -> Unit,
     onAiResultClear: () -> Unit,
     savedAiResults: List<AiResult>,
@@ -1126,6 +1147,10 @@ private fun DetailScreen(
     var showHistoricalNotes by rememberSaveable(item.id) { mutableStateOf(false) }
     var showGlossary by rememberSaveable(item.id) { mutableStateOf(false) }
     var showSandbox by rememberSaveable { mutableStateOf(false) }
+    var showNavigationPicker by rememberSaveable(item.id, "navigation-picker") { mutableStateOf(false) }
+    var showRolePicker by rememberSaveable(item.id, "role-picker") { mutableStateOf(false) }
+    var selectedRoleOne by rememberSaveable(item.id, "role-one") { mutableStateOf("") }
+    var selectedRoleTwo by rememberSaveable(item.id, "role-two") { mutableStateOf("") }
     var showOriginalEdition by rememberSaveable { mutableStateOf(false) }
     var roleFollowUp by rememberSaveable(aiState.resultId) { mutableStateOf("") }
     var selectedPlace by remember { mutableStateOf<HistoricalPlace?>(null) }
@@ -1174,6 +1199,14 @@ private fun DetailScreen(
         }
     }
     val localContext = parseHistoricalContext(item.notes)
+    val roleCandidates = remember(item.id, item.notes) { localContext.people.distinct() }
+    LaunchedEffect(item.id, roleCandidates) {
+        val first = selectedRoleOne.takeIf { it in roleCandidates } ?: roleCandidates.getOrNull(0).orEmpty()
+        val second = selectedRoleTwo.takeIf { it in roleCandidates && it != first }
+            ?: roleCandidates.firstOrNull { it != first }.orEmpty()
+        selectedRoleOne = first
+        selectedRoleTwo = second
+    }
     val currentText = when (mode) {
         ReadingMode.PARALLEL -> "原文\n$displayOriginal\n\n白话\n$displayTranslation"
         ReadingMode.ORIGINAL -> displayOriginal
@@ -1458,6 +1491,21 @@ private fun DetailScreen(
                     }
                 }
             }
+            if (navigationItems.size > 1) {
+                item {
+                    ReadingNavigator(
+                        current = item,
+                        items = navigationItems,
+                        showPicker = showNavigationPicker,
+                        onShowPicker = { showNavigationPicker = true },
+                        onDismissPicker = { showNavigationPicker = false },
+                        onNavigate = { next ->
+                            showNavigationPicker = false
+                            onNavigateItem(next)
+                        },
+                    )
+                }
+            }
             if (historicalNotes.isNotEmpty()) {
                 item {
                     HorizontalDivider()
@@ -1504,12 +1552,15 @@ private fun DetailScreen(
             }
             if (showSandbox) {
                 item {
-                    Text("沙盘态势", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Text("事件主线", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-                    Text(item.summary, fontSize = (16f * fontScale).sp, lineHeight = (25f * fontScale).sp)
-                    ContextSection("关键人物", localContext.people)
-                    ContextSection("相关地点", localContext.places)
-                    ContextSection("官职与军政", localContext.officials)
+                    HistoricalSandboxPanel(
+                        item = item,
+                        context = localContext,
+                        notes = historicalNotes,
+                        places = places,
+                        fontScale = fontScale,
+                        onPlaceClick = { selectedPlace = it },
+                        onNoteClick = { selectedHistoricalNote = it },
+                    )
                 }
             }
             if (savedNotes.isNotEmpty()) {
@@ -1541,6 +1592,18 @@ private fun DetailScreen(
                                 Spacer(Modifier.weight(1f))
                                 Text("已保存", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
                                 TextButton(onClick = onAiResultClear) { Text("隐藏") }
+                            }
+                            if (aiState.task == AiTask.ROLE_DIALOGUE && aiState.roleNames.size == 2) {
+                                Text(
+                                    "${aiState.roleNames[0]}  ↔  ${aiState.roleNames[1]} · 你可以随时插话",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = MaterialTheme.colorScheme.primary,
+                                )
+                                Text(
+                                    "对话只使用本条史料；发送你的发言后，两位人物会分别回应。",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
                             }
                             val grammarRows = if (aiState.task == AiTask.GRAMMAR_ANALYSIS) {
                                 remember(aiState.result) { parseGrammarAnalysisTable(aiState.result.orEmpty()) }
@@ -1590,7 +1653,7 @@ private fun DetailScreen(
                                     value = roleFollowUp,
                                     onValueChange = { roleFollowUp = it },
                                     modifier = Modifier.fillMaxWidth(),
-                                    label = { Text("追问历史角色") },
+                                    label = { Text("你对两位人物说……") },
                                     singleLine = true,
                                     trailingIcon = {
                                         IconButton(
@@ -1600,7 +1663,7 @@ private fun DetailScreen(
                                                 roleFollowUp = ""
                                             },
                                         ) {
-                                            Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "发送追问")
+                                            Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "发送你的发言")
                                         }
                                     },
                                 )
@@ -1678,7 +1741,7 @@ private fun DetailScreen(
                     HorizontalDivider()
                     Text("深度工具", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        item { AssistChip(onClick = { showSandbox = !showSandbox; showTools = false }, label = { Text(if (showSandbox) "收起沙盘" else "沙盘态势") }) }
+                        item { AssistChip(onClick = { showSandbox = !showSandbox; showTools = false }, label = { Text(if (showSandbox) "收起史料沙盘" else "史料沙盘") }) }
                         item { AssistChip(onClick = { showOriginalEdition = !showOriginalEdition; showTools = false }, label = { Text(if (showOriginalEdition) "收起底本" else "原始底本") }) }
                     }
                 }
@@ -1689,9 +1752,44 @@ private fun DetailScreen(
                         item { AssistChip(onClick = { onAiGenerate(item, AiTask.CLASSICAL_TRANSLATION); showTools = false }, label = { Text("逐句对照") }) }
                         item { AssistChip(onClick = { onAiGenerate(item, AiTask.WORD_GLOSSARY); showTools = false }, label = { Text("词语对照") }) }
                         item { AssistChip(onClick = { onAiGenerate(item, AiTask.GRAMMAR_ANALYSIS); showTools = false }, label = { Text("语法拆解") }) }
-                        item { AssistChip(onClick = { onAiGenerate(item, AiTask.ROLE_DIALOGUE); showTools = false }, label = { Text("历史角色") }) }
+                        item { AssistChip(onClick = { showRolePicker = true; showTools = false }, label = { Text("选择两人对话") }) }
                         item { AssistChip(onClick = { onAiGenerate(item, AiTask.COUNTERFACTUAL); showTools = false }, label = { Text("反事实") }) }
                     }
+                }
+            }
+        }
+    }
+    if (showRolePicker) {
+        ModalBottomSheet(onDismissRequest = { showRolePicker = false }) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 20.dp, end = 20.dp, bottom = 28.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                Text("选择两位人物", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                Text(
+                    "选择后开始一场受本条史料约束的对话。你也可以在回答下方插话，让两位人物分别回应。",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    lineHeight = 21.sp,
+                )
+                if (roleCandidates.size < 2) {
+                    Text("本条正文只找到 ${roleCandidates.size} 位可用人物，暂时无法建立双人对话。", color = MaterialTheme.colorScheme.error)
+                }
+                RolePickerRow("人物甲", roleCandidates, selectedRoleOne) { value ->
+                    selectedRoleOne = value
+                    if (selectedRoleTwo == value) selectedRoleTwo = roleCandidates.firstOrNull { it != value }.orEmpty()
+                }
+                RolePickerRow("人物乙", roleCandidates.filterNot { it == selectedRoleOne }, selectedRoleTwo) { value -> selectedRoleTwo = value }
+                Button(
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = selectedRoleOne.isNotBlank() && selectedRoleTwo.isNotBlank() && selectedRoleOne != selectedRoleTwo && !aiState.isGenerating,
+                    onClick = {
+                        onRoleDialogueGenerate(listOf(selectedRoleOne, selectedRoleTwo))
+                        showRolePicker = false
+                    },
+                ) {
+                    Text("开始对话")
                 }
             }
         }
@@ -1744,6 +1842,77 @@ private fun DetailScreen(
 }
 
 @Composable
+private fun ReadingNavigator(
+    current: ReadingItem,
+    items: List<ReadingItem>,
+    showPicker: Boolean,
+    onShowPicker: () -> Unit,
+    onDismissPicker: () -> Unit,
+    onNavigate: (ReadingItem) -> Unit,
+) {
+    val currentIndex = items.indexOfFirst { it.id == current.id }.coerceAtLeast(0)
+    val groupLabel = if (current.section == "资治通鉴") "本年篇目" else "同组篇目"
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f),
+        shape = RoundedCornerShape(12.dp),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 5.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            IconButton(enabled = currentIndex > 0, onClick = { onNavigate(items[currentIndex - 1]) }) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "上一篇")
+            }
+            Column(
+                modifier = Modifier.weight(1f).clickable(onClick = onShowPicker).padding(horizontal = 6.dp, vertical = 5.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                Text(groupLabel, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                Text("第 ${currentIndex + 1} / ${items.size} 条", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            IconButton(onClick = onShowPicker) {
+                Icon(Icons.Default.ExpandMore, contentDescription = "打开篇目列表")
+            }
+            IconButton(enabled = currentIndex < items.lastIndex, onClick = { onNavigate(items[currentIndex + 1]) }) {
+                Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "下一篇")
+            }
+        }
+    }
+    if (showPicker) {
+        ModalBottomSheet(onDismissRequest = onDismissPicker) {
+            LazyColumn(
+                modifier = Modifier.fillMaxWidth(),
+                contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 28.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                item {
+                    Text(groupLabel, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                    Text("按原书篇次排列，点选后直接进入正文。", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                items(items, key = { it.id }) { candidate ->
+                    val index = items.indexOf(candidate)
+                    Surface(
+                        modifier = Modifier.fillMaxWidth().clickable { onNavigate(candidate) },
+                        color = if (candidate.id == current.id) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.38f),
+                        shape = RoundedCornerShape(10.dp),
+                    ) {
+                        Row(modifier = Modifier.padding(12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top) {
+                            Text("${index + 1}", modifier = Modifier.width(28.dp), color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                Text(candidate.title, fontWeight = if (candidate.id == current.id) FontWeight.Bold else FontWeight.Normal)
+                                Text(candidate.summary, maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun DetailSectionHeader(
     title: String,
     count: Int,
@@ -1767,10 +1936,156 @@ private fun DetailSectionHeader(
 }
 
 @Composable
-private fun ContextSection(title: String, values: List<String>) {
-    if (values.isNotEmpty()) {
+private fun HistoricalSandboxPanel(
+    item: ReadingItem,
+    context: HistoricalContext,
+    notes: List<ReadableHistoricalNote>,
+    places: List<HistoricalPlace>,
+    fontScale: Float,
+    onPlaceClick: (HistoricalPlace) -> Unit,
+    onNoteClick: (ReadableHistoricalNote) -> Unit,
+) {
+    val placeLookup = remember(places) { places.associateBy { it.ancientName } }
+    val mappedPlaceCount = context.places.count { placeLookup.containsKey(it) }
+    val boundary = listOf(
+        "地图 ${if (mappedPlaceCount > 0) "已标注 $mappedPlaceCount" else "无坐标"}",
+        "兵力 未提供",
+        "粮道 未提供",
+    )
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f),
+        shape = RoundedCornerShape(12.dp),
+    ) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(13.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top) {
+                Icon(Icons.Default.Timeline, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Text("史料沙盘", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text(
+                        "把本条正文的定位、关联节点和来源注释放到同一条证据链中。它不替史料推测兵力、路线或胜负。",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        lineHeight = 19.sp,
+                    )
+                }
+            }
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                SandboxMetric("人物", context.people.size, Modifier.weight(1f))
+                SandboxMetric("地点", context.places.size, Modifier.weight(1f))
+                SandboxMetric("注释", notes.size, Modifier.weight(1f))
+            }
+            HorizontalDivider()
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("史料定位", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                Text(item.title, fontSize = (17f * fontScale).sp, fontWeight = FontWeight.SemiBold)
+                Text("${item.category} · ${item.dynasty}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(item.summary, fontSize = (15f * fontScale).sp, lineHeight = (23f * fontScale).sp)
+            }
+            SandboxTagList("参与者", context.people)
+            SandboxTagList(
+                title = "地理节点",
+                values = context.places,
+                onClick = { placeLookup[it]?.let(onPlaceClick) },
+            )
+            SandboxTagList("官职与制度", context.officials)
+            if (notes.isNotEmpty()) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("证据链", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                    notes.take(6).forEachIndexed { index, note ->
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onNoteClick(note) },
+                            color = MaterialTheme.colorScheme.background.copy(alpha = 0.66f),
+                            shape = RoundedCornerShape(8.dp),
+                        ) {
+                            Row(modifier = Modifier.padding(10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top) {
+                                Text("${index + 1}", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Text("原文位置 ${note.position + 1}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text(note.text, fontSize = (14f * fontScale).sp, lineHeight = (21f * fontScale).sp)
+                                    val links = (note.people + note.places).distinct()
+                                    if (links.isNotEmpty()) Text("关联：${links.joinToString("、")}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                        }
+                    }
+                    if (notes.size > 6) {
+                        Text("还有 ${notes.size - 6} 条来源注释，可在正文的“注释”中查看。", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            } else if (context.annotations.isNotEmpty()) {
+                Text("来源注释：${context.annotations.take(2).joinToString("；")}", style = MaterialTheme.typography.bodyMedium)
+            }
+            HorizontalDivider()
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("数据边界", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                    items(boundary, key = { it }) { value ->
+                        Surface(color = MaterialTheme.colorScheme.background.copy(alpha = 0.7f), shape = RoundedCornerShape(7.dp)) {
+                            Text(value, modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp), style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+                }
+                Text(
+                    "地图入口只对已有坐标的地点开放；兵力、粮道和战役决策没有公开结构化字段时，界面保持空缺，不生成结论。",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    lineHeight = 18.sp,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SandboxMetric(label: String, value: Int, modifier: Modifier) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(value.toString(), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+private fun SandboxTagList(
+    title: String,
+    values: List<String>,
+    onClick: ((String) -> Unit)? = null,
+) {
+    if (values.isEmpty()) return
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(title, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-        Text(values.take(8).joinToString("、"), color = MaterialTheme.colorScheme.onSurfaceVariant)
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+            items(values.distinct().take(12), key = { it }) { value ->
+                val tagModifier = if (onClick == null) Modifier else Modifier.clickable { onClick(value) }
+                Surface(
+                    modifier = tagModifier,
+                    color = MaterialTheme.colorScheme.background.copy(alpha = 0.72f),
+                    shape = RoundedCornerShape(7.dp),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)),
+                ) {
+                    Text(value, modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp), style = MaterialTheme.typography.labelMedium)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RolePickerRow(
+    title: String,
+    candidates: List<String>,
+    selected: String,
+    onSelected: (String) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(title, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(candidates.take(24), key = { it }) { candidate ->
+                FilterChip(selected = selected == candidate, onClick = { onSelected(candidate) }, label = { Text(candidate) })
+            }
+        }
     }
 }
 

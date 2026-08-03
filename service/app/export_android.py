@@ -20,7 +20,7 @@ def export_content(database: str | Path, output: str | Path, *, expected_count: 
     all_items = store.list_items(limit=max(1, store.count_items()))
     tongjian_items = [item for item in all_items if item.id.startswith("zztj-") and item.category == "资治通鉴"]
     supplemental_items = [item for item in all_items if _is_real_supplemental_item(item)]
-    items = tongjian_items + supplemental_items
+    items = _ordered_content_items(store, tongjian_items + supplemental_items)
     if len(tongjian_items) != expected_count:
         raise ValueError(f"refusing Android export: expected {expected_count} real items, found {len(tongjian_items)}")
     _validate_content(items)
@@ -45,6 +45,7 @@ def _export_partial_content(
     items = _partial_items(store, completed_reign_ids)
     if not items:
         raise ValueError("refusing partial Android export: no completed content found")
+    items = _ordered_content_items(store, items)
     _validate_content(items)
     _write_content(items, output)
     return len(items)
@@ -81,6 +82,35 @@ def _write_content(items: Iterable[Item], output: str | Path) -> None:
             stream.write(json.dumps(normalized.to_dict(), ensure_ascii=False, separators=(",", ":")))
             stream.write("\n")
     temporary.replace(destination)
+
+
+def _ordered_content_items(store: ContentStore, items: list[Item]) -> list[Item]:
+    """Match the Android asset order to the public section/volume/year hierarchy."""
+    sections = store.sections()
+    section_ids = {section.title: section.id for section in sections}
+    section_ids.update({"通鉴纪事本末": "jishi"})
+    section_order = {section.id: section.sort_order for section in sections}
+    volume_order = {
+        volume.id: volume.sort_order
+        for section in sections
+        for volume in store.volumes(section.id)
+    }
+    year_order = {
+        year.id: year.sort_order
+        for section in sections
+        for volume in store.volumes(section.id)
+        for year in store.years(volume.id)
+    }
+    return sorted(
+        items,
+        key=lambda item: (
+            section_order.get(section_ids.get(item.section, item.section), 9999),
+            volume_order.get(item.volume_id or "", 9999),
+            year_order.get(item.year_id or "", 9999),
+            item.sort_order if item.sort_order > 0 else 999999,
+            item.id,
+        ),
+    )
 
 
 def export_partial_knowledge(

@@ -1,6 +1,6 @@
 # 读通鉴当前任务清单与恢复日志
 
-更新时间：2026-08-04 05:26（Asia/Shanghai）
+更新时间：2026-08-04 06:23（Asia/Shanghai）
 
 本文件是项目的单一状态源，同时承担项目清单、断点恢复记录和开发日志。PROJECT_STATE_HISTORY.md 只保留旧历史，不作为当前事实来源；DEVELOPMENT_LOG.md 是本文件的合并入口说明，不再单独维护第二套日志。
 
@@ -38,13 +38,16 @@ jq '{total_reigns, completed: (.completed_reign_ids | length), failed: (.failed_
 - [x] 修复目录、子目录和扩展入口为空/加载慢：目录本地优先，空 API 响应触发回退，纪事本末/读通鉴论补种子层级，百科入口切换知识库，正文查询先于阅读记录写入。✅
 - [x] `0.1.18` 已完成签名构建：`versionCode=15`、`versionName=0.1.18`，Release APK v2 签名通过。✅
 - [x] `0.1.19` 发布快照已导出：正文 `46,110` 篇（资治通鉴 `30,989`、纪事本末 `14,176`、读通鉴论 `945`），目录 `544` 卷/`1,985` 纪年，百科 `61,696` 条。✅
-- [x] Edge-TTS 连续朗读修复：播放完成回调先清理旧请求再进入下一句，避免新请求被旧回调取消；句末识别覆盖中英文句号、问号、感叹号、省略号、分号及句末引号/括号，并以 SSML `<s>` 明确句子边界。✅
+- [x] Edge-TTS 连续朗读和无声修复：播放完成回调先清理旧请求再进入下一句；移除 Edge WebSocket 会以 `1007` 拒绝的 SSML `<s>` 标签，并补充空音频、播放器和握手错误处理。协议层已用真实 Edge 响应复现验证，设备音频仍待实体设备验收。✅
 - [x] AI Markdown 渲染已接入：普通 AI 结果支持标题、段落、列表、引用、代码块、表格和行内样式，归档预览去除 Markdown 控制符；解析器和 Android JVM 测试通过。✅
 - [x] 当前 Release 构建已上传并替换 `v0.1.19` 的 `app-release.apk`；Release v2 签名通过，版本 `16/0.1.19`，APK 只保留在 GitHub Release。✅
 - [x] 扩展内容已完成断点同步：事件 `239/239`、史论主题 `912/912`、checkpoint 错误 `0`；最终导出正文 `48,126`、目录 `565/2,556`，其中读通鉴论正文 `2,961`。✅
 - [x] 全部抓取正文已清理公开接口段号前缀；数据库迁移和导出校验均确认 `48,126` 条正文的 `content/original` 不再以数字开头，注释偏移同步扣除前缀长度。✅
 - [x] 阅读页已删除“决策卡”及其本地生成逻辑；历史注释不再按不可靠的接口偏移量覆盖正文词语，改为独立“来源注释”列表。✅
 - [x] `0.1.20` 最终完整数据 Release；Android 三种 APK 已完成签名构建、commit/push 和 GitHub Release 上传，Release 正式发布且三项 APK 资产齐全。✅
+- [x] 正文篇次排序已贯通数据库、API、Android Room、资产导出和离线导入；详情页增加同组上一篇/下一篇和篇目选择器，读完正文无需返回目录。✅
+- [x] 历史角色对话改为先选择两位人物；生成后用户可以直接插话，每轮让两位人物分别回应，角色选择和会话转录保存到 Room。✅
+- [x] 史料沙盘改为可解释的证据视图：展示正文注释、人物、地点、证据链和数据边界；缺少公开兵力/粮道/路线字段时明确标记“未提供”。✅
 
 ### 当前同步速度判断
 
@@ -90,12 +93,15 @@ jq '{total_reigns, completed: (.completed_reign_ids | length), failed: (.failed_
 - [x] 扩展同步器支持事件/史论公开接口、原始 JSON 缓存、原子进度和 429/Retry-After 重试；已抓取 `239` 个事件、`341` 个史论主题并导出 Android 快照。✅
 - [x] 设置页完善为主题、字号、行距、阅读方式、字形、TTS、AI、隐私和版本信息；加入 Compose 动效开关、AnimatedContent/AnimatedVisibility、animateContentSize 和 Android 12+ blur 视觉层。✅
 - [x] 运行 `EXTENDED_MIN_INTERVAL=5 ./scripts/resume_extended_crawler.sh` 直到史论 `912/912` 且错误 `0`；恢复时复用 `service/data/extended-progress.json` 和 `service/data/extended-cache/`。✅
+- [x] 修复跨层篇次混乱：按 section/volume/year/sort_order/id 稳定排序，扩展内容也使用原始事件/评论序号；新增 Android 相邻篇目导航和列表选择器。✅
+- [x] 接入双角色对话和用户参与入口：人物选择器只允许两位不同人物，AI 追问输入标记为“你”，响应要求两位人物分别回应。✅
+- [x] 将沙盘入口改成史料证据视图，保留地点地图入口和原文注释查看，不用无来源数据绘制兵力或粮道。✅
 
 仍未完成或有外部阻塞：
 
 - [ ] 全本规模图表滚动、文字截断、节点重叠、关系准确性、搜索性能和真实设备验收；本地无 KVM 且虚拟机路线已取消，需接入真实 Android 设备后回归。
 - [ ] AI 兼容服务真实请求/错误/超时验收，以及模型实际遵守史料边界的质量验收；本地 prompt 边界、反事实模板、角色多轮会话和语法原文定位 UI 已实现。
-- [ ] 历史上的今天可信月日映射、Edge-TTS 真实端点音频、战役地图/兵力/粮道沙盘；缺少可信数据或端点。
+- [ ] 历史上的今天可信月日映射、Edge-TTS 实体设备音频、战役地图/兵力/粮道沙盘；前两项分别缺少可信历法数据和实体设备，战役字段没有公开结构化来源。
 - [ ] Codespace/Actions 生产 keystore 签名和 gh release 演练；本地 release keystore 已创建并使用，GitHub Actions secrets 仍未注入。
 
 ### 阅读界面与研读图表
@@ -137,15 +143,15 @@ jq '{total_reigns, completed: (.completed_reign_ids | length), failed: (.failed_
 - [ ] 典章制度、经济史专题的全量结构化标注；当前只有 tags/关联字段和关键词筛选，下一步：依据公开字段建立可追溯的主题分类规则并补测试。
 - [ ] 全本图表性能、关系准确性和人物/时期覆盖验收；下一步：全量资产导入后执行图表聚合基准和 Android UI 检查。
 - [ ] “历史上的今天”完整历法匹配和自动刷新；当前 `今日金句` 只是按 day-of-year 轮换条目，缺少公开月日字段，下一步：补充可信历法映射数据后再实现。
-- [ ] Edge-TTS 网络音频端点和真实音频验收；代码已保留可选网络引擎，阻塞：当前没有稳定端点/实体设备，下一步：在提供端点和设备后验证握手、音频解码与失败提示。
+- [ ] Edge-TTS 实体设备音频验收；协议层已验证无声根因并完成代码修复，阻塞：当前没有实体 Android 设备，下一步：接入设备后验证握手、音频解码和失败提示。
 - [ ] AI OpenAI-compatible 网络调用端到端验收；配置和任务提示已实现，阻塞：没有可用 API key/模型服务，下一步：用本地兼容服务完成请求、错误、超时和结果展示验证。
 - [x] AI 语法拆解的 Markdown 表格解析和结构化结果卡片；解析失败回退原文；路径：`android/app/src/main/java/com/dutongjian/app/domain/text/ClassicalGrammarAnalysis.kt`、`DutongjianApp.kt`；JVM 测试和 Android 构建已通过。✅
 - [x] AI 普通结果 Markdown 渲染：标题、段落、粗斜体、行内代码、链接文本、列表、引用、分隔线、代码块和表格已解析展示；路径：`android/app/src/main/java/com/dutongjian/app/domain/text/MarkdownRenderer.kt`、`DutongjianApp.kt`；JVM 测试已通过。✅
 - [x] AI 语法拆解的原文定位和高亮：提示要求模型返回连续原文片段，解析器兼容第五列，详情页对命中的原文片段着色；没有定位列或未命中时仍回退结构卡片/原始结果。✅
-- [x] AI 结果记录的 Room 表、保存、删除和重开流程；路径：`android/app/src/main/java/com/dutongjian/app/data/local/AiResult*`、`ReadingViewModel.kt`、`DutongjianApp.kt`；迁移 `4→5` 和 JVM 测试已通过。✅
+- [x] AI 结果记录的 Room 表、保存、删除和重开流程；路径：`android/app/src/main/java/com/dutongjian/app/data/local/AiResult*`、`ReadingViewModel.kt`、`DutongjianApp.kt`；迁移 `4→5→6` 和 JVM 测试已通过。✅
 - [x] AI 反事实推演的独立模板和上下文边界：系统提示区分史料事实、合理推断、不确定假设和非正史影响，输入块使用明确数据边界；真实模型验证仍受外部服务阻塞。✅
-- [x] 历史人物角色对话的同一史料多轮会话：新增追问输入、最多保留 6 轮上下文、Room 同 ID 更新会话转录；事实约束和联网/离线端到端验收仍需真实模型服务。✅
-- [ ] 重点战役沙盘的地图、兵力、粮道和关键决策数据；当前只有正文注释沙盘卡，下一步：先确认公开结构化字段，再建立可追溯数据模型。
+- [x] 历史人物角色对话的同一史料多轮会话：可选择两位人物，用户可插话，最多保留 6 轮上下文，Room 同 ID 更新会话转录；事实约束和联网/离线端到端验收仍需真实模型服务。✅
+- [ ] 重点战役沙盘的地图、兵力、粮道和关键决策数据；当前已实现正文注释、人物、地点和证据链视图，缺少公开结构化字段，不能宣称完整战役推演。
 - [ ] 当前环境没有用户生产 keystore，下一步：注入签名 secrets 。
 - [ ] gh release 自动发布闭环；已加入只允许手动/版本标签触发、必须生产 keystore secrets 的 `.github/workflows/release.yml`，但当前环境没有生产 keystore，下一步：在 Codespace/Actions secrets 配置后执行一次签名发布演练。
 
@@ -290,7 +296,7 @@ android/app/src/main/assets/            校验后的 APK 资产
 
 - [x] 事项：完成扩展史论同步和失败重试；命令：`EXTENDED_MIN_INTERVAL=5 ./scripts/resume_extended_crawler.sh`；结果：事件 `239/239`、史论 `912/912`、错误 `0`；数据库扩展正文为纪事本末 `14,176`、读通鉴论 `2,961`。✅
 - [x] 事项：导出并校验最终 Android assets；命令：`PYTHONPATH=service .venv/bin/python -m app.export_android`、资产 JSON/NDJSON 校验；结果：正文 `48,126`、目录 `565/2,556`、百科 `61,696`，三类正文 ID 唯一、必填字段完整；Python 测试 `34 passed`，严格资治通鉴校验通过。✅
-- [ ] 事项：构建并发布 `0.1.20`；下一步：运行 Android test/lint/Debug/Inspection/Release，提交和 push 全部源码/资产/checkpoint，再创建 GitHub Release。⏳
+- [x] 事项：构建并发布 `0.1.20`；结果：Android test/lint/Debug/Inspection/签名 Release 成功，全部源码和离线资产已 push，GitHub Release 已创建。✅
 
 ### 2026-08-04 05:15 Asia/Shanghai
 
@@ -298,7 +304,7 @@ android/app/src/main/assets/            校验后的 APK 资产
 - [x] 事项：修复短正文和段号噪声；命令：`app.normalize_tongjian_content`、`app.export_android`；结果：扫描 `48,126` 条正文，实际清理带段号的 `29,757` 条（通鉴 `21,600`、扩展正文 `8,156`、兼容旧首条 `1`），最终资源 `48,126` 条、数字前缀 `0`；最短真实正文为“蝗。”、“旱。”等原书单句纪事。✅
 - [x] 事项：修复正文词与注释无关；结果：移除注释偏移量下划线/点击绑定，正文只保留真实地点和用户划线标记，注释通过独立“来源注释”区查看。✅
 - [x] 事项：数据与服务测试；命令：`PYTHONPATH=service .venv/bin/pytest -q service/tests`、`validate_tongjian --strict`；结果：`34 passed`，通鉴 `30,989/294/1,405`、失败 `0`、空纪年 `0`。✅
-- [ ] 事项：构建并发布 `0.1.20`；构建已完成，下一步：提交并 push，再上传 GitHub Release。⏳
+- [x] 事项：构建并发布 `0.1.20`；结果：构建完成后已提交、push 并上传三个 APK 到 GitHub Release。✅
 
 ### 2026-08-04 05:22 Asia/Shanghai
 
@@ -306,6 +312,13 @@ android/app/src/main/assets/            校验后的 APK 资产
 - [x] 事项：验收三种 APK；结果：Release v2 签名通过，正式证书 SHA-256 `0bd6d2260b1da032d761c16e7d31fee2767c80362295353e3f7ea10ebd111c57`；Debug `117,444,390` bytes / `142fa2c86b95d69120e9aa60c1b92ae91da6bc5311bf82930297cc108dbbf9d2`，Inspection `95,548,775` bytes / `29b07b151e6251877e0aca08db7c5767a5a1dd64f3b56cf25b1dd06a156e5571`，Release `95,548,775` bytes / `f8a77487d723ff60530d77ad96b609af2b6b1d7ac34b81803db8cc8d858e1373`；三者均含正文 `48,126`、数字前缀 `0`、目录 `565/2,556`、百科 `61,696`。✅
 - [x] 事项：记录最终资产哈希；结果：`offline_content.ndjson.gz`=`440dbee3354986955a10220161c8a061a6a5be30fc4cb18eb3dccec7c542e091`，`offline_catalog.json`=`cf8d56bc563c72bd001343f1ced6acc93974f4e40f863bcd8d06c668162970b1`，`offline_knowledge.json`=`fa1bbc67c05c0cc00c4dfbbcfe8322f45f28bd5ba73a5ea15d2b543f9b20ec45`。✅
 - [x] 事项：提交并发布 `0.1.20`；结果：commit `ddf4cba` 已 push `origin/main`；正式 Release 已创建并上传 `app-release.apk`、`app-debug.apk`、`app-inspection.apk`；地址：`https://github.com/kxxhhh/readgb/releases/tag/v0.1.20`。✅
+
+### 2026-08-04 06:37 Asia/Shanghai
+
+- [x] 事项：贯通正文篇次排序和相邻导航；结果：Backend `35 passed`，严格通鉴校验 `30,989/294/1,405`、失败 `0`、空纪年 `0`；离线资源正文 `48,126`、目录 `565/2,556`、百科 `61,696`，全部正文含 `sort_order`。✅
+- [x] 事项：验证双角色对话、用户插话、史料证据沙盘和 Edge-TTS 无声修复；结果：Android JVM test、lint、Debug/Inspection/Release 均 `BUILD SUCCESSFUL`，仅保留既有 `ClickableText` 弃用警告；未进行实体设备音频验收。✅
+- [x] 事项：构建 `0.1.21` 签名产物；结果：version `18/0.1.21`，Release v2 签名证书 SHA-256 `0bd6d2260b1da032d761c16e7d31fee2767c80362295353e3f7ea10ebd111c57`；Debug `117,373,137` bytes / `52aaf6775c8c66074f28b9ab058f938ec646d58a22d9614408eab676200a0c48`，Inspection `94,872,099` bytes / `c7a1d53ad44e32a4ab8dc47e88275229670bedb81ad52c88e558a92627274fbf`，Release `94,872,099` bytes / `831a2306f9b8df4796bc946f3b04f22ef6c5f84e3eb4ecdf560097f6d68bd1c0`。✅
+- [ ] 事项：提交、push 并发布 `0.1.21`；下一步：提交全部源码/测试/文档/离线正文资源，推送 `origin/main`，再用 `gh release create` 上传三种 APK。⏳
 
 ## 记录协议
 

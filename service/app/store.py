@@ -141,7 +141,7 @@ class ContentStore:
                     section TEXT NOT NULL DEFAULT '资治通鉴', volume_id TEXT,
                     year_id TEXT, original TEXT NOT NULL DEFAULT '',
                     translation TEXT NOT NULL DEFAULT '', notes TEXT NOT NULL DEFAULT '',
-                    tags TEXT NOT NULL DEFAULT '[]'
+                    tags TEXT NOT NULL DEFAULT '[]', sort_order INTEGER NOT NULL DEFAULT 0
                 );
                 CREATE TABLE IF NOT EXISTS http_cache (
                     cache_key TEXT PRIMARY KEY, body TEXT NOT NULL,
@@ -175,6 +175,7 @@ class ContentStore:
                 "translation": "TEXT NOT NULL DEFAULT ''",
                 "notes": "TEXT NOT NULL DEFAULT ''",
                 "tags": "TEXT NOT NULL DEFAULT '[]'",
+                "sort_order": "INTEGER NOT NULL DEFAULT 0",
             }.items():
                 if name not in existing_columns:
                     connection.execute(f"ALTER TABLE items ADD COLUMN {name} {definition}")
@@ -186,9 +187,9 @@ class ContentStore:
                 connection.executemany(
                     """INSERT INTO items
                     (id, title, category, dynasty, summary, content, source_url, updated_at,
-                     section, volume_id, year_id, original, translation, notes, tags)
+                     section, volume_id, year_id, original, translation, notes, tags, sort_order)
                     VALUES (:id, :title, :category, :dynasty, :summary, :content, :source_url, :updated_at,
-                            :section, :volume_id, :year_id, :original, :translation, :notes, :tags)""",
+                            :section, :volume_id, :year_id, :original, :translation, :notes, :tags, :sort_order)""",
                     [self._item_values(item) for item in SEED_ITEMS],
                 )
             else:
@@ -196,7 +197,8 @@ class ContentStore:
                     values = self._item_values(item)
                     connection.execute(
                         """UPDATE items SET section = :section, volume_id = :volume_id, year_id = :year_id,
-                        original = :original, translation = :translation, notes = :notes, tags = :tags
+                        original = :original, translation = :translation, notes = :notes, tags = :tags,
+                        sort_order = :sort_order
                         WHERE id = :id AND (volume_id IS NULL OR year_id IS NULL OR tags = '[]')""",
                         values,
                     )
@@ -238,7 +240,7 @@ class ContentStore:
             values.append(year_id)
         if clauses:
             sql += " WHERE " + " AND ".join(clauses)
-        sql += " ORDER BY updated_at DESC, title LIMIT ?"
+        sql += " ORDER BY sort_order ASC, title ASC, id ASC LIMIT ?" if year_id else " ORDER BY updated_at DESC, title LIMIT ?"
         values.append(limit)
         with self._lock, self._connect() as connection:
             return [self._item(row) for row in connection.execute(sql, values).fetchall()]
@@ -392,8 +394,8 @@ class ContentStore:
             connection.executemany(
                 """INSERT OR REPLACE INTO items
                 (id, title, category, dynasty, summary, content, source_url, updated_at,
-                 section, volume_id, year_id, original, translation, notes, tags)
+                 section, volume_id, year_id, original, translation, notes, tags, sort_order)
                 VALUES (:id, :title, :category, :dynasty, :summary, :content, :source_url, :updated_at,
-                        :section, :volume_id, :year_id, :original, :translation, :notes, :tags)""",
+                        :section, :volume_id, :year_id, :original, :translation, :notes, :tags, :sort_order)""",
                 [self._item_values(item) for item in items],
             )

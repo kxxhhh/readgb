@@ -21,6 +21,7 @@ data class AiResult(
     val task: AiTask,
     val result: String,
     val createdAt: Long,
+    val roleNames: List<String> = emptyList(),
 )
 
 data class AiConversationTurn(

@@ -71,6 +71,7 @@ ReadingRepositoryImpl 的顺序如下：
 - 原文、译文并读，以及原文/译文单独模式。
 - 字号、繁简/异体字展示、复制、分享和划线笔记。
 - TTS 当前句状态与自动滚动、15/30 分钟和读完当前篇停止。
+- 详情页在正文末尾提供按原书 `sort_order` 排列的相邻篇目导航和可展开篇目列表；资治通鉴按纪年分组，扩展资料按同组条目分组。
 - 历史上下文、关联人物/地点/官职、字词提示、知识入口和 AI 工具通过可收起工具面板进入。
 
 底层 original、translation、notes 和原始关联 JSON 保持不改写；展示层转换只由 ClassicalScriptMapper 完成。
@@ -87,14 +88,15 @@ ReadingRepositoryImpl 的顺序如下：
 
 ### 3.4 TTS、AI、Widget 和本地工具
 
-- LocalTtsEngine 使用 Android 系统中文 TTS；EdgeTTSEngine 是可选网络引擎，失败时显示错误，不伪装成本地合成。
+- LocalTtsEngine 使用 Android 系统中文 TTS；EdgeTTSEngine 是可选网络引擎，已移除会导致 Edge WebSocket 以 `1007` 拒绝的 `<s>` SSML 标签，并补充空音频、播放器和握手错误提示；真实 Android 音频输出仍需设备验收。
 - TtsController 保存当前句、播放队列和睡眠计时器状态。
-- AiRepositoryImpl 支持用户配置 OpenAI 兼容接口或本机模型服务，Key 只存本机；没有配置时不发远程请求。
+- AiRepositoryImpl 支持用户配置 OpenAI 兼容接口或本机模型服务，Key 只存本机；没有配置时不发远程请求。历史角色对话可先选择两位人物，生成后用户可在输入框插话，每轮要求两位人物分别回应。
+- 史料沙盘展示当前正文可追溯的来源注释、人物、地点、证据链和数据边界；没有公开兵力、粮道或路线字段时明确显示“未提供”，不生成伪造态势。
 - AI 生成结果已写入 Room `ai_results`，详情页支持隐藏当前结果、重开历史结果和删除记录；角色任务支持同一史料边界内的多轮追问并更新会话转录，语法任务支持可选原文定位列和命中高亮；真实模型请求仍需可用服务端到端验证。
 - QuoteWidgetProvider 使用 RemoteViews 展示本地名句和入口。
 - ClassicalGlossary 和 ClassicalScriptMapper 在应用启动时从 assets 加载；没有资产时使用内置 fallback 映射。
 
-AI 的真实模型质量和 Edge-TTS 网络连通性尚未在当前环境完成端到端验证；设备安装、Widget 桌面行为和 TTS 音频输出不纳入当前交付范围。
+AI 的真实模型质量和 Edge-TTS 网络连通性尚未在当前环境完成端到端验证；当前已完成协议层 Edge 音频复现与修复，但设备安装、Widget 桌面行为和 TTS 音频输出仍不纳入本轮验收。
 
 ## 4. FastAPI 接口
 
