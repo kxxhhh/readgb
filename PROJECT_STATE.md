@@ -130,6 +130,7 @@ android/app/src/main/assets/            校验后的 APK 资产
 - [x] 事项：递归阅读 Git 跟踪的 11 份 Markdown/TXT 项目文档及完整历史归档；结果：识别并区分全量数据、百科/标注、图表验收、历法、TTS、AI、沙盘、签名和发布自动化任务；路径：`README.md`、`DOCS.md`、`guide.txt`、`plugin.md`、`PROJECT_STATE.md`、`PROJECT_STATE_HISTORY.md`、`TASK_PROGRESS_2026-08-03.md`、`issue/Unable2Install.txt`、`docs/site-analysis.md`、`DEVELOPMENT_LOG.md`、`service/requirements.txt`。✅
 - [x] 事项：补充只读数据集校验器和 Android 覆盖率卡片；命令：`PYTHONPATH=service .venv/bin/python -m pytest -q service/tests/test_validate_tongjian.py`、`./gradlew :app:testDebugUnitTest`；结果：校验器测试 `3 passed`，观察到真实正文 `14,195`、纪年 `911/1405`、卷 `150/294`，字段/层级/关联错误 `0`；路径：`service/app/validate_tongjian.py`、`android/app/src/main/java/com/dutongjian/app/ui/StudyCoverage.kt`。✅
 - [x] 事项：加入签名发布自动化骨架；结果：`.github/workflows/release.yml` 仅接受手动/版本标签触发，要求生产 keystore secrets，执行 Android 测试、lint、签名 APK、apksigner、SHA-256 和 gh release 上传；当前未使用真实 secrets。✅
+- [x] 事项：配置 Android API 35 模拟器环境；命令：`avdmanager create avd --name readgb-api35-workspace ...`、`emulator -avd readgb-api35-workspace -no-window ...`；结果：system image 和 AVD 创建成功，但启动被宿主机缺少 KVM/VMX/SVM 阻塞；路径：`.android-sdk/`、`.android-avd/`；恢复：有硬件加速的主机上复用 AVD，当前不把设备验收写成完成。✅
 - [ ] 事项：继续公开 API 同步；结果：PID `9878`，checkpoint `957/1405`，真实正文 `16,285`，失败 `0`；下一步：复用项目内数据库/cache/checkpoint，结束后执行严格校验、资产导出、Android 全量构建和快照推送。
 
 ### 2026-08-03 14:59 Asia/Shanghai
