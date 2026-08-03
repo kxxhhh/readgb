@@ -23,7 +23,7 @@ class FakeExtendedFetcher:
                                 "brief": "晋国三卿受封",
                                 "paragraph": {
                                     "tongjian_id": "event-content-1",
-                                    "content_jianti_auto": "初命晋大夫魏斯、赵籍、韩虔为诸侯。",
+                                    "content_jianti_auto": "1初命晋大夫魏斯、赵籍、韩虔为诸侯。",
                                     "content_fanyi": "周威烈王二十三年，三家受封为诸侯。",
                                 },
                             }
@@ -59,7 +59,7 @@ class FakeExtendedFetcher:
                         "paragraph_list": [
                             {
                                 "tongjian_id": "comment-content-1",
-                                "wenyan_clean": "名分既正，天下乃定。",
+                                "wenyan_clean": "2名分既正，天下乃定。",
                                 "fanyi": "名分端正以后，天下才能安定。",
                             }
                         ]

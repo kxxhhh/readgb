@@ -53,14 +53,11 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
@@ -342,7 +339,7 @@ internal fun HistoricalNotesList(notes: List<ReadableHistoricalNote>, onClick: (
             notes.forEach { note ->
                 Surface(modifier = Modifier.fillMaxWidth().clickable { onClick(note) }, shape = RoundedCornerShape(10.dp), color = MaterialTheme.colorScheme.background) {
                     Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                        Text("原文位置 ${note.position}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                        Text("来源注释", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
                         Text(note.text, fontSize = 16.sp, lineHeight = 25.sp)
                         val links = (note.people + note.places).distinct()
                         if (links.isNotEmpty()) Text("关联：${links.joinToString("、")}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -354,85 +351,27 @@ internal fun HistoricalNotesList(notes: List<ReadableHistoricalNote>, onClick: (
 }
 
 @Composable
-internal fun HistoricalNoteText(
-    text: String,
-    notes: List<ReadableHistoricalNote>,
-    fontSize: androidx.compose.ui.unit.TextUnit,
-    lineHeight: androidx.compose.ui.unit.TextUnit,
-    selectedPosition: Int?,
-    onNoteClick: (ReadableHistoricalNote) -> Unit,
-) {
-    val annotated = remember(text, notes, selectedPosition) {
-        buildHistoricalNoteAnnotatedString(text, notes, selectedPosition)
-    }
-    ClickableText(
-        text = annotated,
-        style = MaterialTheme.typography.bodyLarge.copy(fontSize = fontSize, lineHeight = lineHeight, color = MaterialTheme.colorScheme.onSurface),
-        onClick = { offset ->
-            annotated.getStringAnnotations("historical-note", offset, offset).firstOrNull()?.let { annotation ->
-                notes.firstOrNull { it.position.toString() == annotation.item }?.let(onNoteClick)
-            }
-        },
-    )
-}
-
-@Composable
 internal fun ReadingAnnotatedText(
     text: String,
     places: List<HistoricalPlace>,
-    historicalNotes: List<ReadableHistoricalNote>,
     savedNotes: List<Note>,
     fontSize: androidx.compose.ui.unit.TextUnit,
     lineHeight: androidx.compose.ui.unit.TextUnit,
     highlightedSavedNoteId: String?,
-    highlightedNotePosition: Int? = null,
     modifier: Modifier = Modifier,
     onPlaceClick: (HistoricalPlace) -> Unit,
-    onHistoricalNoteClick: (ReadableHistoricalNote) -> Unit = {},
     onSavedNoteClick: (Note) -> Unit = {},
 ) {
-    var layoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
-    val annotated = remember(text, places, historicalNotes, savedNotes, highlightedSavedNoteId, highlightedNotePosition) {
-        buildReadingAnnotatedString(text, places, historicalNotes, savedNotes, highlightedSavedNoteId, highlightedNotePosition)
-    }
-    val noteRanges = remember(text, historicalNotes) {
-        historicalNotes.sortedBy { it.position }.mapNotNull { note ->
-            if (note.position !in text.indices) return@mapNotNull null
-            val end = (note.position + 2).coerceAtMost(text.length)
-            note.position to end
-        }.filter { (start, end) -> start < end }
+    val annotated = remember(text, places, savedNotes, highlightedSavedNoteId) {
+        buildReadingAnnotatedString(text, places, savedNotes, highlightedSavedNoteId)
     }
     ClickableText(
         text = annotated,
-        modifier = modifier
-            .drawBehind {
-                val layout = layoutResult ?: return@drawBehind
-                noteRanges.forEach { (start, end) ->
-                    val firstLine = layout.getLineForOffset(start)
-                    val lastLine = layout.getLineForOffset((end - 1).coerceAtLeast(start))
-                    for (line in firstLine..lastLine) {
-                        val left = if (line == firstLine) layout.getHorizontalPosition(start, true) else layout.getLineLeft(line)
-                        val right = if (line == lastLine) layout.getHorizontalPosition(end, false) else layout.getLineRight(line)
-                        val y = layout.getLineBottom(line) + 2.dp.toPx()
-                        drawLine(
-                            color = Color(0xFFB34B32),
-                            start = Offset(left, y),
-                            end = Offset(right, y),
-                            strokeWidth = 1.5.dp.toPx(),
-                            pathEffect = PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 3.dp.toPx())),
-                        )
-                    }
-                }
-            },
+        modifier = modifier,
         style = TextStyle(fontSize = fontSize, lineHeight = lineHeight, color = MaterialTheme.colorScheme.onSurface),
-        onTextLayout = { layoutResult = it },
         onClick = { offset ->
             annotated.getStringAnnotations("place", offset, offset).firstOrNull()?.let { annotation ->
                 places.firstOrNull { it.ancientName == annotation.item }?.let(onPlaceClick)
-                return@ClickableText
-            }
-            annotated.getStringAnnotations("historical-note", offset, offset).firstOrNull()?.let { annotation ->
-                historicalNotes.firstOrNull { it.position.toString() == annotation.item }?.let(onHistoricalNoteClick)
                 return@ClickableText
             }
             annotated.getStringAnnotations("saved-note", offset, offset).firstOrNull()?.let { annotation ->
@@ -461,21 +400,13 @@ private data class ReadingMark(val start: Int, val end: Int, val type: String, v
 private fun buildReadingAnnotatedString(
     text: String,
     places: List<HistoricalPlace>,
-    historicalNotes: List<ReadableHistoricalNote>,
     savedNotes: List<Note>,
     highlightedSavedNoteId: String?,
-    highlightedNotePosition: Int? = null,
 ): AnnotatedString {
     val marks = mutableListOf<ReadingMark>()
     places.forEach { place ->
         Regex(Regex.escape(place.ancientName)).findAll(text).forEach { match ->
             marks += ReadingMark(match.range.first, match.range.last + 1, "place", place.ancientName, SpanStyle(color = Color(0xFF2E6F63), textDecoration = TextDecoration.Underline))
-        }
-    }
-    historicalNotes.sortedBy { it.position }.forEachIndexed { index, note ->
-        if (note.position in text.indices) {
-            val end = (note.position + 2).coerceAtMost(text.length)
-            marks += ReadingMark(note.position, end, "historical-note", note.position.toString(), SpanStyle(background = if (note.position == highlightedNotePosition) Color(0xFFF4C95D) else Color(0x33B34B32)))
         }
     }
     savedNotes.forEach { note ->
@@ -502,27 +433,6 @@ private fun buildReadingAnnotatedString(
             pop()
             pop()
             cursor = mark.end
-        }
-        if (cursor < text.length) append(text.substring(cursor))
-    }.toAnnotatedString()
-}
-
-private fun buildHistoricalNoteAnnotatedString(text: String, notes: List<ReadableHistoricalNote>, selectedPosition: Int?): AnnotatedString {
-    val valid = notes.filter { it.position in text.indices }.sortedBy { it.position }
-    return AnnotatedString.Builder().apply {
-        var cursor = 0
-        valid.forEachIndexed { index, note ->
-            val start = note.position.coerceAtLeast(cursor)
-            val end = (start + 2).coerceAtMost(text.length)
-            if (start > cursor) append(text.substring(cursor, start))
-            if (end > start) {
-                pushStringAnnotation("historical-note", note.position.toString())
-                pushStyle(SpanStyle(background = if (selectedPosition == note.position) Color(0xFFF4C95D) else Color(0x33B34B32)))
-                append(text.substring(start, end))
-                pop()
-                pop()
-                cursor = end
-            }
         }
         if (cursor < text.length) append(text.substring(cursor))
     }.toAnnotatedString()

@@ -1,6 +1,6 @@
 # 读通鉴当前任务清单与恢复日志
 
-更新时间：2026-08-04 04:25（Asia/Shanghai）
+更新时间：2026-08-04 05:22（Asia/Shanghai）
 
 本文件是项目的单一状态源，同时承担项目清单、断点恢复记录和开发日志。PROJECT_STATE_HISTORY.md 只保留旧历史，不作为当前事实来源；DEVELOPMENT_LOG.md 是本文件的合并入口说明，不再单独维护第二套日志。
 
@@ -28,7 +28,7 @@ jq '{total_reigns, completed: (.completed_reign_ids | length), failed: (.failed_
 - [x] 同步器使用受控多线程：4 个 worker、全局请求节奏、robots 检查、缓存、Retry-After、退避、去重和原子 checkpoint。✅
 - [x] 本轮公开 API 同步已完成；checkpoint `1405/1405`、失败 `0`、数据库 `30,989` 条真实 `zztj-*` 正文，继续使用 4 worker、5 秒全局节奏和 robots 检查。✅
 - [x] `validate_tongjian --strict` 已通过 `30,989/294/1,405`、零空纪年、零外键/关联错误；公开数据中 1 条记录没有译文，报告为 `translation_fallback=1`，客户端按原文回退，不伪造译文。✅
-- [x] 全量正文、目录和百科 Android assets 已导出并通过数量/分类校验；正文 `30,989`、目录 `294` 卷/`1,405` 年、百科 `61,696` 条，五类齐全。✅
+- [x] 全量正文、目录和百科 Android assets 已导出并通过数量/分类校验；正文 `48,126`（资治通鉴 `30,989`、纪事本末 `14,176`、读通鉴论 `2,961`）、目录 `565` 卷/`2,556` 年、百科 `61,696` 条，五类齐全。✅
 - [x] Android 图表代码已改为按纪年/纪·朝代覆盖全部分组，并把人物图谱改为全人物索引 + 中心人物下钻；Kotlin 编译、测试和 lint 已通过。✅
 - [x] 研读页新增正文/纪年/卷三项真实 `zztj-*` 覆盖率卡片，不把 OfflineSeed 计入数据覆盖。✅
 - [x] 定位 `0.1.15` 首启闪退/卡启动的主要内存路径：全量正文导入和 `SELECT *` 列表同时保留重文本；已改为 500 条批次流式导入、摘要投影和点击后单条加载，失败时保留原数据库。✅
@@ -41,7 +41,10 @@ jq '{total_reigns, completed: (.completed_reign_ids | length), failed: (.failed_
 - [x] Edge-TTS 连续朗读修复：播放完成回调先清理旧请求再进入下一句，避免新请求被旧回调取消；句末识别覆盖中英文句号、问号、感叹号、省略号、分号及句末引号/括号，并以 SSML `<s>` 明确句子边界。✅
 - [x] AI Markdown 渲染已接入：普通 AI 结果支持标题、段落、列表、引用、代码块、表格和行内样式，归档预览去除 Markdown 控制符；解析器和 Android JVM 测试通过。✅
 - [x] 当前 Release 构建已上传并替换 `v0.1.19` 的 `app-release.apk`；Release v2 签名通过，版本 `16/0.1.19`，APK 只保留在 GitHub Release。✅
-- [ ] 扩展内容仍在后台断点同步：事件 `239/239`，史论主题当前 `742/912`，当前 checkpoint 错误 `7`；Android 当前 Release 固定使用已校验的 `341` 主题快照，后续增量继续写入同一 cache/database。⏳
+- [x] 扩展内容已完成断点同步：事件 `239/239`、史论主题 `912/912`、checkpoint 错误 `0`；最终导出正文 `48,126`、目录 `565/2,556`，其中读通鉴论正文 `2,961`。✅
+- [x] 全部抓取正文已清理公开接口段号前缀；数据库迁移和导出校验均确认 `48,126` 条正文的 `content/original` 不再以数字开头，注释偏移同步扣除前缀长度。✅
+- [x] 阅读页已删除“决策卡”及其本地生成逻辑；历史注释不再按不可靠的接口偏移量覆盖正文词语，改为独立“来源注释”列表。✅
+- [ ] `0.1.20` 最终完整数据 Release；Android 三种 APK 已完成签名构建和资产验收，下一步提交、push 和 GitHub Release 上传。⏳
 
 ### 当前同步速度判断
 
@@ -86,7 +89,7 @@ jq '{total_reigns, completed: (.completed_reign_ids | length), failed: (.failed_
 - [x] 创建并上传正式 `v0.1.18` GitHub Release；signed `app-release.apk`、debug 和 inspection APK 均已上传，地址：`https://github.com/kxxhhh/readgb/releases/tag/v0.1.18`。✅
 - [x] 扩展同步器支持事件/史论公开接口、原始 JSON 缓存、原子进度和 429/Retry-After 重试；已抓取 `239` 个事件、`341` 个史论主题并导出 Android 快照。✅
 - [x] 设置页完善为主题、字号、行距、阅读方式、字形、TTS、AI、隐私和版本信息；加入 Compose 动效开关、AnimatedContent/AnimatedVisibility、animateContentSize 和 Android 12+ blur 视觉层。✅
-- [ ] 继续运行 `EXTENDED_MIN_INTERVAL=5 ./scripts/resume_extended_crawler.sh`，直到史论 `912/912` 且错误 `0`；恢复时复用 `service/data/extended-progress.json` 和 `service/data/extended-cache/`。⏳
+- [x] 运行 `EXTENDED_MIN_INTERVAL=5 ./scripts/resume_extended_crawler.sh` 直到史论 `912/912` 且错误 `0`；恢复时复用 `service/data/extended-progress.json` 和 `service/data/extended-cache/`。✅
 
 仍未完成或有外部阻塞：
 
@@ -282,6 +285,27 @@ android/app/src/main/assets/            校验后的 APK 资产
 - [x] 事项：修复 AI 结果 Markdown 源码直接显示；结果：新增纯 Kotlin Markdown 解析器和 Compose 渲染组件，支持标题、列表、引用、代码块、表格及行内样式；新增 `MarkdownRendererTest`，Android JVM test 通过。✅
 - [x] 事项：编译并上传当前签名 Release；命令：`./gradlew --no-daemon :app:assembleRelease`、`gh release upload v0.1.19 android/app/build/outputs/apk/release/app-release.apk --clobber`；结果：Release v2 签名通过，版本 `16/0.1.19`，资产大小 `93,684,243` bytes，地址：`https://github.com/kxxhhh/readgb/releases/download/v0.1.19/app-release.apk`。✅
 - [ ] 事项：继续扩展史论同步；当前 `239/239` 事件、`742/912` 史论主题、错误 `7`；下一步：本轮完成后自动重试失败项，达到 `912/912` 且错误 `0` 后再导出最终 Android assets。⏳
+
+### 2026-08-04 04:53 Asia/Shanghai
+
+- [x] 事项：完成扩展史论同步和失败重试；命令：`EXTENDED_MIN_INTERVAL=5 ./scripts/resume_extended_crawler.sh`；结果：事件 `239/239`、史论 `912/912`、错误 `0`；数据库扩展正文为纪事本末 `14,176`、读通鉴论 `2,961`。✅
+- [x] 事项：导出并校验最终 Android assets；命令：`PYTHONPATH=service .venv/bin/python -m app.export_android`、资产 JSON/NDJSON 校验；结果：正文 `48,126`、目录 `565/2,556`、百科 `61,696`，三类正文 ID 唯一、必填字段完整；Python 测试 `34 passed`，严格资治通鉴校验通过。✅
+- [ ] 事项：构建并发布 `0.1.20`；下一步：运行 Android test/lint/Debug/Inspection/Release，提交和 push 全部源码/资产/checkpoint，再创建 GitHub Release。⏳
+
+### 2026-08-04 05:15 Asia/Shanghai
+
+- [x] 事项：移除“决策卡”；结果：详情页入口、卡片状态、策略选项和本地生成逻辑全部删除，百科中的原始“决策”关联数据保留。✅
+- [x] 事项：修复短正文和段号噪声；命令：`app.normalize_tongjian_content`、`app.export_android`；结果：扫描 `48,126` 条正文，实际清理带段号的 `29,757` 条（通鉴 `21,600`、扩展正文 `8,156`、兼容旧首条 `1`），最终资源 `48,126` 条、数字前缀 `0`；最短真实正文为“蝗。”、“旱。”等原书单句纪事。✅
+- [x] 事项：修复正文词与注释无关；结果：移除注释偏移量下划线/点击绑定，正文只保留真实地点和用户划线标记，注释通过独立“来源注释”区查看。✅
+- [x] 事项：数据与服务测试；命令：`PYTHONPATH=service .venv/bin/pytest -q service/tests`、`validate_tongjian --strict`；结果：`34 passed`，通鉴 `30,989/294/1,405`、失败 `0`、空纪年 `0`。✅
+- [ ] 事项：构建并发布 `0.1.20`；构建已完成，下一步：提交并 push，再上传 GitHub Release。⏳
+
+### 2026-08-04 05:22 Asia/Shanghai
+
+- [x] 事项：完成 `0.1.20` Android 构建；命令：`./gradlew --no-daemon :app:testDebugUnitTest :app:lintDebug :app:assembleDebug :app:assembleInspection :app:assembleRelease`；结果：`BUILD SUCCESSFUL`，耗时 `4m18s`，版本 `17/0.1.20`；仅有既有 `ClickableText` 弃用警告。✅
+- [x] 事项：验收三种 APK；结果：Release v2 签名通过，正式证书 SHA-256 `0bd6d2260b1da032d761c16e7d31fee2767c80362295353e3f7ea10ebd111c57`；Debug `117,444,390` bytes / `142fa2c86b95d69120e9aa60c1b92ae91da6bc5311bf82930297cc108dbbf9d2`，Inspection `95,548,775` bytes / `29b07b151e6251877e0aca08db7c5767a5a1dd64f3b56cf25b1dd06a156e5571`，Release `95,548,775` bytes / `f8a77487d723ff60530d77ad96b609af2b6b1d7ac34b81803db8cc8d858e1373`；三者均含正文 `48,126`、数字前缀 `0`、目录 `565/2,556`、百科 `61,696`。✅
+- [x] 事项：记录最终资产哈希；结果：`offline_content.ndjson.gz`=`440dbee3354986955a10220161c8a061a6a5be30fc4cb18eb3dccec7c542e091`，`offline_catalog.json`=`cf8d56bc563c72bd001343f1ced6acc93974f4e40f863bcd8d06c668162970b1`，`offline_knowledge.json`=`fa1bbc67c05c0cc00c4dfbbcfe8322f45f28bd5ba73a5ea15d2b543f9b20ec45`。✅
+- [ ] 事项：提交并发布 `0.1.20`；下一步：将全部源码、Android assets、checkpoint 和状态文档 commit/push，再创建 GitHub Release 并核验下载。⏳
 
 ## 记录协议
 

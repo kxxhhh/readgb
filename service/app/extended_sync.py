@@ -9,6 +9,7 @@ from typing import Any
 from urllib.parse import urlencode
 
 from .crawler import RobotsAwareFetcher
+from .content_normalization import normalize_tongjian_item
 from .models import Item, ReadingYear, Volume
 from .store import ContentStore
 
@@ -101,7 +102,7 @@ def _event_records(base_url: str, event_name: str, order: int, payload: dict[str
         path = _clean(paragraph.get("path"))
         item_id = "tongjian-jishi-001" if order == 1 and index == 1 else _stable_id("jishi-item", event_name, str(index), _clean(paragraph.get("tongjian_id")))
         source = _source_url(base_url, EVENT_CONTENT, {"event_name": event_name})
-        items.append(Item(
+        items.append(normalize_tongjian_item(Item(
             id=item_id,
             title=f"{event_name} · 第{index}段",
             category="通鉴纪事本末",
@@ -117,7 +118,7 @@ def _event_records(base_url: str, event_name: str, order: int, payload: dict[str
             translation=translation or original,
             notes=json.dumps({"event_name": event_name, "path": path}, ensure_ascii=False),
             tags=("事件", event_name),
-        ))
+        )))
     return volume, year, items
 
 
@@ -141,7 +142,7 @@ def _comment_records(base_url: str, juan: dict[str, Any], emperor: dict[str, Any
         translation = _clean(paragraph.get("fanyi"))
         item_id = "dutongjian-lun-001" if order == 1 and index == 1 else _stable_id("lun-item", juan_name, emperor_name, topic_name, str(index), _clean(paragraph.get("tongjian_id")))
         source = _source_url(base_url, COMMENT_CONTENT, {"topic_tongjian_id": topic_name})
-        items.append(Item(
+        items.append(normalize_tongjian_item(Item(
             id=item_id,
             title=f"{topic_name} · 第{index}段",
             category="读通鉴论",
@@ -157,7 +158,7 @@ def _comment_records(base_url: str, juan: dict[str, Any], emperor: dict[str, Any
             translation=translation or original,
             notes=json.dumps({"juan": juan_name, "emperor": emperor_name, "topic": topic_name}, ensure_ascii=False),
             tags=("史论", emperor_name, topic_name),
-        ))
+        )))
     return volume, year, items
 
 

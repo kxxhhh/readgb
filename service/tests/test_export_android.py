@@ -31,8 +31,9 @@ def test_export_android_requires_verified_full_count_and_writes_ndjson(tmp_path)
                 updated_at="2026-08-02",
                 volume_id="juan-1",
                 year_id="reign-1",
-                original="原文",
+                original="1原文",
                 translation="译文",
+                notes=json.dumps({"ExtRef_Children_hu_notes": [{"start_index": 3, "note_content_jianti_auto": "注"}]}),
             )
         ]
     )
@@ -41,7 +42,11 @@ def test_export_android_requires_verified_full_count_and_writes_ndjson(tmp_path)
     assert export_content(database, output, expected_count=1) == 1
 
     with gzip.open(output, "rt", encoding="utf-8") as stream:
-        assert json.loads(stream.readline())["id"] == "zztj-content-1"
+        record = json.loads(stream.readline())
+        assert record["id"] == "zztj-content-1"
+        assert record["content"] == "正文"
+        assert record["original"] == "原文"
+        assert record["notes"] == json.dumps({"ExtRef_Children_hu_notes": [{"start_index": 2, "note_content_jianti_auto": "注"}]}, ensure_ascii=False, separators=(",", ":"))
 
 
 def test_export_android_rejects_incomplete_item_without_replacing_output(tmp_path):

@@ -25,26 +25,6 @@ class HistoricalContextTest {
     }
 
     @Test
-    fun createsLocalDecisionChoicesWhenSourceHasNoDecisionRelation() {
-        val options = localDecisionOptions(
-            item = com.dutongjian.app.domain.model.ReadingItem(
-                id = "item",
-                title = "事件",
-                category = "资治通鉴",
-                dynasty = "汉纪",
-                summary = "摘要",
-                content = "正文",
-                sourceUrl = "https://example.com/item",
-                updatedAt = "2026-08-02",
-            ),
-            context = HistoricalContext(people = listOf("霍光")),
-        )
-
-        assertEquals(3, options.size)
-        assertTrue(options.any { it.title == "先观其变" })
-    }
-
-    @Test
     fun formatsNestedHuNotesAsReadableEntries() {
         val notes = formatHistoricalNotes(
             """

@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 from typing import Iterable
 
+from .content_normalization import normalize_tongjian_item
 from .models import Item, KnowledgeEntry
 from .store import ContentStore
 
@@ -23,14 +24,7 @@ def export_content(database: str | Path, output: str | Path, *, expected_count: 
     if len(tongjian_items) != expected_count:
         raise ValueError(f"refusing Android export: expected {expected_count} real items, found {len(tongjian_items)}")
     _validate_content(items)
-    destination = Path(output)
-    temporary = destination.with_suffix(destination.suffix + ".tmp")
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    with gzip.open(temporary, "wt", encoding="utf-8", compresslevel=9) as stream:
-        for item in items:
-            stream.write(json.dumps(item.to_dict(), ensure_ascii=False, separators=(",", ":")))
-            stream.write("\n")
-    temporary.replace(destination)
+    _write_content(items, output)
     return len(items)
 
 
@@ -83,7 +77,8 @@ def _write_content(items: Iterable[Item], output: str | Path) -> None:
     destination.parent.mkdir(parents=True, exist_ok=True)
     with gzip.open(temporary, "wt", encoding="utf-8", compresslevel=9) as stream:
         for item in items:
-            stream.write(json.dumps(item.to_dict(), ensure_ascii=False, separators=(",", ":")))
+            normalized = normalize_tongjian_item(item)
+            stream.write(json.dumps(normalized.to_dict(), ensure_ascii=False, separators=(",", ":")))
             stream.write("\n")
     temporary.replace(destination)
 

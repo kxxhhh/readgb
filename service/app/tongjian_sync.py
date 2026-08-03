@@ -20,6 +20,7 @@ from urllib.parse import urlencode, urljoin
 from urllib.request import Request, urlopen
 from urllib.robotparser import RobotFileParser
 
+from .content_normalization import normalize_tongjian_item
 from .models import Item, ReadingYear, Volume
 from .store import ContentStore
 
@@ -229,25 +230,24 @@ def parse_reign_items(payload: dict[str, Any], ref: ReignRef, source_url: str) -
         display = _strip_paragraph_number(simplified)
         title = _title(display, ref, raw.get("number") or index)
         tags = _tags(raw)
-        items.append(
-            Item(
-                id=f"zztj-{content_id}",
-                title=title,
-                category="资治通鉴",
-                dynasty=ref.ji,
-                summary=display[:160],
-                content=simplified,
-                source_url=source_url,
-                updated_at=fetched_at,
-                section="资治通鉴",
-                volume_id=ref.juan_id,
-                year_id=ref.reign_id,
-                original=original,
-                translation=translation,
-                notes=json.dumps(raw, ensure_ascii=False, separators=(",", ":")),
-                tags=tags,
-            )
+        item = Item(
+            id=f"zztj-{content_id}",
+            title=title,
+            category="资治通鉴",
+            dynasty=ref.ji,
+            summary=display[:160],
+            content=simplified,
+            source_url=source_url,
+            updated_at=fetched_at,
+            section="资治通鉴",
+            volume_id=ref.juan_id,
+            year_id=ref.reign_id,
+            original=original,
+            translation=translation,
+            notes=json.dumps(raw, ensure_ascii=False, separators=(",", ":")),
+            tags=tags,
         )
+        items.append(normalize_tongjian_item(item))
     return items
 
 

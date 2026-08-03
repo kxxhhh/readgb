@@ -1126,10 +1126,8 @@ private fun DetailScreen(
     var showHistoricalNotes by rememberSaveable(item.id) { mutableStateOf(false) }
     var showGlossary by rememberSaveable(item.id) { mutableStateOf(false) }
     var showSandbox by rememberSaveable { mutableStateOf(false) }
-    var showDecisionCard by rememberSaveable { mutableStateOf(false) }
     var showOriginalEdition by rememberSaveable { mutableStateOf(false) }
     var roleFollowUp by rememberSaveable(aiState.resultId) { mutableStateOf("") }
-    var selectedDecision by rememberSaveable(item.id) { androidx.compose.runtime.mutableIntStateOf(0) }
     var selectedPlace by remember { mutableStateOf<HistoricalPlace?>(null) }
     var showMap by rememberSaveable(item.id) { mutableStateOf(false) }
     var showNoteEditor by rememberSaveable(item.id) { mutableStateOf(false) }
@@ -1176,7 +1174,6 @@ private fun DetailScreen(
         }
     }
     val localContext = parseHistoricalContext(item.notes)
-    val decisionOptions = localDecisionOptions(item, localContext)
     val currentText = when (mode) {
         ReadingMode.PARALLEL -> "原文\n$displayOriginal\n\n白话\n$displayTranslation"
         ReadingMode.ORIGINAL -> displayOriginal
@@ -1393,13 +1390,6 @@ private fun DetailScreen(
             }
             items(visibleSegments, key = { segment -> "${item.id}-sentence-${segment.index}" }) { segment ->
                 val originalSegment = originalSegments.getOrNull(segment.index)
-                val segmentNotes = if (mode == ReadingMode.TRANSLATION || originalSegment == null) {
-                    emptyList()
-                } else {
-                    historicalNotes
-                        .filter { it.position in originalSegment.start until originalSegment.end }
-                        .map { it.copy(position = it.position - originalSegment.start) }
-                }
                 val segmentSavedNotes = if (mode == ReadingMode.TRANSLATION || originalSegment == null) {
                     emptyList()
                 } else {
@@ -1444,14 +1434,12 @@ private fun DetailScreen(
                                 ReadingAnnotatedText(
                                     text = segment.text,
                                     places = places,
-                                    historicalNotes = segmentNotes,
                                     savedNotes = segmentSavedNotes,
                                     fontSize = bodyFontSize,
                                     lineHeight = bodyLineHeight,
                                     highlightedSavedNoteId = highlightedSavedNoteId,
                                     onPlaceClick = { place -> selectedPlace = place },
                                     onSavedNoteClick = { note -> notePendingDeletion = note },
-                                    onHistoricalNoteClick = { note -> selectedHistoricalNote = note },
                                     modifier = Modifier.fillMaxWidth(),
                                 )
                             }
@@ -1522,18 +1510,6 @@ private fun DetailScreen(
                     ContextSection("关键人物", localContext.people)
                     ContextSection("相关地点", localContext.places)
                     ContextSection("官职与军政", localContext.officials)
-                }
-            }
-            if (showDecisionCard) {
-                item {
-                    Text("决策卡", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Text("选择一个策略，查看它对应的史料阅读角度。", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(decisionOptions.indices.toList()) { index ->
-                            FilterChip(selected = selectedDecision == index, onClick = { selectedDecision = index }, label = { Text(decisionOptions[index].title) })
-                        }
-                    }
-                    Text(decisionOptions[selectedDecision.coerceIn(decisionOptions.indices)].detail, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
             if (savedNotes.isNotEmpty()) {
@@ -1703,7 +1679,6 @@ private fun DetailScreen(
                     Text("深度工具", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         item { AssistChip(onClick = { showSandbox = !showSandbox; showTools = false }, label = { Text(if (showSandbox) "收起沙盘" else "沙盘态势") }) }
-                        item { AssistChip(onClick = { showDecisionCard = !showDecisionCard; showTools = false }, label = { Text(if (showDecisionCard) "收起决策" else "决策卡") }) }
                         item { AssistChip(onClick = { showOriginalEdition = !showOriginalEdition; showTools = false }, label = { Text(if (showOriginalEdition) "收起底本" else "原始底本") }) }
                     }
                 }
@@ -1731,7 +1706,7 @@ private fun DetailScreen(
             title = { Text("原文注释") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("原文位置 ${note.position}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                    Text("来源注释", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
                     Text(note.text, style = MaterialTheme.typography.bodyLarge, lineHeight = 26.sp)
                     val links = (note.people + note.places).distinct()
                     if (links.isNotEmpty()) {
@@ -2005,8 +1980,8 @@ private fun SettingsScreen(
             }
             item {
                 SettingsGroup(title = "数据与隐私", description = "内容和阅读记录的存储边界清晰可见。") {
-                    SettingsInfoRow(Icons.Default.Storage, "离线内容", "46,110 篇正文 · 544 卷 · 1,985 纪年")
-                    SettingsInfoRow(Icons.AutoMirrored.Filled.MenuBook, "专题内容", "纪事本末 239 个事件 · 读通鉴论 341 个主题")
+                    SettingsInfoRow(Icons.Default.Storage, "离线内容", "48,126 篇正文 · 565 卷 · 2,556 纪年")
+                    SettingsInfoRow(Icons.AutoMirrored.Filled.MenuBook, "专题内容", "纪事本末 239 个事件 · 读通鉴论 912 个主题")
                     SettingsInfoRow(Icons.Default.Lock, "本地隐私", "阅读记录只保存在本机；API Key 使用 Android Keystore 加密")
                 }
             }

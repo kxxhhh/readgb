@@ -56,8 +56,9 @@ def _reign():
                     "note_content": "此溫公書法所由始也。",
                     "note_content_jianti_auto": "此温公书法所由始也。",
                     "ExtRef_Children_topics": [{"title": "三家分晋"}],
-                    "ExtRef_Children_people": [{"people_name_jianti_auto": "魏斯"}],
+                    "ExtRef_Children_people": [{"people_name_jianti_auto": "魏斯", "start_index": 7}],
                     "ExtRef_Children_places": [{"place_name_jianti_auto": "晋"}],
+                    "ExtRef_Children_hu_notes": [{"start_index": 8, "note_content_jianti_auto": "三家分晋之始。"}],
                 }
             ],
         }
@@ -91,11 +92,13 @@ def test_sync_imports_catalog_and_preserves_full_public_payload(tmp_path):
     assert store.years("juan-1")[0].year_int == -403
     item = store.get_item("zztj-content-1")
     assert item is not None
-    assert item.original.startswith("1初命晉大夫")
-    assert item.content.startswith("1初命晋大夫")
+    assert item.original == "初命晉大夫魏斯、趙籍、韓虔爲諸侯。"
+    assert item.content == "初命晋大夫魏斯、赵籍、韩虔为诸侯。"
     assert item.translation.startswith("周威烈王姬午")
     notes = json.loads(item.notes)
     assert notes["note_content"] == "此溫公書法所由始也。"
+    assert notes["ExtRef_Children_people"][0]["start_index"] == 6
+    assert notes["ExtRef_Children_hu_notes"][0]["start_index"] == 7
     assert "魏斯" in item.tags
     assert "三家分晋" in item.tags
 
