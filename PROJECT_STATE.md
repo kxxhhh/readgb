@@ -33,7 +33,7 @@
 - [x] 新同步直接使用 service/data/dutongjian.db、service/data/tongjian-cache/ 和 service/data/tongjian-progress.json。✅
 - [x] 同步器增加 4 个有界 worker、全局请求节奏和共享 Retry-After 冷却。✅
 - [x] 单纪年失败时继续收集其他任务，并把 failed_reign_ids/last_errors 写入 checkpoint。✅
-- [ ] 从当前 checkpoint 42/1405 继续同步剩余 1,363 个纪年。
+- [ ] 从当前 checkpoint 56/1405 继续同步剩余 1,349 个纪年。
 - [ ] 校验 30,989 条正文的 ID、原文、简体、译文、关联字段、卷和纪年层级。
 - [ ] 同步完成后清理残留演示 seed，并生成最终 Android assets。
 
@@ -63,20 +63,20 @@
 - [x] 运行 scripts/install_crawler_service.sh；当前容器没有 systemd PID 1，但 unit 和 enable 链接已写入，宿主机启动时接管。✅
 - [x] 将 README.md、DOCS.md、plugin.md、guide.txt 和 docs/site-analysis.md 按当前实现重写。✅
 - [x] 将本文件和旧状态归档合并为“任务清单 + 恢复日志”方案。✅
-- [ ] 本轮验证结束后提交并推送。
+- [x] 本轮功能、文档和部署变更已提交并推送到 origin/main，commit fca5c11。✅
 
 ## 当前同步快照
 
-记录时间：2026-08-03 09:10
+记录时间：2026-08-03 09:16
 
-- 同步进程：scripts/resume_crawler.sh 正在运行，PID 136988。
-- checkpoint：42/1405，failed_reign_ids 为 0。
-- 新正文：143 条 zztj-*。
-- 原始纪年 cache：53 个 JSON。
-- 最近 checkpoint 更新时间：2026-08-03 09:10:14 +0800。
+- 同步进程：scripts/resume_crawler.sh 正在运行。
+- checkpoint：56/1405，failed_reign_ids 为 2。
+- 新正文：188 条 zztj-*。
+- 原始纪年 cache：58 个 JSON。
+- 最近 checkpoint 更新时间：2026-08-03 09:15:20 +0800。
 - 上一轮实际表现：约 30 分钟没有 checkpoint 增长；缓存仍每分钟变化，进程线程处于 Retry-After/网络等待，不能算加速。
 - 原因判断：4 个 worker 同时遭遇服务端 429/Retry-After，旧实现对 future 异常处理不足，可能在等待线程池收尾时使 checkpoint 停止。
-- 修复状态：已加入共享服务端退避窗口、逐任务异常记录和非零失败退出；缓存阶段已从 9/1405 快速推进到 34/1405，未缓存部分遵守站点退避。
+- 修复状态：已加入共享服务端退避窗口、逐任务异常记录和非零失败退出；缓存阶段已从 9/1405 快速推进到 34/1405，未缓存部分遵守站点退避。当前 2 个纪年因 HTTP 429 失败，已写入 checkpoint，下一轮会重试。
 
 ## 数据路径约定
 
@@ -154,6 +154,11 @@ respect_robots=true
 - 使用 scripts/resume_crawler.sh 从 9/1405 恢复；缓存阶段约 25 秒推进到 34/1405，随后继续按站点退避请求。✅
 - 当前 checkpoint 42/1405，143 条正文，53 个 cache，0 个失败；同步进程保持运行。✅
 - Android testDebugUnitTest、lintDebug、assembleDebug、assembleRelease 全部通过。✅
+
+### 2026-08-03 09:16
+
+- 同步继续到 56/1405、188 条正文、58 个 cache；2 个纪年返回 HTTP 429，失败 ID 和错误已写入 checkpoint，未丢失已完成数据。✅
+- 功能与文档提交 fca5c11 已推送 origin/main；本状态补记待随后提交。✅
 
 ### 2026-08-03 08:24
 
