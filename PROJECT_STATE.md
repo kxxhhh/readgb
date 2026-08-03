@@ -26,17 +26,48 @@ jq '{total_reigns, completed: (.completed_reign_ids | length), failed: (.failed_
 - [x] 公开同步目标已确认：294 卷、1,405 个纪年节点、30,989 条正文；公开入口为 /api/table_of_contents 和 /api/reign。✅
 - [x] 旧导入内容清理前快照保存在 service/data/resync-archive-20260803/；新同步数据只写入 service/data/。✅
 - [x] 同步器使用受控多线程：4 个 worker、全局请求节奏、robots 检查、缓存、Retry-After、退避、去重和原子 checkpoint。✅
-- [x] 本轮从当前项目内空数据状态启动后已转为独立 session 续跑；21:45 观察到 checkpoint `1069/1405`、失败 `0`、数据库 `17,900` 条真实 `zztj-*` 正文。运行使用 4 worker、5 秒请求间隔和 robots 检查。✅
-- [ ] 同步仍未完成，当前 checkpoint `76.01%`，不能把数据库或 App 描述为全本。下一步：保持唯一后台进程运行，复用 `service/data/tongjian-progress.json`、`service/data/tongjian-cache/` 和 `service/data/dutongjian.db` 执行 `./scripts/resume_crawler.sh`；不使用 `--reset`。
+- [x] 本轮从当前项目内空数据状态启动后已转为独立 session 续跑；22:07 观察到 checkpoint `1216/1405`、失败 `0`、数据库 `23,704` 条真实 `zztj-*` 正文。运行使用 4 worker、5 秒请求间隔和 robots 检查。✅
+- [ ] 同步仍未完成，当前 checkpoint `86.55%`，不能把数据库或 App 描述为全本。下一步：保持唯一后台进程运行，复用 `service/data/tongjian-progress.json`、`service/data/tongjian-cache/` 和 `service/data/dutongjian.db` 执行 `./scripts/resume_crawler.sh`；不使用 `--reset`。
 - [ ] 新的正文、目录、百科 Android assets 尚未由本轮全量同步导出；导出前必须通过 `service/app/validate_tongjian.py --strict` 的 `30,989/294/1,405` 完整性校验。
 - [x] Android 图表代码已改为按纪年/纪·朝代覆盖全部分组，并把人物图谱改为全人物索引 + 中心人物下钻；Kotlin 编译、测试和 lint 已通过。✅
 - [x] 研读页新增正文/纪年/卷三项真实 `zztj-*` 覆盖率卡片，不把 OfflineSeed 计入数据覆盖。✅
 
 ### 当前同步速度判断
 
-本轮于 2026-08-03 14:57 左右从空 checkpoint 启动；21:45 观察到 `1069/1405` 个纪年、`17,900` 条真实正文、失败 `0`。当前阶段没有新的失败，仍继续使用 5 秒请求间隔、4 worker 和服务端 Retry-After；4 worker 不用于绕过限流。该结论只表示已观察窗口，不代表同步已完成。
+本轮于 2026-08-03 14:57 左右从空 checkpoint 启动；22:07 观察到 `1216/1405` 个纪年、`23,704` 条真实正文、失败 `0`。当前阶段没有新的失败，仍继续使用 5 秒请求间隔、4 worker 和服务端 Retry-After；4 worker 不用于绕过限流。该结论只表示已观察窗口，不代表同步已完成。
 
 ## 当前任务清单
+
+### 本轮完成与后续同步清单（2026-08-03 22:07 Asia/Shanghai）
+
+已完成并已 push：
+
+- [x] 逐份阅读 Git 跟踪的 Markdown/TXT 文档、历史归档和项目要求，区分当前事实、阶段性数据与未完成项。✅
+- [x] 配置并验证 Python 虚拟环境、OpenJDK 21、Gradle、Android SDK/API 35、Build Tools、platform-tools；记录无 KVM/VMX/SVM 的设备限制。✅
+- [x] 恢复公开 API 断点爬虫，固定项目内数据库/cache/checkpoint 路径，启用 robots、Retry-After、5 秒全局节奏、4 worker、去重和锁；阶段性内容快照已推送。✅
+- [x] 增加 `validate_tongjian` 严格数据报告和研读覆盖率卡片；Backend/Android 测试、lint 和 Debug 构建已通过。✅
+- [x] 增加 Release 签名与 gh release workflow 骨架；没有生产 keystore，因此未宣称真实签名发布完成。✅
+- [x] 增加 AI 结果 Room 持久化、迁移、保存/删除/重开和 JVM 测试；覆盖反事实/角色等任务的结果记录。✅
+- [x] 增加百科导出五类关联、非空字段、去重闸门，以及 `scripts/finalize_tongjian.sh` 全量收尾流程；持锁拒绝并发已验证。✅
+
+正在进行：
+
+- [ ] 公开 API 全量同步：当前 `1216/1405`、真实正文 `23704`、失败 `0`，PID `9878`；恢复：保持唯一进程运行并复用原 checkpoint/cache。
+
+接下来按顺序执行：
+
+- [ ] 原进程结束后运行最新版 `./scripts/resume_crawler.sh`，复核已完成但无真实正文的纪年。
+- [ ] 运行 `validate_tongjian --strict`，确认 `30989/294/1405`、零空纪年、零字段/层级/关联错误。
+- [ ] 运行 `./scripts/finalize_tongjian.sh`，生成并核对 `offline_content.ndjson.gz`、`offline_catalog.json`、`offline_knowledge.json` 和最终压缩快照。
+- [ ] 用全量 assets 重跑 Android JVM test、lint、Debug/Inspection/Release 构建，核对资产数量和 SHA-256。
+- [ ] 更新当前数量、快照哈希和 APK 产物记录，提交并 push 全量资产与爬取快照。
+
+仍未完成或有外部阻塞：
+
+- [ ] 全本规模图表滚动、文字截断、节点重叠、关系准确性、搜索性能和真实设备验收；当前容器无 KVM/实体设备。
+- [ ] AI 兼容服务真实请求/错误/超时验收，语法选中文本高亮，反事实结构化上下文，历史角色事实约束/多轮会话。
+- [ ] 历史上的今天可信月日映射、Edge-TTS 真实端点音频、战役地图/兵力/粮道沙盘；缺少可信数据或端点。
+- [ ] Codespace/Actions 生产 keystore 签名和 gh release 演练；当前只有 gh 登录，没有生产签名凭据。
 
 ### 阅读界面与研读图表
 
@@ -53,7 +84,7 @@ jq '{total_reigns, completed: (.completed_reign_ids | length), failed: (.failed_
 - [x] TongjianSync 使用 ThreadPoolExecutor 并发获取未完成纪年，主线程顺序入库并逐纪年写 checkpoint。✅
 - [x] 单个纪年的网络、解析或入库异常会写入 failed_reign_ids/last_errors，不会中断其他已完成 future。✅
 - [x] scripts/resume_crawler.sh 固定使用 4 worker、5 秒最小请求间隔和 robots 检查；当前 PID 9878 持有同步锁运行，源代码已增加 1,405/294 规模门槛。✅
-- [ ] 继续观察恢复后的稳定吞吐和失败率；当前已观察到 `1069` 个纪年、失败 `0`，仍需保持到任务结束；若出现 429，只遵守 Retry-After，不盲目增加并发。
+- [ ] 继续观察恢复后的稳定吞吐和失败率；当前已观察到 `1216` 个纪年、失败 `0`，仍需保持到任务结束；若出现 429，只遵守 Retry-After，不盲目增加并发。
 - [ ] 完成 1,405 个纪年后执行全量正文、目录、关联字段校验并导出 Android assets。
 
 ### 数据校验与覆盖看板
@@ -157,6 +188,11 @@ android/app/src/main/assets/            校验后的 APK 资产
 - [x] 事项：排除本机模拟器状态。结果：`.android-avd/` 已加入 `.gitignore`，不进入源码或远程仓库。✅
 - [x] 事项：增加全量收尾脚本。命令：`bash -n scripts/finalize_tongjian.sh`、在 PID `9878` 持锁期间执行脚本；结果：脚本通过语法检查，并以退出码 `2` 拒绝并发收尾；路径：`scripts/finalize_tongjian.sh`、`README.md`、`DOCS.md`。✅
 - [ ] 事项：继续公开 API 同步；结果：PID `9878`，checkpoint `1069/1405`，真实正文 `17,900`，失败 `0`；下一步：完成同步后执行严格校验、资产导出、Android 全量构建和快照推送。
+
+### 2026-08-03 22:07 Asia/Shanghai
+
+- [x] 事项：按用户要求整理完成项、进行中任务、后续动作和外部阻塞；结果：已写入“本轮完成与后续同步清单”，并同步当前 `1216/1405`、`23,704` 条正文、失败 `0`。✅
+- [ ] 事项：继续公开 API 同步；结果：PID `9878`，checkpoint `1216/1405`，失败 `0`；下一步：保持原 cache/checkpoint，完成后运行最新版恢复、严格校验、全量收尾和 push。
 
 ## 记录协议
 

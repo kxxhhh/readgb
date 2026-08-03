@@ -13,7 +13,7 @@
 ## P0：离线底座
 
 - [x] Room/SQLite 保存正文、收藏、最近阅读、笔记和本地状态；ItemDao 提供 FTS 搜索入口。✅
-- [ ] 完整 30,989 条正文、294 卷、1,405 纪年进入 APK。当前 checkpoint `1069/1405`、真实正文 `17,900`，下一步：严格校验通过后导出并从 APK 复核。
+- [ ] 完整 30,989 条正文、294 卷、1,405 纪年进入 APK。当前 checkpoint `1216/1405`、真实正文 `23,704`，下一步：严格校验通过后导出并从 APK 复核。
 - [x] 正文保留 original、translation、notes、tags、volume_id、year_id 和 source_url；导入失败不覆盖已有 Room 数据。✅
 - [x] 本地字形映射表和古籍字词提示表放入 android/app/src/main/assets/，应用启动时加载。✅
 - [ ] 全量人物、地点、官职、专题、决策百科资产。`export_android` 已在全量导出时强制检查五类关联、非空字段和去重，下一步：同步完成后运行收尾脚本并从 APK 复核。

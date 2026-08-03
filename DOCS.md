@@ -60,7 +60,7 @@ ReadingRepositoryImpl 的顺序如下：
 4. 导入时按 ID 保留本地 isFavorite 和 lastOpenedAt。
 5. 目录从 offline_catalog.json 读取；百科从 offline_knowledge.json 读取；缺资产时才回退种子。
 
-截至 2026-08-03 21:45，新一轮同步 checkpoint 为 `1069/1405`，真实正文 `17,900` 条；因此 `offline_content.ndjson.gz`、`offline_catalog.json`、`offline_knowledge.json` 尚未按本轮全量数据重新生成。`classical_char_map.json` 和 `classical_glossary.json` 是独立的本地静态资源，当前已经在 assets 中。
+截至 2026-08-03 22:07，新一轮同步 checkpoint 为 `1216/1405`，真实正文 `23,704` 条；因此 `offline_content.ndjson.gz`、`offline_catalog.json`、`offline_knowledge.json` 尚未按本轮全量数据重新生成。`classical_char_map.json` 和 `classical_glossary.json` 是独立的本地静态资源，当前已经在 assets 中。
 
 ### 3.2 阅读详情页
 
@@ -311,7 +311,7 @@ PROJECT_STATE.md 同时承担项目状态、任务清单和可恢复日志；DEV
 
 这些不是已实现声明，实际清单以 PROJECT_STATE.md 为准：
 
-- [ ] 数据门槛：完成 `1,405/1,405` 纪年并校验 `30,989` 条真实正文、唯一 ID、必填字段、卷/纪年外键、关联 JSON 和零空纪年；当前 `1069/1405`，下一步运行 `app.validate_tongjian --strict`。
+- [ ] 数据门槛：完成 `1,405/1,405` 纪年并校验 `30,989` 条真实正文、唯一 ID、必填字段、卷/纪年外键、关联 JSON 和零空纪年；当前 `1216/1405`，下一步运行 `app.validate_tongjian --strict`。
 - [ ] 离线资产：严格通过数据门槛后生成并导入正文、目录、百科三个 Android assets，再从 APK 内容核对数量和 SHA-256。
 - [ ] 百科和专题：完成全量人物/地点/官职/专题/决策索引，以及典章制度、经济史的可追溯结构化标注。
 - [ ] 研读验收：全本规模下验证图表滚动、节点不重叠、文字不截断、关系准确性、人物/时期覆盖和搜索性能。
