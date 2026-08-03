@@ -173,6 +173,8 @@ respect_robots=True  # CLI 默认
 | service/data/resync-archive-20260803/ | 旧导入内容审计快照 | 否，仅恢复/比对 |
 | android/app/src/main/assets/ | 校验后进入 APK 的最终资产 | 是 |
 
+同步阶段不直接写 Android assets。原始抓取结果先保存在 `service/data/dutongjian.db` 和 `service/data/tongjian-cache/`，断点在 `service/data/tongjian-progress.json`；只有正文、卷和纪年达到目标数量并通过字段校验后，才原子生成 `offline_content.ndjson.gz`、`offline_catalog.json` 和 `offline_knowledge.json`。
+
 .tmp 后缀只用于目标文件同目录的原子替换；它不是 /tmp 文件夹，也不承载独立内容。
 
 宿主机持久化边界：运行环境只保证 `/mnt/workspace` 范围内的数据不会被定期清理，`/mnt/workspace` 之外的内容可能在实例运行一段时间后被清空。当前项目的抓取数据库、JSON cache、checkpoint、锁和日志必须全部位于 `/mnt/workspace/readgb/service/data/`；启动或恢复前先核对项目绝对路径和数据路径。禁止使用 `/tmp`、宿主机其他目录或未确认的相对路径承载新抓取内容。

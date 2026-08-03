@@ -24,6 +24,9 @@ interface ItemDao {
     @Query("SELECT COUNT(*) FROM reading_items WHERE id LIKE 'zztj-%'")
     suspend fun fullContentCount(): Int
 
+    @Query("SELECT * FROM reading_items WHERE id LIKE 'zztj-%' ORDER BY RANDOM() LIMIT 1")
+    suspend fun randomImportedItem(): ItemEntity?
+
     @Query("DELETE FROM reading_items WHERE id LIKE 'zztj-%' OR id LIKE 'zizhi-tongjian-%'")
     suspend fun deleteImportedContent()
 

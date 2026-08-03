@@ -12,6 +12,7 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from pathlib import Path
 from typing import Any, Protocol
 from urllib.error import HTTPError
@@ -169,6 +170,7 @@ def flatten_catalog(payload: dict[str, Any]) -> list[ReignRef]:
     data = payload.get("data") or {}
     juan_list = data.get("juan_list") or []
     result: list[ReignRef] = []
+    seen_reign_ids: set[str] = set()
     for juan_index, juan in enumerate(juan_list, start=1):
         juan_id = str(juan.get("tongjian_id") or "")
         juan_title = str(juan.get("juan") or "").strip()
@@ -181,6 +183,9 @@ def flatten_catalog(payload: dict[str, Any]) -> list[ReignRef]:
                 reign_id = str(reign.get("tongjian_id") or "")
                 if not reign_id:
                     raise ValueError(f"catalog reign missing id in {juan_title}")
+                if reign_id in seen_reign_ids:
+                    raise ValueError(f"catalog contains duplicate reign id {reign_id}")
+                seen_reign_ids.add(reign_id)
                 year_int = reign.get("year_int")
                 result.append(
                     ReignRef(
@@ -203,13 +208,21 @@ def flatten_catalog(payload: dict[str, Any]) -> list[ReignRef]:
 
 def parse_reign_items(payload: dict[str, Any], ref: ReignRef, source_url: str) -> list[Item]:
     data = payload.get("data") or {}
-    contents = data.get("ExtRef_Children_contents") or []
+    contents = data.get("ExtRef_Children_contents")
+    if not isinstance(contents, list) or not contents:
+        raise ValueError(f"reign {ref.reign_id} contains no content records")
     fetched_at = datetime.now(timezone.utc).isoformat()
     items: list[Item] = []
+    seen_content_ids: set[str] = set()
     for index, raw in enumerate(contents, start=1):
         if not isinstance(raw, dict):
-            continue
-        content_id = str(raw.get("tongjian_id") or f"{ref.reign_id}-{index}")
+            raise ValueError(f"reign {ref.reign_id} content {index} is not an object")
+        content_id = str(raw.get("tongjian_id") or f"{ref.reign_id}-{index}").strip()
+        if not content_id:
+            raise ValueError(f"reign {ref.reign_id} content {index} has no id")
+        if content_id in seen_content_ids:
+            raise ValueError(f"reign {ref.reign_id} contains duplicate content id {content_id}")
+        seen_content_ids.add(content_id)
         original = str(raw.get("content") or "")
         simplified = str(raw.get("content_jianti_auto") or original)
         translation = str(raw.get("content_fanyi") or "")
@@ -247,20 +260,34 @@ class TongjianSync:
         checkpoint_path: str | Path = "data/tongjian-progress.json",
         on_progress: Callable[[SyncProgress, ReignRef], None] | None = None,
         workers: int = 1,
+        expected_reigns: int | None = None,
+        expected_volumes: int | None = None,
     ) -> None:
         self.api = api
         self.store = store
         self.checkpoint_path = Path(checkpoint_path)
         self.on_progress = on_progress
         self.workers = max(1, workers)
+        self.expected_reigns = expected_reigns
+        self.expected_volumes = expected_volumes
 
     def run(self) -> SyncProgress:
         catalog = self.api.fetch_catalog()
         refs = flatten_catalog(catalog)
+        if self.expected_reigns is not None and len(refs) != self.expected_reigns:
+            raise RuntimeError(f"catalog contains {len(refs)} reigns; expected {self.expected_reigns} reigns")
+        volume_count = len({ref.juan_id for ref in refs})
+        if self.expected_volumes is not None and volume_count != self.expected_volumes:
+            raise RuntimeError(f"catalog contains {volume_count} volumes; expected {self.expected_volumes} volumes")
         self._upsert_catalog(refs)
         catalog_hash = hashlib.sha256(json.dumps(catalog, ensure_ascii=False, sort_keys=True).encode("utf-8")).hexdigest()
         checkpoint = self._load_checkpoint(catalog_hash)
-        completed = set(checkpoint["completed_reign_ids"])
+        valid_reign_ids = {ref.reign_id for ref in refs}
+        completed = {
+            reign_id
+            for reign_id in checkpoint["completed_reign_ids"]
+            if reign_id in valid_reign_ids and self.store.count_real_items(year_id=reign_id) > 0
+        }
         failures: dict[str, str] = {}
         pending = [ref for ref in refs if ref.reign_id not in completed]
         with concurrent.futures.ThreadPoolExecutor(max_workers=self.workers) as executor:
@@ -280,7 +307,7 @@ class TongjianSync:
                     continue
                 completed.add(ref.reign_id)
                 failures.pop(ref.reign_id, None)
-                progress = SyncProgress(len(refs), len(completed), self.store.count_items(category="资治通鉴"))
+                progress = SyncProgress(len(refs), len(completed), self.store.count_real_items())
                 self._save_checkpoint(catalog_hash, refs, completed, failures)
                 if self.on_progress:
                     self.on_progress(progress, ref)
@@ -291,7 +318,7 @@ class TongjianSync:
         if len(completed) == len(refs):
             self.store.remove_seed_items()
             self.store.remove_seed_catalog()
-        return SyncProgress(len(refs), len(completed), self.store.count_items(category="资治通鉴"))
+        return SyncProgress(len(refs), len(completed), self.store.count_real_items())
 
     def _base_url(self) -> str:
         return str(getattr(self.api, "base_url", "https://www.dutongjian.com")).rstrip("/")
@@ -317,7 +344,12 @@ class TongjianSync:
     def _load_checkpoint(self, catalog_hash: str) -> dict[str, Any]:
         if not self.checkpoint_path.exists():
             return {"catalog_hash": catalog_hash, "completed_reign_ids": []}
-        payload = json.loads(self.checkpoint_path.read_text(encoding="utf-8"))
+        try:
+            payload = json.loads(self.checkpoint_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return {"catalog_hash": catalog_hash, "completed_reign_ids": []}
+        if not isinstance(payload, dict) or not isinstance(payload.get("completed_reign_ids"), list):
+            return {"catalog_hash": catalog_hash, "completed_reign_ids": []}
         if payload.get("catalog_hash") != catalog_hash:
             return {"catalog_hash": catalog_hash, "completed_reign_ids": []}
         return payload
@@ -384,7 +416,15 @@ def _retry_after_seconds(error: HTTPError) -> float:
     try:
         return max(1.0, float(value)) if value else 60.0
     except ValueError:
-        return 60.0
+        if not value:
+            return 60.0
+        try:
+            retry_at = parsedate_to_datetime(value)
+            if retry_at.tzinfo is None:
+                retry_at = retry_at.replace(tzinfo=timezone.utc)
+            return max(1.0, (retry_at - datetime.now(timezone.utc)).total_seconds())
+        except (TypeError, ValueError, OverflowError):
+            return 60.0
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -396,6 +436,8 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--checkpoint", default="data/tongjian-progress.json")
     parser.add_argument("--min-interval", type=float, default=5.0, help="minimum seconds between request starts")
     parser.add_argument("--workers", type=int, default=4, help="bounded concurrent requests")
+    parser.add_argument("--expected-reigns", type=int, default=None, help="refuse catalogs with a different reign count")
+    parser.add_argument("--expected-volumes", type=int, default=None, help="refuse catalogs with a different volume count")
     parser.add_argument("--reset", action="store_true", help="clear old corpus, cache, and checkpoint before syncing")
     parser.add_argument("--respect-robots", action=argparse.BooleanOptionalAction, default=True)
     return parser
@@ -435,6 +477,8 @@ def main() -> int:
             checkpoint_path=checkpoint_path,
             on_progress=report,
             workers=args.workers,
+            expected_reigns=args.expected_reigns,
+            expected_volumes=args.expected_volumes,
         ).run()
     except RuntimeError as error:
         print(f"sync incomplete: {error}", file=sys.stderr)

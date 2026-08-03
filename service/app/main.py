@@ -39,9 +39,12 @@ async def home() -> dict[str, Any]:
     })
 
 
-@app.get("/api/search")
-async def search(q: str = Query(min_length=1, max_length=80), limit: int = Query(default=20, ge=1, le=50)) -> dict[str, Any]:
-    return envelope({"query": q.strip(), "items": item_list(store.list_items(query=q.strip(), limit=limit))})
+@app.get("/api/search", response_model=None)
+async def search(q: str = Query(min_length=1, max_length=80), limit: int = Query(default=20, ge=1, le=50)) -> JSONResponse | dict[str, Any]:
+    query = q.strip()
+    if not query:
+        return JSONResponse(status_code=422, content=envelope(None, "query must not be blank", 422))
+    return envelope({"query": query, "items": item_list(store.list_items(query=query, limit=limit))})
 
 
 @app.get("/api/items")

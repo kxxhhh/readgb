@@ -35,6 +35,14 @@ async def test_search_is_case_insensitive_and_trimmed(client):
 
 
 @pytest.mark.anyio
+async def test_search_rejects_whitespace_only_query(client):
+    response = await client.get("/api/search", params={"q": "  "})
+
+    assert response.status_code == 422
+    assert response.json()["message"] == "query must not be blank"
+
+
+@pytest.mark.anyio
 async def test_detail_returns_uniform_not_found_response(client):
     response = await client.get("/api/detail/missing-item")
 

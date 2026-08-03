@@ -549,7 +549,7 @@ private fun CategoryRow(categories: List<String>, selected: String?, onSelected:
             FilterChip(selected = selected == null, onClick = { onSelected(null) }, label = { Text("全部") })
         }
         items(categories, key = { it }) { category ->
-            FilterChip(selected = selected == category, onClick = { onSelected(category) }, label = { Text(category) })
+            FilterChip(selected = selected == category, onClick = { onSelected(if (selected == category) null else category) }, label = { Text(category) })
         }
     }
 }

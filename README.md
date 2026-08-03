@@ -98,6 +98,8 @@ archive:   service/data/resync-archive-20260803/
 
 同步器默认使用 4 个 worker、5 秒最小请求启动间隔、robots 检查和 Retry-After 共享冷却。cache 命中不发请求；单个纪年网络、解析或入库失败会记录到 failed_reign_ids/last_errors，不丢失其他已完成结果。5 秒间隔是根据目标站点 429 反馈调整的，不能为了提速擅自降低。
 
+爬取期间的数据库、原始 JSON、断点、锁和日志都固定写入 `service/data/`；阶段性数据不会写入 Android assets。恢复脚本还会校验目录规模为 1,405 个纪年和 294 卷，只有通过完整正文/目录校验后才执行资产导出。
+
 查看状态：
 
 ~~~bash
@@ -116,6 +118,8 @@ PYTHONPATH=service python -m app.tongjian_sync \
   --database service/data/dutongjian.db \
   --cache-dir service/data/tongjian-cache \
   --checkpoint service/data/tongjian-progress.json \
+  --expected-reigns 1405 \
+  --expected-volumes 294 \
   --workers 4 \
   --min-interval 5.0 \
   --respect-robots

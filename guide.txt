@@ -105,6 +105,8 @@ Backend：
       --database service/data/dutongjian.db \
       --cache-dir service/data/tongjian-cache \
       --checkpoint service/data/tongjian-progress.json \
+      --expected-reigns 1405 \
+      --expected-volumes 294 \
       --workers 4 \
       --min-interval 5.0 \
       --respect-robots

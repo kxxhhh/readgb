@@ -94,8 +94,8 @@ internal fun TimelineScreen(items: List<ReadingItem>, catalogYears: List<Reading
             )
         }.sortedWith(compareBy<TimelineEvent> { it.yearInt ?: Int.MAX_VALUE }.thenBy(TimelineEvent::sortKey))
     }
-    val yearOptions = remember(events) { events.map(TimelineEvent::yearLabel).distinct().take(24) }
-    val eras = remember(events) { events.map(TimelineEvent::era).distinct().take(24) }
+    val yearOptions = remember(events) { events.map(TimelineEvent::yearLabel).distinct() }
+    val eras = remember(events) { events.map(TimelineEvent::era).distinct() }
     val visible = events.filter { (yearFilter == null || it.yearLabel == yearFilter) && (eraFilter == null || it.era == eraFilter) }
     Column(modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
         Text("历史年表", modifier = Modifier.padding(top = 16.dp), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
@@ -315,11 +315,16 @@ internal fun NotesLibrary(
         LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 20.dp)) {
             items(notes, key = { it.id }) { note ->
                 val item = items.firstOrNull { it.id == note.articleId }
-                Surface(modifier = Modifier.fillMaxWidth().clickable { item?.let { onOpen(it, note) } }, shape = RoundedCornerShape(12.dp), tonalElevation = 2.dp) {
+                Surface(shape = RoundedCornerShape(12.dp), tonalElevation = 2.dp) {
                     Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text(note.selectedText, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                        if (note.memo.isNotBlank()) Text(note.memo)
-                        Text(item?.title ?: "已删除条目", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Column(
+                            modifier = Modifier.fillMaxWidth().clickable { item?.let { onOpen(it, note) } },
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            Text(note.selectedText, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                            if (note.memo.isNotBlank()) Text(note.memo)
+                            Text(item?.title ?: "已删除条目", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
                         TextButton(onClick = { onDelete(note) }) { Text("删除") }
                     }
                 }

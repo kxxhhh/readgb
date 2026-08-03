@@ -36,6 +36,8 @@ exec env PYTHONPATH="$root_dir/service" PYTHONUNBUFFERED=1 "$python_bin" -m app.
     --database "$data_dir/dutongjian.db" \
     --cache-dir "$data_dir/tongjian-cache" \
     --checkpoint "$data_dir/tongjian-progress.json" \
+    --expected-reigns 1405 \
+    --expected-volumes 294 \
     --workers 4 \
     --min-interval 5.0 \
     --respect-robots \

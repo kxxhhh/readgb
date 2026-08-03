@@ -291,6 +291,20 @@ class ContentStore:
         with self._lock, self._connect() as connection:
             return int(connection.execute(sql, values).fetchone()[0])
 
+    def count_real_items(self, year_id: str | None = None) -> int:
+        """Count imported 通鉴 records without bundled seed content."""
+        clauses = ["id LIKE 'zztj-%'", "category = '资治通鉴'"]
+        values: tuple[Any, ...] = ()
+        if year_id:
+            clauses.append("year_id = ?")
+            values = (year_id,)
+        with self._lock, self._connect() as connection:
+            return int(
+                connection.execute(
+                    f"SELECT COUNT(*) FROM items WHERE {' AND '.join(clauses)}", values
+                ).fetchone()[0]
+            )
+
     def remove_seed_items(self, prefix: str = "zizhi-tongjian-") -> None:
         with self._lock, self._connect() as connection:
             connection.execute("DELETE FROM items WHERE id LIKE ?", (f"{prefix}%",))

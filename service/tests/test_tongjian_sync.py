@@ -7,7 +7,7 @@ from urllib.error import HTTPError
 import pytest
 
 from app.store import ContentStore
-from app.tongjian_sync import TongjianApiClient, TongjianSync
+from app.tongjian_sync import ReignRef, TongjianApiClient, TongjianSync, parse_reign_items
 
 
 def _catalog():
@@ -100,6 +100,44 @@ def test_sync_imports_catalog_and_preserves_full_public_payload(tmp_path):
     assert "三家分晋" in item.tags
 
 
+def test_sync_progress_counts_real_records_before_seed_cleanup(tmp_path):
+    progress = []
+
+    TongjianSync(
+        FakeApi(),
+        ContentStore(tmp_path / "tongjian.db"),
+        checkpoint_path=tmp_path / "progress.json",
+        on_progress=lambda current, _ref: progress.append(current),
+    ).run()
+
+    assert progress[-1].content_records == 1
+
+
+def test_sync_rejects_empty_reign_and_keeps_it_out_of_checkpoint(tmp_path):
+    class EmptyApi(FakeApi):
+        def fetch_reign(self, reign_id):
+            payload = _reign()
+            payload["data"]["ExtRef_Children_contents"] = []
+            return payload
+
+    checkpoint = tmp_path / "progress.json"
+    with pytest.raises(RuntimeError, match="reign-1"):
+        TongjianSync(EmptyApi(), ContentStore(tmp_path / "tongjian.db"), checkpoint_path=checkpoint).run()
+
+    saved = json.loads(checkpoint.read_text(encoding="utf-8"))
+    assert saved["completed_reign_ids"] == []
+    assert saved["failed_reign_ids"] == ["reign-1"]
+
+
+def test_parse_reign_rejects_duplicate_content_ids():
+    ref = ReignRef("juan-1", "卷一", "周纪一", 1, "威烈王", "reign-1", "二十三年", "前403", -403, 1)
+    payload = _reign()
+    payload["data"]["ExtRef_Children_contents"].append(payload["data"]["ExtRef_Children_contents"][0])
+
+    with pytest.raises(ValueError, match="duplicate content id"):
+        parse_reign_items(payload, ref, "https://example.com/api/reign")
+
+
 def test_sync_resume_skips_completed_reigns(tmp_path):
     store = ContentStore(tmp_path / "tongjian.db")
     api = FakeApi()
@@ -182,3 +220,13 @@ def test_api_client_respects_retry_after_for_rate_limit(tmp_path):
         client.fetch_catalog()
 
     assert 17.0 in waits
+
+
+def test_sync_rejects_catalog_size_mismatch(tmp_path):
+    with pytest.raises(RuntimeError, match="expected 2 reigns"):
+        TongjianSync(
+            FakeApi(),
+            ContentStore(tmp_path / "tongjian.db"),
+            checkpoint_path=tmp_path / "progress.json",
+            expected_reigns=2,
+        ).run()

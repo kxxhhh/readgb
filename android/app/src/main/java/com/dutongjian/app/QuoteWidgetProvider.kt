@@ -7,11 +7,29 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.widget.RemoteViews
+import com.dutongjian.app.data.local.ItemDao
+import com.dutongjian.app.data.local.toDomain
 import com.dutongjian.app.domain.model.OfflineSeed
+import com.dutongjian.app.domain.model.ReadingItem
+import dagger.hilt.EntryPoint
+import dagger.hilt.InstallIn
+import dagger.hilt.android.EntryPointAccessors
+import dagger.hilt.components.SingletonComponent
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+
+@EntryPoint
+@InstallIn(SingletonComponent::class)
+interface QuoteWidgetEntryPoint {
+    fun itemDao(): ItemDao
+}
 
 class QuoteWidgetProvider : AppWidgetProvider() {
     override fun onUpdate(context: Context, manager: AppWidgetManager, appWidgetIds: IntArray) {
-        appWidgetIds.forEach { update(context, manager, it) }
+        refreshAsync(context, manager, appWidgetIds)
     }
 
     override fun onReceive(context: Context, intent: Intent) {
@@ -19,13 +37,35 @@ class QuoteWidgetProvider : AppWidgetProvider() {
         if (intent.action == ACTION_REFRESH) {
             val manager = AppWidgetManager.getInstance(context)
             val component = ComponentName(context, QuoteWidgetProvider::class.java)
-            manager.getAppWidgetIds(component).forEach { update(context, manager, it) }
+            refreshAsync(context, manager, manager.getAppWidgetIds(component))
         }
     }
 
-    private fun update(context: Context, manager: AppWidgetManager, widgetId: Int) {
+    private fun refreshAsync(context: Context, manager: AppWidgetManager, widgetIds: IntArray) {
+        val pendingResult = goAsync()
+        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+            try {
+                val item = runCatching {
+                    EntryPointAccessors.fromApplication(
+                        context.applicationContext,
+                        QuoteWidgetEntryPoint::class.java,
+                    ).itemDao().randomImportedItem()?.toDomain()
+                }.getOrNull() ?: fallbackItem()
+                withContext(Dispatchers.Main.immediate) {
+                    widgetIds.forEach { widgetId -> update(context, manager, widgetId, item) }
+                }
+            } finally {
+                pendingResult.finish()
+            }
+        }
+    }
+
+    private fun fallbackItem(): ReadingItem? {
         val items = OfflineSeed.items
-        val item = items.getOrNull((java.time.LocalDate.now().dayOfYear - 1).mod(items.size.coerceAtLeast(1)))
+        return items.getOrNull((java.time.LocalDate.now().dayOfYear - 1).mod(items.size.coerceAtLeast(1)))
+    }
+
+    private fun update(context: Context, manager: AppWidgetManager, widgetId: Int, item: ReadingItem?) {
         val views = RemoteViews(context.packageName, R.layout.quote_widget).apply {
             setTextViewText(R.id.widget_title, item?.title ?: "读通鉴")
             setTextViewText(R.id.widget_quote, item?.content?.take(110).orEmpty().ifBlank { "打开读通鉴开始阅读" })

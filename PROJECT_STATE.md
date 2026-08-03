@@ -26,8 +26,8 @@ jq '{total_reigns, completed: (.completed_reign_ids | length), failed: (.failed_
 - [x] 公开同步目标已确认：294 卷、1,405 个纪年节点、30,989 条正文；公开入口为 /api/table_of_contents 和 /api/reign。✅
 - [x] 旧导入内容清理前快照保存在 service/data/resync-archive-20260803/；新同步数据只写入 service/data/。✅
 - [x] 同步器使用受控多线程：4 个 worker、全局请求节奏、robots 检查、缓存、Retry-After、退避、去重和原子 checkpoint。✅
-- [x] 本轮从当前项目内空数据状态启动后已转为独立 session 续跑；最近 checkpoint 观察到 167/1405，失败 19；数据库 737 条真实 zztj-* 正文。运行使用 4 worker、5 秒请求间隔和 robots 检查。✅
-- [ ] 同步仍未完成，当前 checkpoint 约 11.89%，不能把数据库或 App 描述为全本。下一步：保持唯一后台进程运行，必要时复用 `service/data/tongjian-progress.json`、`service/data/tongjian-cache/` 和 `service/data/dutongjian.db` 执行 `./scripts/resume_crawler.sh`；不使用 `--reset`。
+- [x] 本轮从当前项目内空数据状态启动后已转为独立 session 续跑；最近观察到 checkpoint 508/1405，失败 0，数据库 4,152 条真实 zztj-* 正文。运行使用 4 worker、5 秒请求间隔和 robots 检查。✅
+- [ ] 同步仍未完成，当前 checkpoint 约 36.16%，不能把数据库或 App 描述为全本。下一步：保持唯一后台进程运行，必要时复用 `service/data/tongjian-progress.json`、`service/data/tongjian-cache/` 和 `service/data/dutongjian.db` 执行 `./scripts/resume_crawler.sh`；不使用 `--reset`。
 - [ ] 新的正文、目录、百科 Android assets 尚未由本轮全量同步导出；导出前必须通过 30,989/294/1,405 完整性校验。
 - [x] Android 图表代码已改为按纪年/纪·朝代覆盖全部分组，并把人物图谱改为全人物索引 + 中心人物下钻；Kotlin 编译、测试和 lint 已通过。✅
 
@@ -47,17 +47,18 @@ jq '{total_reigns, completed: (.completed_reign_ids | length), failed: (.failed_
 
 ### 多线程同步
 
-- [ ] 本轮目标：从当前项目内空数据状态启动公开 API 同步；路径：`service/data/dutongjian.db`、`service/data/tongjian-cache/`、`service/data/tongjian-progress.json`；恢复：持续使用 `./scripts/resume_crawler.sh`，不使用 `--reset`；下一步：确认目录响应和 checkpoint 后持续观察完成数、失败项与限流情况。
+- [x] 本轮目标：从当前项目内空数据状态启动公开 API 同步；路径：`service/data/dutongjian.db`、`service/data/tongjian-cache/`、`service/data/tongjian-progress.json`；恢复：持续使用 `./scripts/resume_crawler.sh`，不使用 `--reset`；已确认目录为 1,405/294，当前持续抓取。✅
 - [x] 已记录宿主机持久化边界：只保证 `/mnt/workspace` 内的数据可持续保留，抓取数据库、cache、checkpoint、锁和日志固定使用 `/mnt/workspace/readgb/service/data/`；启动前核对绝对路径，不使用 `/tmp` 或其他目录。✅
 - [x] TongjianSync 使用 ThreadPoolExecutor 并发获取未完成纪年，主线程顺序入库并逐纪年写 checkpoint。✅
 - [x] 单个纪年的网络、解析或入库异常会写入 failed_reign_ids/last_errors，不会中断其他已完成 future。✅
-- [x] scripts/resume_crawler.sh 固定使用 4 worker、5 秒最小请求间隔和 robots 检查；当前 PID 13555 已使用新配置运行。✅
+- [x] scripts/resume_crawler.sh 固定使用 4 worker、5 秒最小请求间隔和 robots 检查；当前 PID 9878 持有同步锁运行，源代码已增加 1,405/294 规模门槛。✅
 - [ ] 观察恢复后的稳定吞吐和失败率；若出现 429，只遵守 Retry-After，不盲目增加并发。
 - [ ] 完成 1,405 个纪年后执行全量正文、目录、关联字段校验并导出 Android assets。
 
 ### 构建与验收
 
-- [x] Backend 测试 22 passed、compileall 和 git diff --check。✅
+- [x] Backend 测试 27 passed、compileall、shell 语法检查和 git diff --check。✅
+- [x] 本轮 Android `:app:assembleDebug` 和 `:app:testDebugUnitTest` 均 BUILD SUCCESSFUL；Debug APK 约 20M。✅
 - [x] Android testDebugUnitTest、compileDebugKotlin、lintDebug、Debug/Inspection/Release 构建全部通过；Debug APK 20M，Inspection APK 13M，未签名 Release APK 13M。✅
 - [x] 设备/真机验收不纳入本轮交付；本轮以源码、JVM test、lint、APK 编译和发布产物为验收依据。✅
 - [x] 已记录 APK、数据规模、测试命令和实际警告；未进行模拟器或真机验收。✅
@@ -100,6 +101,13 @@ android/app/src/main/assets/            校验后的 APK 资产
 - [x] 核对本轮爬取产物全部位于项目内 `service/data/`：数据库、原始 JSON cache、checkpoint、失败记录和旧数据审计快照均已落盘；未发现项目外或 `/tmp` 的同类数据。运行时数据库/cache/checkpoint 依照 `.gitignore` 不纳入 Git，push 只提交源码和文档。✅
 - [x] 记录宿主机清理边界：用户确认 `/mnt/workspace` 之外的内容运行一段时间后可能被清空；已将抓取数据固定路径和启动前绝对路径核对要求写入 `README.md`、`DOCS.md`、`guide.txt` 和本文件。✅
 - [x] 功能/文档提交 fca5c11 和状态提交 b35ed9a 已推送 origin/main。✅
+
+### 2026-08-03 20:33 Asia/Shanghai
+
+- [x] 事项：详读项目文档、源码、测试和脚本并恢复开发环境；结果：OpenJDK 21、Gradle 9.4.0、Android API 35、Build Tools 35/36 和 platform-tools 已就绪；路径：`/mnt/workspace/readgb/.android-sdk`、`.gradle`、`.venv`。✅
+- [x] 事项：增强公开同步完整性；结果：真实正文计数排除 3 条 seed，空年号、非对象正文、重复正文 ID、重复纪年 ID、损坏 checkpoint 和目录规模异常均会拒绝或重试；路径：`service/app/tongjian_sync.py`、`service/app/store.py`、`scripts/resume_crawler.sh`。✅
+- [x] 事项：完善客户端/API 交互；结果：年表不再截断前 24 个筛选项，笔记删除按钮与打开正文点击区分离，分类筛选可再次点击清除，空白搜索返回 422；路径：`android/app/src/main/java/com/dutongjian/app/ui/FeatureScreens.kt`、`DutongjianApp.kt`、`service/app/main.py`。✅
+- [ ] 事项：持续公开 API 同步；结果：最近观察 checkpoint `508/1405`、失败 `0`、真实正文 `4,152`；下一步：保持 PID `9878` 完成全量，完成后校验 `30,989/294/1,405` 并导出 Android assets。
 
 ### 2026-08-03 14:59 Asia/Shanghai
 
