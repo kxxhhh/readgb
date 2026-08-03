@@ -1,6 +1,6 @@
 # 读通鉴当前任务清单与恢复日志
 
-更新时间：2026-08-04 06:23（Asia/Shanghai）
+更新时间：2026-08-04 06:39（Asia/Shanghai）
 
 本文件是项目的单一状态源，同时承担项目清单、断点恢复记录和开发日志。PROJECT_STATE_HISTORY.md 只保留旧历史，不作为当前事实来源；DEVELOPMENT_LOG.md 是本文件的合并入口说明，不再单独维护第二套日志。
 
@@ -45,6 +45,7 @@ jq '{total_reigns, completed: (.completed_reign_ids | length), failed: (.failed_
 - [x] 全部抓取正文已清理公开接口段号前缀；数据库迁移和导出校验均确认 `48,126` 条正文的 `content/original` 不再以数字开头，注释偏移同步扣除前缀长度。✅
 - [x] 阅读页已删除“决策卡”及其本地生成逻辑；历史注释不再按不可靠的接口偏移量覆盖正文词语，改为独立“来源注释”列表。✅
 - [x] `0.1.20` 最终完整数据 Release；Android 三种 APK 已完成签名构建、commit/push 和 GitHub Release 上传，Release 正式发布且三项 APK 资产齐全。✅
+- [x] `0.1.21` 已完成签名构建、commit/push 和 GitHub Release；三种 APK 均已上传，正式 Release 使用生产证书并保持 APK 不进项目仓库。✅
 - [x] 正文篇次排序已贯通数据库、API、Android Room、资产导出和离线导入；详情页增加同组上一篇/下一篇和篇目选择器，读完正文无需返回目录。✅
 - [x] 历史角色对话改为先选择两位人物；生成后用户可以直接插话，每轮让两位人物分别回应，角色选择和会话转录保存到 Room。✅
 - [x] 史料沙盘改为可解释的证据视图：展示正文注释、人物、地点、证据链和数据边界；缺少公开兵力/粮道/路线字段时明确标记“未提供”。✅
@@ -318,7 +319,7 @@ android/app/src/main/assets/            校验后的 APK 资产
 - [x] 事项：贯通正文篇次排序和相邻导航；结果：Backend `35 passed`，严格通鉴校验 `30,989/294/1,405`、失败 `0`、空纪年 `0`；离线资源正文 `48,126`、目录 `565/2,556`、百科 `61,696`，全部正文含 `sort_order`。✅
 - [x] 事项：验证双角色对话、用户插话、史料证据沙盘和 Edge-TTS 无声修复；结果：Android JVM test、lint、Debug/Inspection/Release 均 `BUILD SUCCESSFUL`，仅保留既有 `ClickableText` 弃用警告；未进行实体设备音频验收。✅
 - [x] 事项：构建 `0.1.21` 签名产物；结果：version `18/0.1.21`，Release v2 签名证书 SHA-256 `0bd6d2260b1da032d761c16e7d31fee2767c80362295353e3f7ea10ebd111c57`；Debug `117,373,137` bytes / `52aaf6775c8c66074f28b9ab058f938ec646d58a22d9614408eab676200a0c48`，Inspection `94,872,099` bytes / `c7a1d53ad44e32a4ab8dc47e88275229670bedb81ad52c88e558a92627274fbf`，Release `94,872,099` bytes / `831a2306f9b8df4796bc946f3b04f22ef6c5f84e3eb4ecdf560097f6d68bd1c0`。✅
-- [ ] 事项：提交、push 并发布 `0.1.21`；下一步：提交全部源码/测试/文档/离线正文资源，推送 `origin/main`，再用 `gh release create` 上传三种 APK。⏳
+- [x] 事项：提交、push 并发布 `0.1.21`；结果：commit `43b82bc` 已 push `origin/main`；正式 Release 已上传 `app-release.apk`、`app-debug.apk`、`app-inspection.apk`，地址：`https://github.com/kxxhhh/readgb/releases/tag/v0.1.21`。✅
 
 ## 记录协议
 
