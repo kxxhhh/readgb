@@ -20,12 +20,9 @@ startup.
 Environment limitation
 ----------------------
 
-There is currently no Android emulator and no connected physical Android device
-in the development environment.
-
-Therefore:
-
-    当前没有模拟器/实体设备，因此无法完成 Runtime 验证。
+This is a historical static diagnosis. Per the current project scope, emulator
+debugging, physical-device debugging, installation checks, and runtime
+acceptance are not performed for this task.
 
 The app was not launched during this diagnosis. A successful Gradle build is not
 treated as a successful install or runtime test.
@@ -173,29 +170,13 @@ What is not confirmed
     - Whether an older com.dutongjian.app installation was present.
     - Whether the failure happens before package installation or after launch.
 
-Required next evidence
-----------------------
+Current handling
+----------------
 
-Reproduce on an emulator or physical device using only app-inspection.apk.
-Before retrying, remove any older installation of com.dutongjian.app if the
-device permits it.
-
-Preferred adb checks:
-
-    adb devices
-    adb install -r app-inspection.apk
-    adb logcat -c
-    adb logcat -v threadtime -b all \
-      -s PackageInstaller PackageManager installd system_server AndroidRuntime
-
-If installation still fails, capture the complete output of adb install and the
-corresponding logcat window. Include:
-
-    - device model
-    - Android API level
-    - installer used
-    - exact APK filename
-    - whether an older app version was installed
+No emulator or physical-device reproduction is required. The current delivery
+acceptance is limited to Backend tests, Android JVM tests, lint, APK builds, and
+the generated Release assets. The user downloads the APK and reports any issue
+found during their own use; this file remains a historical static diagnosis.
 
 Do not suppress the exception with catch(Exception). The current evidence does
 not justify changing application code.

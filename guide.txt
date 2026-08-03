@@ -21,7 +21,6 @@
 当前实际限制：
 
 - 新一轮全本同步尚未完成，不能宣称 APK 已包含 30,989 条全本正文。
-- Android 真机、TTS 音频、Widget、Edge-TTS 和 AI 端到端验收不在当前无设备环境中完成。
 - 正式 Release 签名必须由发布环境提供 keystore 和环境变量。
 - 公开同步遵守 robots、同源、限速、重试和访问边界。
 
@@ -66,7 +65,6 @@ Backend：
 - 完成 1,405 个纪年、校验 30,989 条正文。
 - 生成并导入新的正文、目录和百科 assets。
 - 全本数据下的图表覆盖、关系准确性和性能。
-- 设备上的安装、滚动、TTS、Widget、Edge-TTS、AI 和签名 APK 验收。
 - AI 语法拆解、反事实推演、人物角色对话和战役沙盘。
 - 自动 gh release 和 Codespace 签名发布闭环。
 
@@ -96,6 +94,8 @@ Backend：
     service/data/resync-archive-20260803/
 
 新抓取内容不得放在 /tmp。同步器内部的 .tmp 仅是同目录原子写入中间文件。
+
+宿主机持久化边界：只保证 `/mnt/workspace` 范围内的数据不会被定期清理；`/mnt/workspace` 之外的内容可能在实例运行一段时间后被清空。数据库、原始 JSON cache、checkpoint、锁和日志必须固定在 `/mnt/workspace/readgb/service/data/` 下。启动前先核对 `pwd` 和各数据路径的绝对位置，禁止使用 `/tmp`、宿主机其他目录或未确认的相对路径。
 
 首次重新清理时才使用：
 
@@ -184,7 +184,6 @@ CI：
 
     ### 2026-08-03 09:40 Asia/Shanghai
     - [x] 事项：恢复同步。命令：`./scripts/resume_crawler.sh`；结果：`82/1405`；路径：`service/data/tongjian-progress.json`；恢复：复用原 cache/checkpoint。✅
-    - [ ] 事项：设备验收。阻塞：没有可用设备；下一步：连接设备后运行安装检查。
 
 八、安全边界
 ------------

@@ -16,6 +16,7 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.togetherWith
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.layout.Arrangement
@@ -46,10 +47,16 @@ import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.automirrored.filled.MenuBook
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.automirrored.filled.NoteAdd
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
@@ -861,6 +868,8 @@ private fun DetailScreen(
     var script by rememberSaveable(item.id) { mutableStateOf(TextScript.SIMPLIFIED) }
     var fontPercent by rememberSaveable(item.id) { androidx.compose.runtime.mutableIntStateOf(100) }
     var showTools by rememberSaveable(item.id) { mutableStateOf(false) }
+    var showHistoricalNotes by rememberSaveable(item.id) { mutableStateOf(false) }
+    var showGlossary by rememberSaveable(item.id) { mutableStateOf(false) }
     var showSandbox by rememberSaveable { mutableStateOf(false) }
     var showDecisionCard by rememberSaveable { mutableStateOf(false) }
     var showOriginalEdition by rememberSaveable { mutableStateOf(false) }
@@ -894,7 +903,14 @@ private fun DetailScreen(
             listOf(SentenceSegment(0, 0, displayOriginal.length, displayOriginal))
         }
     }
-    val translationSegments = remember(displayTranslation) { sentenceSegments(displayTranslation) }
+    val translationSegments = remember(displayTranslation) {
+        sentenceSegments(displayTranslation).ifEmpty {
+            listOf(SentenceSegment(0, 0, displayTranslation.length, displayTranslation))
+        }
+    }
+    val visibleSegments = remember(mode, originalSegments, translationSegments) {
+        if (mode == ReadingMode.TRANSLATION) translationSegments else originalSegments
+    }
     val historicalNotes = remember(item.notes, displayOriginal) { formatHistoricalNotes(item.notes) }
     val glossaryEntries = remember(displayOriginal) { ClassicalGlossary.find(displayOriginal).take(8) }
     val detailListState = rememberLazyListState()
@@ -910,22 +926,36 @@ private fun DetailScreen(
         ReadingMode.ORIGINAL -> displayOriginal
         ReadingMode.TRANSLATION -> displayTranslation
     }
+    val clipboardSelection = remember(showNoteEditor, original) {
+        if (!showNoteEditor) {
+            ""
+        } else {
+            val clipboardText = context.getSystemService(ClipboardManager::class.java)
+                ?.primaryClip
+                ?.getItemAt(0)
+                ?.coerceToText(context)
+                ?.toString()
+                .orEmpty()
+            clipboardText.takeIf { it.isNotBlank() && it != original && original.contains(it) }.orEmpty()
+        }
+    }
+    val clipboardSelectionStart = remember(original, clipboardSelection) {
+        original.indexOf(clipboardSelection).coerceAtLeast(0)
+    }
     val bodyFontSize = (18f * fontScale).sp
     val bodyLineHeight = (30f * fontScale).sp
     Scaffold(
         modifier = Modifier.windowInsetsPadding(WindowInsets.safeDrawing),
         topBar = {
             TopAppBar(
-                title = {
-                    Column {
-                        Text("阅读", style = MaterialTheme.typography.titleMedium)
-                        Text(item.title, style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    }
-                },
+                title = { Text("正文", style = MaterialTheme.typography.titleMedium) },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回") } },
                 actions = {
                     IconButton(onClick = onFavoriteToggle) {
-                        Icon(if (item.isFavorite) Icons.Default.Bookmark else Icons.Default.BookmarkBorder, contentDescription = "收藏")
+                        Icon(
+                            if (item.isFavorite) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
+                            contentDescription = if (item.isFavorite) "取消收藏" else "收藏",
+                        )
                     }
                 },
             )
@@ -936,19 +966,17 @@ private fun DetailScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .windowInsetsPadding(WindowInsets.navigationBars)
-                        .padding(horizontal = 12.dp, vertical = 6.dp),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(2.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    TextButton(onClick = {
+                    IconButton(onClick = {
                         val clipboard = context.getSystemService(ClipboardManager::class.java)
                         clipboard?.setPrimaryClip(ClipData.newPlainText(item.title, currentText))
                     }) {
-                        Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(5.dp))
-                        Text("复制")
+                        Icon(Icons.Default.ContentCopy, contentDescription = "复制正文")
                     }
-                    TextButton(onClick = {
+                    IconButton(onClick = {
                         val shareIntent = Intent(Intent.ACTION_SEND).apply {
                             type = "text/plain"
                             putExtra(Intent.EXTRA_SUBJECT, item.title)
@@ -956,17 +984,43 @@ private fun DetailScreen(
                         }
                         context.startActivity(Intent.createChooser(shareIntent, "分享史料"))
                     }) {
-                        Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(5.dp))
-                        Text("分享")
+                        Icon(Icons.Default.Share, contentDescription = "分享正文")
                     }
-                    TextButton(onClick = { showNoteEditor = true }) {
-                        Text("划线 / 笔记")
-                    }
-                    TextButton(onClick = { showTools = true }) {
-                        Icon(Icons.Default.Settings, contentDescription = null, modifier = Modifier.size(18.dp))
+                    val currentTts = ttsState.currentItemId == item.id
+                    Button(
+                        modifier = Modifier.weight(1f).height(44.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp),
+                        onClick = {
+                            when {
+                                currentTts && ttsState.isPaused -> onResumeTts()
+                                currentTts && ttsState.isPlaying -> onPauseTts()
+                                else -> onSpeak()
+                            }
+                        },
+                    ) {
+                        Icon(
+                            imageVector = when {
+                                currentTts && ttsState.isPlaying -> Icons.Default.Pause
+                                else -> Icons.Default.PlayArrow
+                            },
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                        )
                         Spacer(Modifier.width(5.dp))
-                        Text("工具")
+                        Text(
+                            when {
+                                currentTts && ttsState.isPaused -> "继续"
+                                currentTts && ttsState.isPlaying -> "暂停"
+                                else -> "朗读"
+                            },
+                            maxLines = 1,
+                        )
+                    }
+                    IconButton(onClick = { showNoteEditor = true }) {
+                        Icon(Icons.AutoMirrored.Filled.NoteAdd, contentDescription = "记笔记")
+                    }
+                    IconButton(onClick = { showTools = true }) {
+                        Icon(Icons.Default.MoreVert, contentDescription = "更多阅读工具")
                     }
                 }
             }
@@ -1025,94 +1079,169 @@ private fun DetailScreen(
                     color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f),
                     shape = RoundedCornerShape(12.dp),
                 ) {
-                    Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                        Text("阅读方式", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             items(ReadingMode.entries.toList(), key = { it.name }) { candidate ->
                                 FilterChip(selected = mode == candidate, onClick = { mode = candidate }, label = { Text(candidate.label) })
                             }
                         }
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text("字形", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            TextScript.entries.forEach { candidate ->
-                                FilterChip(selected = script == candidate, onClick = { script = candidate }, label = { Text(candidate.label) })
+                        HorizontalDivider()
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("字形", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Spacer(Modifier.width(12.dp))
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                items(TextScript.entries.toList(), key = { it.name }) { candidate ->
+                                    FilterChip(selected = script == candidate, onClick = { script = candidate }, label = { Text(candidate.label) })
+                                }
                             }
                         }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("字号", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Spacer(Modifier.weight(1f))
+                            IconButton(onClick = { fontPercent = (fontPercent - 10).coerceAtLeast(80) }, enabled = fontPercent > 80) {
+                                Icon(Icons.Default.Remove, contentDescription = "减小字号")
+                            }
+                            Text("${fontPercent}%", style = MaterialTheme.typography.labelMedium, modifier = Modifier.width(48.dp))
+                            IconButton(onClick = { fontPercent = (fontPercent + 10).coerceAtMost(160) }, enabled = fontPercent < 160) {
+                                Icon(Icons.Default.Add, contentDescription = "增大字号")
+                            }
+                        }
+                        Slider(
+                            value = fontPercent.toFloat(),
+                            onValueChange = { fontPercent = it.toInt() },
+                            valueRange = 80f..160f,
+                            steps = 7,
+                        )
                     }
                 }
             }
             item {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("正文", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                    Spacer(Modifier.weight(1f))
-                    Text("${originalSegments.size} 段", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            when (mode) {
+                                ReadingMode.PARALLEL -> "原文与白话"
+                                ReadingMode.ORIGINAL -> "原文"
+                                ReadingMode.TRANSLATION -> "白话"
+                            },
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
+                    Text("${visibleSegments.size} 段", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
-            items(originalSegments, key = { segment -> "${item.id}-sentence-${segment.index}" }) { segment ->
-                val segmentNotes = historicalNotes
-                    .filter { it.position in segment.start until segment.end }
-                    .map { it.copy(position = it.position - segment.start) }
-                val segmentSavedNotes = savedNotes
-                    .filter { it.startIndex < segment.end && it.endIndex > segment.start }
-                    .map { note ->
-                        note.copy(
-                            startIndex = (note.startIndex - segment.start).coerceAtLeast(0),
-                            endIndex = (note.endIndex - segment.start).coerceAtMost(segment.text.length),
-                        )
-                    }
-                val active = ttsState.currentItemId == item.id && ttsState.currentSentence == segment.index && ttsState.isPlaying
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .then(if (active) Modifier.padding(horizontal = 8.dp, vertical = 6.dp) else Modifier.padding(vertical = 6.dp)),
-                    verticalArrangement = Arrangement.spacedBy(7.dp),
-                ) {
-                    if (mode != ReadingMode.TRANSLATION) {
-                        SelectionContainer {
-                            ReadingAnnotatedText(
-                                text = segment.text,
-                                places = places,
-                                historicalNotes = segmentNotes,
-                                savedNotes = segmentSavedNotes,
-                                fontSize = bodyFontSize,
-                                lineHeight = bodyLineHeight,
-                                highlightedSavedNoteId = highlightedSavedNoteId,
-                                onPlaceClick = { place -> selectedPlace = place },
-                                onSavedNoteClick = { note -> notePendingDeletion = note },
-                                onHistoricalNoteClick = { note -> selectedHistoricalNote = note },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .then(if (active) Modifier.padding(8.dp) else Modifier),
+            items(visibleSegments, key = { segment -> "${item.id}-sentence-${segment.index}" }) { segment ->
+                val originalSegment = originalSegments.getOrNull(segment.index)
+                val segmentNotes = if (mode == ReadingMode.TRANSLATION || originalSegment == null) {
+                    emptyList()
+                } else {
+                    historicalNotes
+                        .filter { it.position in originalSegment.start until originalSegment.end }
+                        .map { it.copy(position = it.position - originalSegment.start) }
+                }
+                val segmentSavedNotes = if (mode == ReadingMode.TRANSLATION || originalSegment == null) {
+                    emptyList()
+                } else {
+                    savedNotes
+                        .filter { it.startIndex < originalSegment.end && it.endIndex > originalSegment.start }
+                        .map { note ->
+                            note.copy(
+                                startIndex = (note.startIndex - originalSegment.start).coerceAtLeast(0),
+                                endIndex = (note.endIndex - originalSegment.start).coerceAtMost(originalSegment.text.length),
                             )
                         }
-                    }
-                    if (mode != ReadingMode.ORIGINAL && displayTranslation.isNotBlank()) {
-                        Text("白话", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
-                        Text(
-                            translationSegments.getOrNull(segment.index)?.text ?: if (segment.index == 0) displayTranslation else "",
-                            fontSize = (bodyFontSize.value - 1f).coerceAtLeast(14f).sp,
-                            lineHeight = bodyLineHeight,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                }
+                val active = ttsState.currentItemId == item.id && ttsState.currentSentence == segment.index && ttsState.isPlaying
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .then(
+                            if (active) {
+                                Modifier
+                                    .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.48f), RoundedCornerShape(12.dp))
+                                    .padding(10.dp)
+                            } else {
+                                Modifier.padding(vertical = 6.dp)
+                            },
+                        ),
+                    verticalAlignment = Alignment.Top,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Text(
+                        text = (segment.index + 1).toString().padStart(2, '0'),
+                        modifier = Modifier.width(24.dp).padding(top = 4.dp),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                    )
+                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                        if (mode == ReadingMode.TRANSLATION) {
+                            SelectionContainer {
+                                Text(segment.text, fontSize = bodyFontSize, lineHeight = bodyLineHeight)
+                            }
+                        } else {
+                            SelectionContainer {
+                                ReadingAnnotatedText(
+                                    text = segment.text,
+                                    places = places,
+                                    historicalNotes = segmentNotes,
+                                    savedNotes = segmentSavedNotes,
+                                    fontSize = bodyFontSize,
+                                    lineHeight = bodyLineHeight,
+                                    highlightedSavedNoteId = highlightedSavedNoteId,
+                                    onPlaceClick = { place -> selectedPlace = place },
+                                    onSavedNoteClick = { note -> notePendingDeletion = note },
+                                    onHistoricalNoteClick = { note -> selectedHistoricalNote = note },
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
+                            }
+                            if (mode != ReadingMode.ORIGINAL && displayTranslation.isNotBlank()) {
+                                if (segment.index == 0) {
+                                    Text("白话", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                                }
+                                Text(
+                                    translationSegments.getOrNull(segment.index)?.text.orEmpty(),
+                                    fontSize = (bodyFontSize.value - 1f).coerceAtLeast(14f).sp,
+                                    lineHeight = bodyLineHeight,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
                     }
                 }
             }
             if (historicalNotes.isNotEmpty()) {
                 item {
                     HorizontalDivider()
-                    Text("注释 · ${historicalNotes.size}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    HistoricalNotesList(historicalNotes) { selectedHistoricalNote = it }
+                    DetailSectionHeader(
+                        title = "注释",
+                        count = historicalNotes.size,
+                        expanded = showHistoricalNotes,
+                        onToggle = { showHistoricalNotes = !showHistoricalNotes },
+                    )
+                    if (showHistoricalNotes) {
+                        HistoricalNotesList(historicalNotes) { selectedHistoricalNote = it }
+                    }
                 }
             }
             if (glossaryEntries.isNotEmpty()) {
                 item {
                     HorizontalDivider()
-                    Text("字词提示", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    glossaryEntries.forEach { entry ->
-                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top) {
-                            Text(entry.term, modifier = Modifier.width(56.dp), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(entry.explanation)
-                                Text(entry.category, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    DetailSectionHeader(
+                        title = "字词提示",
+                        count = glossaryEntries.size,
+                        expanded = showGlossary,
+                        onToggle = { showGlossary = !showGlossary },
+                    )
+                    if (showGlossary) {
+                        glossaryEntries.forEach { entry ->
+                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top) {
+                                Text(entry.term, modifier = Modifier.width(56.dp), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(entry.explanation)
+                                    Text(entry.category, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
                             }
                         }
                     }
@@ -1205,16 +1334,6 @@ private fun DetailScreen(
                     Text("正文保持连续，辅助功能集中在这里。", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 item {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("字号", style = MaterialTheme.typography.labelLarge)
-                        Spacer(Modifier.weight(1f))
-                        IconButton(onClick = { fontPercent = (fontPercent - 10).coerceAtLeast(80) }, enabled = fontPercent > 80) { Icon(Icons.Default.Remove, contentDescription = "减小字号") }
-                        Text("${fontPercent}%", style = MaterialTheme.typography.labelLarge)
-                        IconButton(onClick = { fontPercent = (fontPercent + 10).coerceAtMost(160) }, enabled = fontPercent < 160) { Icon(Icons.Default.Add, contentDescription = "增大字号") }
-                    }
-                    Slider(value = fontPercent.toFloat(), onValueChange = { fontPercent = it.toInt() }, valueRange = 80f..160f, steps = 7)
-                }
-                item {
                     HorizontalDivider()
                     TtsControlRow(
                         isPlaying = ttsState.currentItemId == item.id && ttsState.isPlaying,
@@ -1278,8 +1397,8 @@ private fun DetailScreen(
         NoteEditorDialog(
             articleId = item.id,
             articleText = original,
-            selectedText = "",
-            startIndex = 0,
+            selectedText = clipboardSelection,
+            startIndex = clipboardSelectionStart,
             onDismiss = { showNoteEditor = false },
             onSave = onSaveNote,
         )
@@ -1296,6 +1415,29 @@ private fun DetailScreen(
                 }) { Text("删除") }
             },
             dismissButton = { TextButton(onClick = { notePendingDeletion = null }) { Text("取消") } },
+        )
+    }
+}
+
+@Composable
+private fun DetailSectionHeader(
+    title: String,
+    count: Int,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onToggle)
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("$title · $count", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.weight(1f))
+        Icon(
+            imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+            contentDescription = if (expanded) "收起$title" else "展开$title",
         )
     }
 }

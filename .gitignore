@@ -14,6 +14,7 @@ data/*.sqlite3
 service/data/*.db
 service/data/*.sqlite
 service/data/*.sqlite3
+service/data/*.log
 service/data/tongjian-cache/
 service/data/tongjian-progress.json
 service/data/tongjian-progress.*.json
@@ -22,6 +23,8 @@ service/data/resync-archive-*/
 
 # Android / Gradle
 .gradle/
+.android-sdk/
+android/.kotlin/
 build/
 */build/
 local.properties

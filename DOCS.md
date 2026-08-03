@@ -83,7 +83,7 @@ ReadingRepositoryImpl 的顺序如下：
 - 人物关系从文章 notes 中的公开人物关联动态计算共现；人物索引保留当前数据中的全部人物，选择中心人物后只绘制其高频邻接网络，并可从关系行点回正文。
 - 趋势图使用本地阅读统计中的最近 7 天数据。
 
-这能随真实资产规模扩展，但当前数据库仍只完成阶段性纪年，图表数量和关系覆盖不会被误写成全本。Android 真机上的大数据量性能回归仍需补做。
+这能随真实资产规模扩展，但当前数据库仍只完成阶段性纪年，图表数量和关系覆盖不会被误写成全本。Android 设备级性能回归不纳入当前交付范围。
 
 ### 3.4 TTS、AI、Widget 和本地工具
 
@@ -93,7 +93,7 @@ ReadingRepositoryImpl 的顺序如下：
 - QuoteWidgetProvider 使用 RemoteViews 展示本地名句和入口。
 - ClassicalGlossary 和 ClassicalScriptMapper 在应用启动时从 assets 加载；没有资产时使用内置 fallback 映射。
 
-AI 的真实模型质量、Edge-TTS 网络连通性、Widget 桌面行为和 TTS 音频输出尚未在当前环境完成设备级验收，不能把源码接入描述成已完成的端到端验收。
+AI 的真实模型质量和 Edge-TTS 网络连通性尚未在当前环境完成端到端验证；设备安装、Widget 桌面行为和 TTS 音频输出不纳入当前交付范围。
 
 ## 4. FastAPI 接口
 
@@ -174,6 +174,8 @@ respect_robots=True  # CLI 默认
 | android/app/src/main/assets/ | 校验后进入 APK 的最终资产 | 是 |
 
 .tmp 后缀只用于目标文件同目录的原子替换；它不是 /tmp 文件夹，也不承载独立内容。
+
+宿主机持久化边界：运行环境只保证 `/mnt/workspace` 范围内的数据不会被定期清理，`/mnt/workspace` 之外的内容可能在实例运行一段时间后被清空。当前项目的抓取数据库、JSON cache、checkpoint、锁和日志必须全部位于 `/mnt/workspace/readgb/service/data/`；启动或恢复前先核对项目绝对路径和数据路径。禁止使用 `/tmp`、宿主机其他目录或未确认的相对路径承载新抓取内容。
 
 ## 6. 断点恢复和开机自启
 
@@ -258,7 +260,7 @@ git diff --check
 cd android && ./gradlew testDebugUnitTest lintDebug assembleDebug assembleRelease
 ~~~
 
-当前环境没有把 Android 设备安装作为自动测试前提；没有设备时，Gradle 成功不等于真实安装、TTS 音频或 Widget 已验收。设备问题要记录设备型号、API level、APK 变体和完整 adb 日志。
+Android 设备安装、TTS 音频、Widget、Edge-TTS 和 AI 的设备级验收不纳入当前交付范围；本轮以 Backend 测试、Android JVM test、lint、Debug/Release 构建和 APK 产物为验收依据。仓库中的 `run_codex_autodev.sh` 仅是历史自动化脚本，不得作为本轮模拟器调试入口。
 
 ## 9. 文档和任务记录协议
 
