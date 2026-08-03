@@ -67,7 +67,7 @@ jq '{total_reigns, completed: (.completed_reign_ids | length), failed: (.failed_
 仍未完成或有外部阻塞：
 
 - [ ] 全本规模图表滚动、文字截断、节点重叠、关系准确性、搜索性能和真实设备验收；当前容器无 KVM/实体设备。
-- [ ] AI 兼容服务真实请求/错误/超时验收，语法选中文本高亮，反事实结构化上下文，历史角色事实约束/多轮会话。
+- [ ] AI 兼容服务真实请求/错误/超时验收，以及模型实际遵守史料边界的质量验收；本地 prompt 边界、反事实模板、角色多轮会话和语法原文定位 UI 已实现。
 - [ ] 历史上的今天可信月日映射、Edge-TTS 真实端点音频、战役地图/兵力/粮道沙盘；缺少可信数据或端点。
 - [ ] Codespace/Actions 生产 keystore 签名和 gh release 演练；当前只有 gh 登录，没有生产签名凭据。
 
@@ -97,12 +97,10 @@ jq '{total_reigns, completed: (.completed_reign_ids | length), failed: (.failed_
 
 ### 构建与验收
 
-- [x] Backend 测试 27 passed、compileall、shell 语法检查和 git diff --check。✅
-- [x] 本轮 Android `:app:assembleDebug` 和 `:app:testDebugUnitTest` 均 BUILD SUCCESSFUL；Debug APK 约 20M。✅
-- [x] Android testDebugUnitTest、compileDebugKotlin、lintDebug、Debug/Inspection/Release 构建全部通过；Debug APK 20M，Inspection APK 13M，未签名 Release APK 13M。✅
+- [x] Backend 测试 `32 passed`、compileall、shell 语法检查和 git diff --check。✅
 - [x] 全量 assets 构建和 APK 内容验收：`testDebugUnitTest`、`lintDebug`、`assembleDebug`、`assembleInspection`、`assembleRelease` 均 `BUILD SUCCESSFUL`；Debug APK `104,086,521` bytes，Inspection APK `83,032,517` bytes，unsigned Release APK `83,020,229` bytes。三种 APK 直接解析得到正文 `30,989`、卷 `294`、年 `1,405`、百科 `61,696`。✅
 - [x] 资产 SHA-256：`offline_content.ndjson.gz`=`2956d83ebfbac0f45db25c77c531318220f5ce959287e943fba9961d62a189ba`，`offline_catalog.json`=`66dd0f1320e564d92950ad55e678b6c7030a3bf65dce90f5d9064a60bafe9b7c`，`offline_knowledge.json`=`fa1bbc67c05c0cc00c4dfbbcfe8322f45f28bd5ba73a5ea15d2b543f9b20ec45`。✅
-- [x] APK SHA-256：Debug=`a7156285163e7d8d934669b0955949c03ad04a58f2e9b88cf9d2a203df4a7636`，Inspection=`26d288e007493482631b1f91335394df7543b2f880c0aaffbdf76358f767fada`，unsigned Release=`08cdb263282394bc83c3e9148ac968127167d86f6fe7768ff747d42cf6b26c5e`。✅
+- [x] APK SHA-256：Debug=`ebc05879c452fd78cc4c5b65e393713f04b26572059978a56e0190a5ed3e2a32`，Inspection=`5dc87f14d5cffb4fdc797e9f8f4acc87e7ca090d083ef2dd659f19230154b0ee`，unsigned Release=`de7e204930e79e840facc6f5cadfcad9d0b638d491d59a3c2681928ab0dec099`。APK 只上传 GitHub Release，不进入 Git 项目目录。✅
 - [x] 设备/真机验收不纳入本轮交付；本轮以源码、JVM test、lint、APK 编译和发布产物为验收依据。✅
 - [x] 已记录 APK、数据规模、测试命令和实际警告；未进行模拟器或真机验收。✅
 
@@ -115,10 +113,10 @@ jq '{total_reigns, completed: (.completed_reign_ids | length), failed: (.failed_
 - [ ] Edge-TTS 网络音频端点和真实音频验收；代码已保留可选网络引擎，阻塞：当前没有稳定端点/实体设备，下一步：在提供端点和设备后验证握手、音频解码与失败提示。
 - [ ] AI OpenAI-compatible 网络调用端到端验收；配置和任务提示已实现，阻塞：没有可用 API key/模型服务，下一步：用本地兼容服务完成请求、错误、超时和结果展示验证。
 - [x] AI 语法拆解的 Markdown 表格解析和结构化结果卡片；解析失败回退原文；路径：`android/app/src/main/java/com/dutongjian/app/domain/text/ClassicalGrammarAnalysis.kt`、`DutongjianApp.kt`；JVM 测试和 Android 构建已通过。✅
-- [ ] AI 语法拆解的选中文本精确定位和高亮；下一步：要求模型返回原文片段/句号索引并把结果绑定到正文段落，当前没有真实模型端到端验证。
+- [x] AI 语法拆解的原文定位和高亮：提示要求模型返回连续原文片段，解析器兼容第五列，详情页对命中的原文片段着色；没有定位列或未命中时仍回退结构卡片/原始结果。✅
 - [x] AI 结果记录的 Room 表、保存、删除和重开流程；路径：`android/app/src/main/java/com/dutongjian/app/data/local/AiResult*`、`ReadingViewModel.kt`、`DutongjianApp.kt`；迁移 `4→5` 和 JVM 测试已通过。✅
-- [ ] AI 反事实推演的独立模板和上下文边界；当前结果已可保存/删除/重开，下一步：补结构化任务记录、上下文边界和端到端模型验证。
-- [ ] 历史人物角色对话的事实约束、对话界面和离线/联网边界；当前只有一次性任务入口，下一步：增加角色上下文和会话记录模型。
+- [x] AI 反事实推演的独立模板和上下文边界：系统提示区分史料事实、合理推断、不确定假设和非正史影响，输入块使用明确数据边界；真实模型验证仍受外部服务阻塞。✅
+- [x] 历史人物角色对话的同一史料多轮会话：新增追问输入、最多保留 6 轮上下文、Room 同 ID 更新会话转录；事实约束和联网/离线端到端验收仍需真实模型服务。✅
 - [ ] 重点战役沙盘的地图、兵力、粮道和关键决策数据；当前只有正文注释沙盘卡，下一步：先确认公开结构化字段，再建立可追溯数据模型。
 - [ ] 当前环境没有用户生产 keystore，下一步：注入签名 secrets 。
 - [ ] gh release 自动发布闭环；已加入只允许手动/版本标签触发、必须生产 keystore secrets 的 `.github/workflows/release.yml`，但当前环境没有生产 keystore，下一步：在 Codespace/Actions secrets 配置后执行一次签名发布演练。

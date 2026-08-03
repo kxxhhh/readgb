@@ -61,6 +61,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Timeline
@@ -98,7 +99,10 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -159,6 +163,21 @@ private fun sentenceSegments(text: String): List<SentenceSegment> =
         }
         .toList()
 
+private fun buildGrammarHighlight(
+    original: String,
+    rows: List<com.dutongjian.app.domain.text.GrammarAnalysisRow>,
+    highlightStyle: SpanStyle,
+): AnnotatedString = buildAnnotatedString {
+    append(original)
+    rows.map { it.sourceText.ifBlank { it.original } }
+        .filter(String::isNotBlank)
+        .forEach { source ->
+            original.indexOf(source).takeIf { it >= 0 }?.let { start ->
+                addStyle(highlightStyle, start, start + source.length)
+            }
+        }
+}
+
 @Composable
 fun DutongjianApp(
     state: ReadingUiState,
@@ -182,6 +201,7 @@ fun DutongjianApp(
     onAiSettingsSave: () -> Unit,
     onAiApiKeyClear: () -> Unit,
     onAiGenerate: (ReadingItem, AiTask) -> Unit,
+    onAiContinue: (ReadingItem, String) -> Unit,
     onAiResultClear: () -> Unit,
     onAiResultOpen: (AiResult) -> Unit,
     onAiResultDelete: (AiResult) -> Unit,
@@ -284,6 +304,7 @@ fun DutongjianApp(
                     onFavoriteToggle = { onFavoriteToggle(targetItem) },
                     aiState = aiState,
                     onAiGenerate = onAiGenerate,
+                    onAiContinue = onAiContinue,
                     onAiResultClear = onAiResultClear,
                     savedAiResults = state.aiResults.filter { it.itemId == targetItem.id },
                     onAiResultOpen = onAiResultOpen,
@@ -857,6 +878,7 @@ private fun DetailScreen(
     onFavoriteToggle: () -> Unit,
     aiState: AiUiState,
     onAiGenerate: (ReadingItem, AiTask) -> Unit,
+    onAiContinue: (ReadingItem, String) -> Unit,
     onAiResultClear: () -> Unit,
     savedAiResults: List<AiResult>,
     onAiResultOpen: (AiResult) -> Unit,
@@ -884,6 +906,7 @@ private fun DetailScreen(
     var showSandbox by rememberSaveable { mutableStateOf(false) }
     var showDecisionCard by rememberSaveable { mutableStateOf(false) }
     var showOriginalEdition by rememberSaveable { mutableStateOf(false) }
+    var roleFollowUp by rememberSaveable(aiState.resultId) { mutableStateOf("") }
     var selectedDecision by rememberSaveable(item.id) { androidx.compose.runtime.mutableIntStateOf(0) }
     var selectedPlace by remember { mutableStateOf<HistoricalPlace?>(null) }
     var showMap by rememberSaveable(item.id) { mutableStateOf(false) }
@@ -1326,16 +1349,54 @@ private fun DetailScreen(
                             if (grammarRows.isEmpty()) {
                                 Text(aiState.result.orEmpty(), fontSize = bodyFontSize, lineHeight = bodyLineHeight)
                             } else {
+                                Text("原文定位", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                                SelectionContainer {
+                                    Text(
+                                        buildGrammarHighlight(
+                                            original,
+                                            grammarRows,
+                                            SpanStyle(
+                                                background = MaterialTheme.colorScheme.primaryContainer,
+                                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                            ),
+                                        ),
+                                        fontSize = bodyFontSize,
+                                        lineHeight = bodyLineHeight,
+                                    )
+                                }
                                 grammarRows.forEach { row ->
                                     Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(12.dp)) {
                                         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                             Text(row.original, fontWeight = FontWeight.Bold)
+                                            if (row.sourceText != row.original) {
+                                                Text("定位：${row.sourceText}", color = MaterialTheme.colorScheme.primary)
+                                            }
                                             Text("结构：${row.structure}", color = MaterialTheme.colorScheme.onSurfaceVariant)
                                             Text("句式/虚词：${row.grammar}", color = MaterialTheme.colorScheme.onSurfaceVariant)
                                             Text("直译：${row.translation}", color = MaterialTheme.colorScheme.onSurfaceVariant)
                                         }
                                     }
                                 }
+                            }
+                            if (aiState.task == AiTask.ROLE_DIALOGUE) {
+                                OutlinedTextField(
+                                    value = roleFollowUp,
+                                    onValueChange = { roleFollowUp = it },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    label = { Text("追问历史角色") },
+                                    singleLine = true,
+                                    trailingIcon = {
+                                        IconButton(
+                                            enabled = roleFollowUp.isNotBlank() && !aiState.isGenerating,
+                                            onClick = {
+                                                onAiContinue(item, roleFollowUp)
+                                                roleFollowUp = ""
+                                            },
+                                        ) {
+                                            Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "发送追问")
+                                        }
+                                    },
+                                )
                             }
                         }
                     }

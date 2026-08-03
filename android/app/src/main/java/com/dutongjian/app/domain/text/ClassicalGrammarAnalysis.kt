@@ -5,6 +5,7 @@ data class GrammarAnalysisRow(
     val structure: String,
     val grammar: String,
     val translation: String,
+    val sourceText: String = "",
 )
 
 fun parseGrammarAnalysisTable(markdown: String): List<GrammarAnalysisRow> = markdown
@@ -15,7 +16,7 @@ fun parseGrammarAnalysisTable(markdown: String): List<GrammarAnalysisRow> = mark
         if (cells.size < 4 || cells.take(4).all(::isMarkdownSeparator)) return@mapNotNull null
         if (cells[0] in setOf("原句", "原文")) return@mapNotNull null
         cells.take(4).takeIf { it.all(String::isNotBlank) }?.let {
-            GrammarAnalysisRow(it[0], it[1], it[2], it[3])
+            GrammarAnalysisRow(it[0], it[1], it[2], it[3], cells.getOrNull(4).orEmpty().ifBlank { it[0] })
         }
     }
     .toList()

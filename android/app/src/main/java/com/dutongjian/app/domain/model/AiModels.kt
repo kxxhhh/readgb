@@ -22,3 +22,8 @@ data class AiResult(
     val result: String,
     val createdAt: Long,
 )
+
+data class AiConversationTurn(
+    val userMessage: String,
+    val assistantMessage: String,
+)

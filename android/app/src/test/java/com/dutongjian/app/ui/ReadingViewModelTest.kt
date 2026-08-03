@@ -3,6 +3,7 @@ package com.dutongjian.app.ui
 import com.dutongjian.app.domain.model.AiSettings
 import com.dutongjian.app.domain.model.AiResult
 import com.dutongjian.app.domain.model.AiTask
+import com.dutongjian.app.domain.model.AiConversationTurn
 import com.dutongjian.app.domain.model.HomeFeed
 import com.dutongjian.app.domain.model.HistoricalPlace
 import com.dutongjian.app.domain.model.KnowledgeEntry
@@ -122,6 +123,22 @@ class ReadingViewModelTest {
         assertTrue(viewModel.state.value.aiResults.isEmpty())
     }
 
+    @Test
+    fun roleDialogueKeepsConversationBoundaryAndUpdatesSavedTranscript() = runTest {
+        val repository = FakeRepository(listOf(item("item", "正文")), emptyList())
+        val readingItem = repository.observeItems().first().first()
+        val viewModel = ReadingViewModel(repository, FakeAiRepository(), FakeTtsPlayer(), FakeReadingStatsRecorder())
+
+        viewModel.generateAi(readingItem, AiTask.ROLE_DIALOGUE)
+        advanceUntilIdle()
+        viewModel.continueAi(readingItem, "你为什么这样判断？")
+        advanceUntilIdle()
+
+        assertEquals(2, viewModel.state.value.ai.conversation.size)
+        assertTrue(viewModel.state.value.ai.result.orEmpty().contains("你为什么这样判断？"))
+        assertEquals(1, viewModel.state.value.aiResults.size)
+    }
+
     private fun item(id: String, title: String) = ReadingItem(
         id = id,
         title = title,
@@ -190,7 +207,12 @@ private class FakeAiRepository : AiRepository {
 
     override suspend fun clearApiKey() = Result.success(AiSettings())
 
-    override suspend fun generate(item: ReadingItem, task: AiTask) = Result.success("AI result")
+    override suspend fun generate(
+        item: ReadingItem,
+        task: AiTask,
+        conversation: List<AiConversationTurn>,
+        followUp: String?,
+    ) = Result.success(followUp ?: "AI result")
 }
 
 private class FakeTtsPlayer : TtsPlayer {

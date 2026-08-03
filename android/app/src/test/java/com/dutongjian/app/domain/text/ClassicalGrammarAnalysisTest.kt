@@ -24,4 +24,13 @@ class ClassicalGrammarAnalysisTest {
     fun malformedOrPlainTextFallsBackToNoRows() {
         assertTrue(parseGrammarAnalysisTable("AI 无法按表格回答").isEmpty())
     }
+
+    @Test
+    fun readsOptionalSourceLocationColumn() {
+        val row = parseGrammarAnalysisTable(
+            "| 原句 | 结构 | 句式 | 直译 | 原文定位 |\n| --- | --- | --- | --- | --- |\n| 智伯伐赵襄子。 | 主谓宾 | 省略 | 智伯讨伐 | 伐赵襄子 |",
+        ).single()
+
+        assertEquals("伐赵襄子", row.sourceText)
+    }
 }

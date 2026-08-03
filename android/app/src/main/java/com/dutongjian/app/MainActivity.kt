@@ -57,6 +57,7 @@ class MainActivity : ComponentActivity() {
                         onAiSettingsSave = viewModel::saveAiSettings,
                         onAiApiKeyClear = viewModel::clearAiApiKey,
                         onAiGenerate = viewModel::generateAi,
+                        onAiContinue = viewModel::continueAi,
                         onAiResultClear = viewModel::clearAiResult,
                         onAiResultOpen = viewModel::openAiResult,
                         onAiResultDelete = viewModel::deleteAiResult,

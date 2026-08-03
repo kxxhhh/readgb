@@ -7,6 +7,7 @@ import com.dutongjian.app.domain.model.HistoricalPlace
 import com.dutongjian.app.domain.model.AiSettings
 import com.dutongjian.app.domain.model.AiResult
 import com.dutongjian.app.domain.model.AiTask
+import com.dutongjian.app.domain.model.AiConversationTurn
 import com.dutongjian.app.domain.model.LibrarySection
 import com.dutongjian.app.domain.model.OfflineSeed
 import com.dutongjian.app.domain.model.ReadingItem
@@ -46,6 +47,7 @@ data class AiUiState(
     val resultItemId: String? = null,
     val resultId: String? = null,
     val result: String? = null,
+    val conversation: List<AiConversationTurn> = emptyList(),
     val error: String? = null,
 )
 
@@ -249,7 +251,19 @@ class ReadingViewModel @Inject constructor(
     }
 
     fun generateAi(item: ReadingItem, task: AiTask) = viewModelScope.launch {
-        _state.update { it.copy(ai = it.ai.copy(isGenerating = true, task = task, resultItemId = item.id, resultId = null, result = null, error = null)) }
+        _state.update {
+            it.copy(
+                ai = it.ai.copy(
+                    isGenerating = true,
+                    task = task,
+                    resultItemId = item.id,
+                    resultId = null,
+                    result = null,
+                    conversation = emptyList(),
+                    error = null,
+                ),
+            )
+        }
         aiRepository.generate(item, task)
             .onSuccess { result ->
                 val saved = AiResult(
@@ -268,6 +282,11 @@ class ReadingViewModel @Inject constructor(
                             resultItemId = item.id,
                             resultId = saved.id,
                             result = result,
+                            conversation = if (task == AiTask.ROLE_DIALOGUE) {
+                                listOf(AiConversationTurn("首轮角色回答", result))
+                            } else {
+                                emptyList()
+                            },
                             error = null,
                         ),
                     )
@@ -276,8 +295,46 @@ class ReadingViewModel @Inject constructor(
             .onFailure { failure -> _state.update { it.copy(ai = it.ai.copy(isGenerating = false, error = failure.message ?: "AI 生成失败")) } }
     }
 
+    fun continueAi(item: ReadingItem, question: String) = viewModelScope.launch {
+        val current = _state.value.ai
+        val trimmed = question.trim()
+        if (current.task != AiTask.ROLE_DIALOGUE || current.resultItemId != item.id) {
+            _state.update { it.copy(ai = it.ai.copy(error = "请先生成历史角色首轮回答")) }
+            return@launch
+        }
+        if (trimmed.isBlank()) {
+            _state.update { it.copy(ai = it.ai.copy(error = "追问不能为空")) }
+            return@launch
+        }
+        _state.update { it.copy(ai = it.ai.copy(isGenerating = true, error = null)) }
+        aiRepository.generate(item, AiTask.ROLE_DIALOGUE, current.conversation, trimmed)
+            .onSuccess { response ->
+                val turns = current.conversation + AiConversationTurn(trimmed, response)
+                val saved = AiResult(
+                    id = current.resultId ?: UUID.randomUUID().toString(),
+                    itemId = item.id,
+                    task = AiTask.ROLE_DIALOGUE,
+                    result = renderConversation(turns),
+                    createdAt = System.currentTimeMillis(),
+                )
+                repository.saveAiResult(saved)
+                _state.update {
+                    it.copy(
+                        ai = it.ai.copy(
+                            isGenerating = false,
+                            resultId = saved.id,
+                            result = saved.result,
+                            conversation = turns,
+                            error = null,
+                        ),
+                    )
+                }
+            }
+            .onFailure { failure -> _state.update { it.copy(ai = it.ai.copy(isGenerating = false, error = failure.message ?: "AI 追问失败")) } }
+    }
+
     fun clearAiResult() {
-        _state.update { it.copy(ai = it.ai.copy(task = null, resultItemId = null, resultId = null, result = null, error = null)) }
+        _state.update { it.copy(ai = it.ai.copy(task = null, resultItemId = null, resultId = null, result = null, conversation = emptyList(), error = null)) }
     }
 
     fun openAiResult(result: AiResult) {
@@ -288,6 +345,11 @@ class ReadingViewModel @Inject constructor(
                     resultItemId = result.itemId,
                     resultId = result.id,
                     result = result.result,
+                    conversation = if (result.task == AiTask.ROLE_DIALOGUE) {
+                        listOf(AiConversationTurn("已保存的角色回答", result.result))
+                    } else {
+                        emptyList()
+                    },
                     error = null,
                 ),
             )
@@ -468,4 +530,8 @@ class ReadingViewModel @Inject constructor(
         ttsController.release()
         super.onCleared()
     }
+}
+
+private fun renderConversation(turns: List<AiConversationTurn>): String = turns.joinToString("\n\n") { turn ->
+    "追问：${turn.userMessage}\n角色：${turn.assistantMessage}"
 }
