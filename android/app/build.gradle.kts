@@ -32,8 +32,8 @@ android {
         applicationId = "com.dutongjian.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 15
-        versionName = "0.1.18"
+        versionCode = 16
+        versionName = "0.1.19"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
@@ -94,7 +94,7 @@ android {
 }
 
 dependencies {
-    val composeBom = platform("androidx.compose:compose-bom:2025.08.01")
+    val composeBom = platform("androidx.compose:compose-bom:2026.06.00")
     implementation(composeBom)
     androidTestImplementation(composeBom)
 

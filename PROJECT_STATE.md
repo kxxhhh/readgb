@@ -1,6 +1,6 @@
 # 读通鉴当前任务清单与恢复日志
 
-更新时间：2026-08-04 02:14（Asia/Shanghai）
+更新时间：2026-08-04 03:28（Asia/Shanghai）
 
 本文件是项目的单一状态源，同时承担项目清单、断点恢复记录和开发日志。PROJECT_STATE_HISTORY.md 只保留旧历史，不作为当前事实来源；DEVELOPMENT_LOG.md 是本文件的合并入口说明，不再单独维护第二套日志。
 
@@ -37,10 +37,12 @@ jq '{total_reigns, completed: (.completed_reign_ids | length), failed: (.failed_
 - [x] `0.1.17` 已完成签名构建：`versionCode=14`、`versionName=0.1.17`，Release APK v2 签名通过，离线正文/目录/百科资源校验通过。✅
 - [x] 修复目录、子目录和扩展入口为空/加载慢：目录本地优先，空 API 响应触发回退，纪事本末/读通鉴论补种子层级，百科入口切换知识库，正文查询先于阅读记录写入。✅
 - [x] `0.1.18` 已完成签名构建：`versionCode=15`、`versionName=0.1.18`，Release APK v2 签名通过。✅
+- [x] `0.1.19` 发布快照已导出：正文 `46,110` 篇（资治通鉴 `30,989`、纪事本末 `14,176`、读通鉴论 `945`），目录 `544` 卷/`1,985` 纪年，百科 `61,696` 条。✅
+- [ ] 扩展内容仍在后台断点同步：事件 `239/239`，史论主题当前 `354/912`，当前 checkpoint 错误 `0`；Android 本次 Release 固定使用已校验的 `341` 主题快照，后续增量继续写入同一 cache/database。⏳
 
 ### 当前同步速度判断
 
-本轮于 2026-08-03 14:57 左右从空 checkpoint 启动，最终完成 `1405/1405` 个纪年、`30,989` 条真实正文，失败 `0`。同步全程使用 5 秒全局请求节奏、4 worker、robots 和服务端 Retry-After；worker 不用于绕过限流。当前没有运行中的同步进程。
+资治通鉴主体于 2026-08-03 14:57 左右完成 `1405/1405` 个纪年、`30,989` 条真实正文，失败 `0`。扩展同步使用独立 cache/checkpoint、robots、5 秒节奏和 429/Retry-After 退避；当前进程继续同步 `纪事本末`/`读通鉴论`，不得重复启动第二个实例。
 
 ## 当前任务清单
 
@@ -79,6 +81,9 @@ jq '{total_reigns, completed: (.completed_reign_ids | length), failed: (.failed_
 - [x] 创建并上传正式 `v0.1.17` GitHub Release；signed `app-release.apk`、debug 和 inspection APK 均已上传，APK 不进入 Git。✅
 - [x] 修复目录/百科空数据和 API 超时等待；Android JVM test、lint 和 `0.1.18` 三种 APK 构建均通过。✅
 - [x] 创建并上传正式 `v0.1.18` GitHub Release；signed `app-release.apk`、debug 和 inspection APK 均已上传，地址：`https://github.com/kxxhhh/readgb/releases/tag/v0.1.18`。✅
+- [x] 扩展同步器支持事件/史论公开接口、原始 JSON 缓存、原子进度和 429/Retry-After 重试；已抓取 `239` 个事件、`341` 个史论主题并导出 Android 快照。✅
+- [x] 设置页完善为主题、字号、行距、阅读方式、字形、TTS、AI、隐私和版本信息；加入 Compose 动效开关、AnimatedContent/AnimatedVisibility、animateContentSize 和 Android 12+ blur 视觉层。✅
+- [ ] 继续运行 `EXTENDED_MIN_INTERVAL=5 ./scripts/resume_extended_crawler.sh`，直到史论 `912/912` 且错误 `0`；恢复时复用 `service/data/extended-progress.json` 和 `service/data/extended-cache/`。⏳
 
 仍未完成或有外部阻塞：
 
@@ -144,6 +149,8 @@ service/data/dutongjian.db              当前同步数据库
 service/data/tongjian-cache/            原始 JSON cache
 service/data/tongjian-progress.json     断点和失败记录
 service/data/tongjian-sync.lock         防重复锁
+service/data/extended-cache/            扩展事件/史论原始 JSON 缓存（不提交 Git）
+service/data/extended-progress.json     扩展同步断点（提交当前快照）
 service/data/resync-archive-20260803/   清理前可恢复审计快照
 android/app/src/main/assets/            校验后的 APK 资产
 ~~~
@@ -252,6 +259,13 @@ android/app/src/main/assets/            校验后的 APK 资产
 - [x] 事项：修复目录与扩展入口空数据/加载慢；结果：目录、卷、纪年、百科改为本地优先，API 空响应不再覆盖离线数据；纪事本末和读通鉴论补齐种子卷/年/条目，通鉴百科从目录入口切到知识库。✅
 - [x] 事项：优化正文打开耗时；结果：先加载正文详情并刷新界面，再安全写入阅读历史，避免记录写入阻塞正文首屏。✅
 - [x] 事项：构建并发布 `0.1.18`；结果：`versionCode=15`，JVM test、lint、Debug/Inspection/Release 成功，Release v2 签名通过；地址：`https://github.com/kxxhhh/readgb/releases/tag/v0.1.18`。✅
+
+### 2026-08-04 03:28 Asia/Shanghai
+
+- [x] 事项：补抓扩展公开内容；命令：`./scripts/resume_extended_crawler.sh`；结果：事件接口已成功 `239/239`，史论按 5 秒节奏持续同步；进度逐条保存到 `service/data/extended-progress.json`。✅
+- [x] 事项：导出当前 Android 离线快照；命令：`PYTHONPATH=service .venv/bin/python -m app.export_android`；结果：正文 `46,110`，目录 `544/1,985`，百科 `61,696`；本次资产包含 `341` 个已完成史论主题。✅
+- [x] 事项：完善 Android 设置与动效；结果：主题持久化、阅读偏好、动效开关、AnimatedContent/AnimatedVisibility、animateContentSize、Android 12+ blur 兼容层已加入；Compose Kotlin 编译通过。✅
+- [ ] 事项：提交并发布 `0.1.19`；下一步：提交源码/离线资产并 push，运行 JVM test、lint、Debug/Inspection/签名 Release，校验 APK 资产后创建 GitHub Release。⏳
 
 ## 记录协议
 

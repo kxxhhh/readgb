@@ -16,14 +16,12 @@ KNOWLEDGE_CATEGORIES = frozenset({"人物", "地点", "官职", "主题", "决�
 
 def export_content(database: str | Path, output: str | Path, *, expected_count: int = 30_989) -> int:
     store = ContentStore(database)
-    category_count = store.count_items(category="资治通鉴")
-    items = [
-        item
-        for item in store.list_items(category="资治通鉴", limit=max(1, category_count))
-        if item.id.startswith("zztj-")
-    ]
-    if len(items) != expected_count:
-        raise ValueError(f"refusing Android export: expected {expected_count} real items, found {len(items)}")
+    all_items = store.list_items(limit=max(1, store.count_items()))
+    tongjian_items = [item for item in all_items if item.id.startswith("zztj-") and item.category == "资治通鉴"]
+    supplemental_items = [item for item in all_items if _is_real_supplemental_item(item)]
+    items = tongjian_items + supplemental_items
+    if len(tongjian_items) != expected_count:
+        raise ValueError(f"refusing Android export: expected {expected_count} real items, found {len(tongjian_items)}")
     _validate_content(items)
     destination = Path(output)
     temporary = destination.with_suffix(destination.suffix + ".tmp")
@@ -299,14 +297,38 @@ def _write_json(payload: object, output: str | Path) -> None:
 def export_catalog(database: str | Path, output: str | Path, *, expected_volumes: int = 294, expected_years: int = 1405) -> dict[str, int]:
     store = ContentStore(database)
     sections = [section.to_dict() for section in store.sections()]
-    volumes = [volume.to_dict() for volume in store.volumes("zizhi") if not _is_seed_volume(volume.id)]
+    tongjian_volumes = [volume for volume in store.volumes("zizhi") if not _is_seed_volume(volume.id)]
+    real_supplemental_volume_ids = {
+        item.volume_id
+        for item in store.list_items(limit=max(1, store.count_items()))
+        if _is_real_supplemental_item(item) and item.volume_id
+    }
+    supplemental_volumes = [
+        volume
+        for section in store.sections()
+        if section.id != "zizhi"
+        for volume in store.volumes(section.id)
+        if volume.id in real_supplemental_volume_ids
+    ]
+    catalog_volumes = tongjian_volumes + supplemental_volumes
+    volumes = [volume.to_dict() for volume in catalog_volumes]
     years = []
-    for volume in volumes:
-        years.extend(year.to_dict() for year in store.years(volume["id"]) if not _is_seed_year(year.id))
-    if len(volumes) != expected_volumes or len(years) != expected_years:
+    for volume in catalog_volumes:
+        years.extend(
+            year.to_dict()
+            for year in store.years(volume.id)
+            if volume.section_id != "zizhi" or not _is_seed_year(year.id)
+        )
+    tongjian_year_count = sum(
+        1
+        for volume in tongjian_volumes
+        for year in store.years(volume.id)
+        if not _is_seed_year(year.id)
+    )
+    if len(tongjian_volumes) != expected_volumes or tongjian_year_count != expected_years:
         raise ValueError(
             f"refusing Android catalog export: expected {expected_volumes} volumes/{expected_years} years, "
-            f"found {len(volumes)} volumes/{len(years)} years"
+            f"found {len(tongjian_volumes)} volumes/{tongjian_year_count} years"
         )
     destination = Path(output)
     temporary = destination.with_suffix(destination.suffix + ".tmp")
@@ -322,6 +344,16 @@ def _is_seed_volume(volume_id: str) -> bool:
 
 def _is_seed_year(year_id: str) -> bool:
     return year_id.startswith("zizhi-year-")
+
+
+def _is_real_supplemental_item(item: Item) -> bool:
+    if item.section not in {"纪事本末", "读通鉴论"}:
+        return False
+    return (
+        item.id.startswith(("jishi-item-", "lun-item-"))
+        or "/api/content_list_of_event" in item.source_url
+        or "/api/content_list_of_comment" in item.source_url
+    )
 
 
 def main() -> int:

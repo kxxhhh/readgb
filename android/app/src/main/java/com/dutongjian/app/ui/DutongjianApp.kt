@@ -7,16 +7,24 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Intent
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.togetherWith
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.animateContentSize
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.layout.Arrangement
@@ -45,6 +53,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Delete
@@ -52,6 +61,8 @@ import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.MoreVert
@@ -64,6 +75,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Timeline
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AlertDialog
@@ -82,6 +94,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -94,6 +107,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -108,14 +123,18 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import android.widget.Toast
+import com.dutongjian.app.BuildConfig
 import com.dutongjian.app.domain.model.AiTask
 import com.dutongjian.app.domain.model.AiResult
+import com.dutongjian.app.domain.model.AppThemeMode
 import com.dutongjian.app.domain.model.HistoricalPlace
 import com.dutongjian.app.domain.model.KnowledgeEntry
 import com.dutongjian.app.domain.model.LibrarySection
 import com.dutongjian.app.domain.model.Note
 import com.dutongjian.app.domain.model.ReadingItem
 import com.dutongjian.app.domain.model.ReadingYear
+import com.dutongjian.app.domain.model.ReadingMode
+import com.dutongjian.app.domain.model.ReadingPreferences
 import com.dutongjian.app.domain.model.TextScript
 import com.dutongjian.app.domain.model.TtsEngineType
 import com.dutongjian.app.domain.model.Volume
@@ -131,12 +150,6 @@ private enum class AppTab(val label: String) {
     TIMELINE("年表"),
     STUDY("研读"),
     LIBRARY("书架"),
-}
-
-private enum class ReadingMode(val label: String) {
-    PARALLEL("对照"),
-    ORIGINAL("原文"),
-    TRANSLATION("白话"),
 }
 
 private data class SentenceSegment(
@@ -216,13 +229,16 @@ fun DutongjianApp(
     onStopReadingSession: () -> Unit,
     onSaveNote: (Note) -> Unit,
     onDeleteNote: (Note) -> Unit,
-    onDarkModeToggle: () -> Unit,
+    themeMode: AppThemeMode,
+    onThemeModeSelected: (AppThemeMode) -> Unit,
+    readingPreferences: ReadingPreferences,
+    onReadingPreferencesChanged: (ReadingPreferences) -> Unit,
 ) {
     var tab by rememberSaveable { mutableStateOf(AppTab.HOME) }
     var selectedItem by remember { mutableStateOf<ReadingItem?>(null) }
     var selectedKnowledge by remember { mutableStateOf<KnowledgeEntry?>(null) }
     var selectedNoteId by remember { mutableStateOf<String?>(null) }
-    var showAiSettings by rememberSaveable { mutableStateOf(false) }
+    var showSettings by rememberSaveable { mutableStateOf(false) }
     var exitArmed by rememberSaveable { mutableStateOf(false) }
     val context = LocalContext.current
     val selectedItemId = selectedItem?.id
@@ -249,7 +265,7 @@ fun DutongjianApp(
     }
     BackHandler {
         when {
-            showAiSettings -> showAiSettings = false
+            showSettings -> showSettings = false
             selectedItem != null -> {
                 onStopReadingSession()
                 selectedItem = null
@@ -269,10 +285,10 @@ fun DutongjianApp(
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        if (showAiSettings) {
-            AiSettingsScreen(
+        if (showSettings) {
+            SettingsScreen(
                 aiState = aiState,
-                onBack = { showAiSettings = false },
+                onBack = { showSettings = false },
                 onBaseUrlChanged = onAiBaseUrlChanged,
                 onModelChanged = onAiModelChanged,
                 onApiKeyChanged = onAiApiKeyChanged,
@@ -280,11 +296,17 @@ fun DutongjianApp(
                 onClearApiKey = onAiApiKeyClear,
                 ttsEngine = state.tts.engine,
                 onTtsEngineSelected = onTtsEngineSelected,
+                themeMode = themeMode,
+                onThemeModeSelected = onThemeModeSelected,
+                readingPreferences = readingPreferences,
+                onReadingPreferencesChanged = onReadingPreferencesChanged,
             )
         } else AnimatedContent(
         targetState = selectedItemId ?: selectedKnowledgeId,
         transitionSpec = {
-            if (targetState == null && initialState != null) {
+            if (!readingPreferences.motionEnabled) {
+                EnterTransition.None togetherWith ExitTransition.None
+            } else if (targetState == null && initialState != null) {
                 slideInHorizontally { -it / 3 } + fadeIn() togetherWith slideOutHorizontally { it / 3 } + fadeOut()
             } else {
                 slideInHorizontally { it / 3 } + fadeIn() togetherWith slideOutHorizontally { -it / 3 } + fadeOut()
@@ -322,6 +344,7 @@ fun DutongjianApp(
                     onCancelTtsSleepTimer = onCancelTtsSleepTimer,
                     onSaveNote = onSaveNote,
                     onDeleteNote = onDeleteNote,
+                    readingPreferences = readingPreferences,
                 )
             }
             targetKnowledge != null -> {
@@ -339,11 +362,11 @@ fun DutongjianApp(
                             }
                         },
                         actions = {
-                            IconButton(onClick = { showAiSettings = true }) {
-                                Icon(Icons.Default.Settings, contentDescription = "AI 设置")
+                            IconButton(onClick = { showSettings = true }) {
+                                Icon(Icons.Default.Settings, contentDescription = "设置")
                             }
-                            IconButton(onClick = onDarkModeToggle) {
-                                Icon(Icons.Default.DarkMode, contentDescription = "切换深色模式")
+                            IconButton(onClick = { onThemeModeSelected(themeMode.next()) }) {
+                                Icon(Icons.Default.DarkMode, contentDescription = "主题：${themeMode.label}")
                             }
                             IconButton(onClick = onRefresh) {
                                 Icon(Icons.Default.Refresh, contentDescription = "刷新内容")
@@ -353,7 +376,11 @@ fun DutongjianApp(
                     )
                 },
                 bottomBar = {
-                    NavigationBar(modifier = Modifier.windowInsetsPadding(WindowInsets.navigationBars)) {
+                    NavigationBar(
+                        modifier = Modifier.windowInsetsPadding(WindowInsets.navigationBars),
+                        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.84f),
+                        tonalElevation = 6.dp,
+                    ) {
                         NavigationBarItem(
                             selected = tab == AppTab.HOME,
                             onClick = { tab = AppTab.HOME },
@@ -898,10 +925,12 @@ private fun DetailScreen(
     onCancelTtsSleepTimer: () -> Unit,
     onSaveNote: (Note) -> Unit,
     onDeleteNote: (Note) -> Unit,
+    readingPreferences: ReadingPreferences,
 ) {
-    var mode by rememberSaveable(item.id) { mutableStateOf(ReadingMode.PARALLEL) }
-    var script by rememberSaveable(item.id) { mutableStateOf(TextScript.SIMPLIFIED) }
-    var fontPercent by rememberSaveable(item.id) { androidx.compose.runtime.mutableIntStateOf(100) }
+    var mode by rememberSaveable(item.id, readingPreferences.mode.name) { mutableStateOf(readingPreferences.mode) }
+    var script by rememberSaveable(item.id, readingPreferences.script.name) { mutableStateOf(readingPreferences.script) }
+    var fontPercent by rememberSaveable(item.id, readingPreferences.fontPercent) { androidx.compose.runtime.mutableIntStateOf(readingPreferences.fontPercent) }
+    var lineSpacingPercent by rememberSaveable(item.id, readingPreferences.lineSpacingPercent) { androidx.compose.runtime.mutableIntStateOf(readingPreferences.lineSpacingPercent) }
     var showTools by rememberSaveable(item.id) { mutableStateOf(false) }
     var showHistoricalNotes by rememberSaveable(item.id) { mutableStateOf(false) }
     var showGlossary by rememberSaveable(item.id) { mutableStateOf(false) }
@@ -979,7 +1008,7 @@ private fun DetailScreen(
         original.indexOf(clipboardSelection).coerceAtLeast(0)
     }
     val bodyFontSize = (18f * fontScale).sp
-    val bodyLineHeight = (30f * fontScale).sp
+    val bodyLineHeight = (30f * fontScale * lineSpacingPercent / 100f).sp
     Scaffold(
         modifier = Modifier.windowInsetsPadding(WindowInsets.safeDrawing),
         topBar = {
@@ -997,7 +1026,10 @@ private fun DetailScreen(
             )
         },
         bottomBar = {
-            Surface(tonalElevation = 4.dp) {
+            Surface(
+                tonalElevation = 6.dp,
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.88f),
+            ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1571,7 +1603,7 @@ private fun ContextSection(title: String, values: List<String>) {
 }
 
 @Composable
-private fun AiSettingsScreen(
+private fun SettingsScreen(
     aiState: AiUiState,
     onBack: () -> Unit,
     onBaseUrlChanged: (String) -> Unit,
@@ -1581,88 +1613,291 @@ private fun AiSettingsScreen(
     onClearApiKey: () -> Unit,
     ttsEngine: TtsEngineType,
     onTtsEngineSelected: (TtsEngineType) -> Unit,
+    themeMode: AppThemeMode,
+    onThemeModeSelected: (AppThemeMode) -> Unit,
+    readingPreferences: ReadingPreferences,
+    onReadingPreferencesChanged: (ReadingPreferences) -> Unit,
 ) {
+    val topBarColor by animateColorAsState(
+        targetValue = MaterialTheme.colorScheme.background.copy(alpha = 0.82f),
+        label = "settings-top-bar-color",
+    )
     Scaffold(
         modifier = Modifier.windowInsetsPadding(WindowInsets.safeDrawing),
         topBar = {
             TopAppBar(
-                title = { Text("AI 设置") },
+                title = {
+                    Column {
+                        Text("设置", fontWeight = FontWeight.Bold)
+                        Text("读通鉴 · 离线史料阅读器", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                    }
+                },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回") } },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = topBarColor),
             )
         },
     ) { padding ->
         LazyColumn(
-            modifier = Modifier.padding(padding).fillMaxSize(),
-            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 18.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+            modifier = Modifier.padding(padding).fillMaxSize().animateContentSize(),
+            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(18.dp),
         ) {
             item {
-                Text("AI 与朗读设置", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                Text("可以填写 OpenAI、兼容网关或本机模型服务的 URL 与模型名。API Key 仅加密保存在本机。", color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            item {
-                Text("朗读引擎", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                Text("朗读按句排队，播放完当前条目后自动进入下一条。", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
-                    TtsEngineType.entries.forEach { engine ->
-                        FilterChip(
-                            selected = ttsEngine == engine,
-                            onClick = { onTtsEngineSelected(engine) },
-                            label = { Text("${engine.label}（${engine.description}）") },
-                            modifier = Modifier.fillMaxWidth(),
+                SettingsGroup(title = "外观", description = "主题切换会立即生效，并保存在本机。") {
+                    Text("主题", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(AppThemeMode.entries.toList(), key = { it.name }) { mode ->
+                            FilterChip(
+                                selected = themeMode == mode,
+                                onClick = { onThemeModeSelected(mode) },
+                                label = { Text(mode.label) },
+                            )
+                        }
+                    }
+                    Text(themeMode.description, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text("界面动效", style = MaterialTheme.typography.labelLarge)
+                            Text("页面切换与提示使用平滑过渡", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Switch(
+                            checked = readingPreferences.motionEnabled,
+                            onCheckedChange = { enabled -> onReadingPreferencesChanged(readingPreferences.copy(motionEnabled = enabled)) },
                         )
                     }
                 }
-                Text("默认使用 Android 本地 TTS；Edge-TTS 需要网络，连接失败时请使用本地引擎。引擎切换后立即生效。", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 6.dp))
             }
             item {
-                OutlinedTextField(
-                    value = aiState.baseUrl,
-                    onValueChange = onBaseUrlChanged,
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    label = { Text("API URL") },
-                    placeholder = { Text("https://api.openai.com/v1") },
-                    supportingText = { Text("可填写到 /v1，也可直接填写 /chat/completions") },
-                )
-            }
-            item {
-                OutlinedTextField(
-                    value = aiState.model,
-                    onValueChange = onModelChanged,
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    label = { Text("模型") },
-                    placeholder = { Text("gpt-4o-mini") },
-                )
-            }
-            item {
-                OutlinedTextField(
-                    value = aiState.apiKeyInput,
-                    onValueChange = onApiKeyChanged,
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    label = { Text("API Key") },
-                    placeholder = { Text(if (aiState.settings.hasApiKey) "已保存，留空表示保持不变" else "本机输入，不写入源码") },
-                    visualTransformation = PasswordVisualTransformation(),
-                )
-            }
-            item {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Button(onClick = onSave, enabled = !aiState.isSaving) {
-                        if (aiState.isSaving) CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-                        else Text("保存设置")
+                SettingsGroup(title = "阅读偏好", description = "这些选项作为新打开正文的默认显示方式，正文内仍可临时调整。") {
+                    Text("默认阅读方式", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(ReadingMode.entries.toList(), key = { it.name }) { mode ->
+                            FilterChip(
+                                selected = readingPreferences.mode == mode,
+                                onClick = { onReadingPreferencesChanged(readingPreferences.copy(mode = mode)) },
+                                label = { Text(mode.label) },
+                            )
+                        }
                     }
-                    if (aiState.settings.hasApiKey) TextButton(onClick = onClearApiKey) { Text("清除 Key") }
-                }
-            }
-            aiState.error?.takeIf(String::isNotBlank)?.let { message ->
-                item {
-                    Surface(color = MaterialTheme.colorScheme.errorContainer, shape = RoundedCornerShape(12.dp)) {
-                        Text(message, modifier = Modifier.padding(14.dp), color = MaterialTheme.colorScheme.onErrorContainer)
+                    Text("字形", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(TextScript.entries.toList(), key = { it.name }) { script ->
+                            FilterChip(
+                                selected = readingPreferences.script == script,
+                                onClick = { onReadingPreferencesChanged(readingPreferences.copy(script = script)) },
+                                label = { Text("${script.label} · ${script.description}") },
+                            )
+                        }
+                    }
+                    SettingSlider(
+                        label = "字号",
+                        valueLabel = "${readingPreferences.fontPercent}%",
+                        value = readingPreferences.fontPercent.toFloat(),
+                        valueRange = 80f..140f,
+                        steps = 5,
+                        onValueChange = { value -> onReadingPreferencesChanged(readingPreferences.copy(fontPercent = value.toInt())) },
+                    )
+                    SettingSlider(
+                        label = "行距",
+                        valueLabel = "${readingPreferences.lineSpacingPercent}%",
+                        value = readingPreferences.lineSpacingPercent.toFloat(),
+                        valueRange = 90f..140f,
+                        steps = 4,
+                        onValueChange = { value -> onReadingPreferencesChanged(readingPreferences.copy(lineSpacingPercent = value.toInt())) },
+                    )
+                    TextButton(onClick = { onReadingPreferencesChanged(ReadingPreferences()) }) {
+                        Text("恢复阅读默认值")
                     }
                 }
             }
+            item {
+                SettingsGroup(title = "朗读", description = "按句排队，播放完当前条目后自动进入下一条。") {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TtsEngineType.entries.forEach { engine ->
+                            FilterChip(
+                                selected = ttsEngine == engine,
+                                onClick = { onTtsEngineSelected(engine) },
+                                label = { Text("${engine.label}（${engine.description}）") },
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
+                    }
+                    Text("Android 本地 TTS 可离线使用；Edge-TTS 需要网络。引擎切换后立即生效。", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            item {
+                SettingsGroup(title = "AI 辅助", description = "支持 OpenAI-compatible 服务。API Key 使用 Android Keystore 加密保存在本机。") {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Icon(
+                            imageVector = if (aiState.settings.hasApiKey) Icons.Default.CheckCircle else Icons.Default.Info,
+                            contentDescription = null,
+                            tint = if (aiState.settings.hasApiKey) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Text(if (aiState.settings.hasApiKey) "API Key 已配置" else "尚未配置 API Key", style = MaterialTheme.typography.labelLarge)
+                    }
+                    OutlinedTextField(
+                        value = aiState.baseUrl,
+                        onValueChange = onBaseUrlChanged,
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        label = { Text("API URL") },
+                        placeholder = { Text("https://api.openai.com/v1") },
+                        supportingText = { Text("可填写到 /v1，也可直接填写 /chat/completions") },
+                    )
+                    OutlinedTextField(
+                        value = aiState.model,
+                        onValueChange = onModelChanged,
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        label = { Text("模型") },
+                        placeholder = { Text("gpt-4o-mini") },
+                    )
+                    OutlinedTextField(
+                        value = aiState.apiKeyInput,
+                        onValueChange = onApiKeyChanged,
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        label = { Text("API Key") },
+                        placeholder = { Text(if (aiState.settings.hasApiKey) "已保存，留空表示保持不变" else "本机输入，不写入源码") },
+                        visualTransformation = PasswordVisualTransformation(),
+                    )
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Button(onClick = onSave, enabled = !aiState.isSaving) {
+                            if (aiState.isSaving) {
+                                CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                            } else {
+                                Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(18.dp))
+                            }
+                            Spacer(Modifier.width(6.dp))
+                            Text(if (aiState.isSaving) "保存中" else "保存设置")
+                        }
+                        if (aiState.settings.hasApiKey) {
+                            TextButton(onClick = onClearApiKey) {
+                                Icon(Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(Modifier.width(4.dp))
+                                Text("清除 Key")
+                            }
+                        }
+                    }
+                    AnimatedVisibility(
+                        visible = !aiState.notice.isNullOrBlank(),
+                        enter = if (readingPreferences.motionEnabled) fadeIn() + expandVertically() else EnterTransition.None,
+                        exit = if (readingPreferences.motionEnabled) fadeOut() + shrinkVertically() else ExitTransition.None,
+                    ) {
+                        aiState.notice?.takeIf(String::isNotBlank)?.let { message ->
+                            Surface(color = MaterialTheme.colorScheme.primaryContainer, shape = RoundedCornerShape(12.dp)) {
+                                Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Icon(Icons.Default.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                                    Text(message, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                                }
+                            }
+                        }
+                    }
+                    AnimatedVisibility(
+                        visible = !aiState.error.isNullOrBlank(),
+                        enter = if (readingPreferences.motionEnabled) fadeIn() + expandVertically() else EnterTransition.None,
+                        exit = if (readingPreferences.motionEnabled) fadeOut() + shrinkVertically() else ExitTransition.None,
+                    ) {
+                        aiState.error?.takeIf(String::isNotBlank)?.let { message ->
+                            Surface(color = MaterialTheme.colorScheme.errorContainer, shape = RoundedCornerShape(12.dp)) {
+                                Text(message, modifier = Modifier.padding(12.dp), color = MaterialTheme.colorScheme.onErrorContainer)
+                            }
+                        }
+                    }
+                }
+            }
+            item {
+                SettingsGroup(title = "数据与隐私", description = "内容和阅读记录的存储边界清晰可见。") {
+                    SettingsInfoRow(Icons.Default.Storage, "离线内容", "46,110 篇正文 · 544 卷 · 1,985 纪年")
+                    SettingsInfoRow(Icons.AutoMirrored.Filled.MenuBook, "专题内容", "纪事本末 239 个事件 · 读通鉴论 341 个主题")
+                    SettingsInfoRow(Icons.Default.Lock, "本地隐私", "阅读记录只保存在本机；API Key 使用 Android Keystore 加密")
+                }
+            }
+            item {
+                SettingsGroup(title = "关于", description = "读通鉴是一款以离线阅读为核心的历史资料工具。") {
+                    SettingsInfoRow(Icons.Default.Info, "版本", BuildConfig.VERSION_NAME)
+                    Text("网络不可用时，已导入的正文、目录和百科仍可继续阅读。网络仅用于可选的同步、Edge-TTS 与 AI 服务。", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SettingsGroup(
+    title: String,
+    description: String,
+    content: @Composable () -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        Text(description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        GlassSurface(modifier = Modifier.fillMaxWidth().animateContentSize()) {
+            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                content()
+            }
+        }
+    }
+}
+
+@Composable
+private fun GlassSurface(
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit,
+) {
+    val shape = RoundedCornerShape(18.dp)
+    Box(modifier = modifier) {
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .padding(3.dp)
+                .clip(shape)
+                .blur(14.dp)
+                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f), shape),
+        )
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.78f),
+            tonalElevation = 3.dp,
+            shadowElevation = 2.dp,
+            shape = shape,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.52f)),
+        ) {
+            content()
+        }
+    }
+}
+
+@Composable
+private fun SettingSlider(
+    label: String,
+    valueLabel: String,
+    value: Float,
+    valueRange: ClosedFloatingPointRange<Float>,
+    steps: Int,
+    onValueChange: (Float) -> Unit,
+) {
+    Column {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(label, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.weight(1f))
+            Text(valueLabel, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+        }
+        Slider(value = value, onValueChange = onValueChange, valueRange = valueRange, steps = steps)
+    }
+}
+
+@Composable
+private fun SettingsInfoRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    detail: String,
+) {
+    Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(title, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+            Text(detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

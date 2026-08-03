@@ -282,6 +282,22 @@ class ContentStore:
                 [year.to_dict() for year in years],
             )
 
+    def upsert_catalog(self, volumes: list[Volume], years: list[ReadingYear]) -> None:
+        """Persist supplemental catalog levels before their content is fetched."""
+        with self._lock, self._connect() as connection:
+            connection.executemany(
+                """INSERT OR REPLACE INTO volumes
+                (id, section_id, title, dynasty, sort_order)
+                VALUES (:id, :section_id, :title, :dynasty, :sort_order)""",
+                [volume.to_dict() for volume in volumes],
+            )
+            connection.executemany(
+                """INSERT OR REPLACE INTO years
+                (id, volume_id, title, era, sort_order, year_int)
+                VALUES (:id, :volume_id, :title, :era, :sort_order, :year_int)""",
+                [year.to_dict() for year in years],
+            )
+
     def count_items(self, category: str | None = None) -> int:
         sql = "SELECT COUNT(*) FROM items"
         values: tuple[Any, ...] = ()

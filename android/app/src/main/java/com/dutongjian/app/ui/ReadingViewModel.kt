@@ -49,6 +49,7 @@ data class AiUiState(
     val result: String? = null,
     val conversation: List<AiConversationTurn> = emptyList(),
     val error: String? = null,
+    val notice: String? = null,
 )
 
 data class ReadingUiState(
@@ -270,28 +271,28 @@ class ReadingViewModel @Inject constructor(
 
     fun deleteNote(note: Note) = viewModelScope.launch { repository.deleteNote(note) }
 
-    fun updateAiBaseUrl(value: String) { _state.update { it.copy(ai = it.ai.copy(baseUrl = value, error = null)) } }
+    fun updateAiBaseUrl(value: String) { _state.update { it.copy(ai = it.ai.copy(baseUrl = value, error = null, notice = null)) } }
 
-    fun updateAiModel(value: String) { _state.update { it.copy(ai = it.ai.copy(model = value, error = null)) } }
+    fun updateAiModel(value: String) { _state.update { it.copy(ai = it.ai.copy(model = value, error = null, notice = null)) } }
 
-    fun updateAiApiKey(value: String) { _state.update { it.copy(ai = it.ai.copy(apiKeyInput = value, error = null)) } }
+    fun updateAiApiKey(value: String) { _state.update { it.copy(ai = it.ai.copy(apiKeyInput = value, error = null, notice = null)) } }
 
     fun saveAiSettings() = viewModelScope.launch {
         val ai = _state.value.ai
-        _state.update { it.copy(ai = ai.copy(isSaving = true, error = null)) }
+        _state.update { it.copy(ai = ai.copy(isSaving = true, error = null, notice = null)) }
         aiRepository.saveSettings(ai.baseUrl, ai.model, ai.apiKeyInput.takeIf(String::isNotBlank))
             .onSuccess { settings ->
-                _state.update { it.copy(ai = it.ai.copy(settings = settings, baseUrl = settings.baseUrl, model = settings.model, apiKeyInput = "", isSaving = false, error = null)) }
+                _state.update { it.copy(ai = it.ai.copy(settings = settings, baseUrl = settings.baseUrl, model = settings.model, apiKeyInput = "", isSaving = false, error = null, notice = "AI 设置已保存")) }
             }
             .onFailure { failure ->
-                _state.update { it.copy(ai = it.ai.copy(isSaving = false, error = failure.message ?: "AI 设置保存失败")) }
+                _state.update { it.copy(ai = it.ai.copy(isSaving = false, error = failure.message ?: "AI 设置保存失败", notice = null)) }
             }
     }
 
     fun clearAiApiKey() = viewModelScope.launch {
         aiRepository.clearApiKey()
-            .onSuccess { settings -> _state.update { it.copy(ai = it.ai.copy(settings = settings, apiKeyInput = "", error = null)) } }
-            .onFailure { failure -> _state.update { it.copy(ai = it.ai.copy(error = failure.message ?: "API Key 清除失败")) } }
+            .onSuccess { settings -> _state.update { it.copy(ai = it.ai.copy(settings = settings, apiKeyInput = "", error = null, notice = "API Key 已清除")) } }
+            .onFailure { failure -> _state.update { it.copy(ai = it.ai.copy(error = failure.message ?: "API Key 清除失败", notice = null)) } }
     }
 
     fun generateAi(item: ReadingItem, task: AiTask) = viewModelScope.launch {

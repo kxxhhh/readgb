@@ -123,10 +123,10 @@ class ReadingRepositoryImpl @Inject constructor(
     }
 
     override suspend fun loadYearItems(yearId: String): Result<List<ReadingItem>> {
-        val seedItems = OfflineSeed.items.filter { it.yearId == yearId }
-        if (seedItems.isNotEmpty()) return Result.success(seedItems)
         val cachedItems = localItems(yearId = yearId)
         if (cachedItems.isNotEmpty()) return Result.success(cachedItems)
+        val seedItems = OfflineSeed.items.filter { it.yearId == yearId }
+        if (seedItems.isNotEmpty()) return Result.success(seedItems)
         return withOfflineFallback(
             remote = {
                 val response = api.yearItems(yearId)
@@ -485,8 +485,8 @@ private const val CONTENT_ASSET = "offline_content.ndjson"
 private const val LEGACY_CONTENT_ASSET = "offline_content.ndjson.gz"
 private const val OFFLINE_CATALOG_ASSET = "offline_catalog.json"
 private const val OFFLINE_KNOWLEDGE_ASSET = "offline_knowledge.json"
-private const val OFFLINE_CONTENT_RECORD_COUNT = 30_989
-private const val OFFLINE_ASSET_VERSION = "2026-08-03-full-raw-crawled-1"
+private const val OFFLINE_CONTENT_RECORD_COUNT = 46_110
+private const val OFFLINE_ASSET_VERSION = "2026-08-04-extended-crawled-341-topics-1"
 private const val OFFLINE_ASSET_PREFERENCES = "offline_assets"
 private const val OFFLINE_ASSET_VERSION_KEY = "content_version"
 private const val ASSET_BATCH_SIZE = 500

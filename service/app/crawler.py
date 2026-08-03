@@ -1,7 +1,7 @@
 import hashlib
 import time
 from collections.abc import Callable
-from urllib.error import URLError
+from urllib.error import HTTPError, URLError
 from urllib.parse import urljoin, urlparse
 from urllib.request import Request, urlopen
 from urllib.robotparser import RobotFileParser
@@ -59,6 +59,15 @@ class RobotsAwareFetcher:
                 self._cache[url] = body
                 hashlib.sha256(body.encode("utf-8")).hexdigest()
                 return body
+            except HTTPError as error:
+                if attempt == self.retries:
+                    return None
+                retry_after = error.headers.get("Retry-After") if error.headers else None
+                try:
+                    delay = float(retry_after) if retry_after else 0.0
+                except ValueError:
+                    delay = 0.0
+                self.sleep(min(60.0, max(delay, 2**(attempt + 2))))
             except (OSError, URLError):
                 if attempt == self.retries:
                     return None
