@@ -30,7 +30,6 @@ REQUIRED_ITEM_FIELDS = (
     "volume_id",
     "year_id",
     "original",
-    "translation",
 )
 
 
@@ -58,6 +57,10 @@ def validate_dataset(
             connection,
             "SELECT COUNT(*) FROM items i WHERE "
             f"{real_filter} AND ({required_clause})",
+        )
+        translation_fallback = _scalar(
+            connection,
+            f"SELECT COUNT(*) FROM items i WHERE {real_filter} AND TRIM(COALESCE(i.translation, '')) = ''",
         )
         orphan_volumes = _scalar(
             connection,
@@ -155,6 +158,7 @@ def validate_dataset(
         },
         "field_integrity": {
             "missing_required": missing_required,
+            "translation_fallback": translation_fallback,
             "orphan_volumes": orphan_volumes,
             "orphan_years": orphan_years,
             "invalid_notes": invalid_notes,

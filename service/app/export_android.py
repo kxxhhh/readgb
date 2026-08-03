@@ -59,6 +59,7 @@ def _export_partial_content(
 
 
 def _validate_content(items: list[Item]) -> None:
+    # The public API has one known record without content_fanyi; Android falls back to content.
     required_fields = (
         "title",
         "dynasty",
@@ -70,7 +71,6 @@ def _validate_content(items: list[Item]) -> None:
         "volume_id",
         "year_id",
         "original",
-        "translation",
     )
     for item in items:
         missing = [field for field in required_fields if not str(getattr(item, field) or "").strip()]
@@ -253,10 +253,14 @@ def _export_partial_catalog(
         year.to_dict()
         for volume in store.volumes("zizhi")
         for year in store.years(volume.id)
-        if year.id in completed_year_ids
+        if not _is_seed_year(year.id) and year.id in completed_year_ids
     ]
     completed_volume_ids = {year["volume_id"] for year in years}
-    volumes = [volume.to_dict() for volume in store.volumes("zizhi") if volume.id in completed_volume_ids]
+    volumes = [
+        volume.to_dict()
+        for volume in store.volumes("zizhi")
+        if not _is_seed_volume(volume.id) and volume.id in completed_volume_ids
+    ]
     sections = [section.to_dict() for section in store.sections() if section.id == "zizhi" and volumes]
     if not years:
         raise ValueError("refusing partial Android catalog export: no completed years found")
@@ -295,10 +299,10 @@ def _write_json(payload: object, output: str | Path) -> None:
 def export_catalog(database: str | Path, output: str | Path, *, expected_volumes: int = 294, expected_years: int = 1405) -> dict[str, int]:
     store = ContentStore(database)
     sections = [section.to_dict() for section in store.sections()]
-    volumes = [volume.to_dict() for volume in store.volumes("zizhi")]
+    volumes = [volume.to_dict() for volume in store.volumes("zizhi") if not _is_seed_volume(volume.id)]
     years = []
     for volume in volumes:
-        years.extend(year.to_dict() for year in store.years(volume["id"]))
+        years.extend(year.to_dict() for year in store.years(volume["id"]) if not _is_seed_year(year.id))
     if len(volumes) != expected_volumes or len(years) != expected_years:
         raise ValueError(
             f"refusing Android catalog export: expected {expected_volumes} volumes/{expected_years} years, "
@@ -310,6 +314,14 @@ def export_catalog(database: str | Path, output: str | Path, *, expected_volumes
     temporary.write_text(json.dumps({"sections": sections, "volumes": volumes, "years": years}, ensure_ascii=False), encoding="utf-8")
     temporary.replace(destination)
     return {"sections": len(sections), "volumes": len(volumes), "years": len(years)}
+
+
+def _is_seed_volume(volume_id: str) -> bool:
+    return volume_id.startswith("zizhi-volume-")
+
+
+def _is_seed_year(year_id: str) -> bool:
+    return year_id.startswith("zizhi-year-")
 
 
 def main() -> int:

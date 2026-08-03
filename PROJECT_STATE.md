@@ -1,6 +1,6 @@
 # 读通鉴当前任务清单与恢复日志
 
-更新时间：2026-08-03 21:29（Asia/Shanghai）
+更新时间：2026-08-03 22:49（Asia/Shanghai）
 
 本文件是项目的单一状态源，同时承担项目清单、断点恢复记录和开发日志。PROJECT_STATE_HISTORY.md 只保留旧历史，不作为当前事实来源；DEVELOPMENT_LOG.md 是本文件的合并入口说明，不再单独维护第二套日志。
 
@@ -26,19 +26,19 @@ jq '{total_reigns, completed: (.completed_reign_ids | length), failed: (.failed_
 - [x] 公开同步目标已确认：294 卷、1,405 个纪年节点、30,989 条正文；公开入口为 /api/table_of_contents 和 /api/reign。✅
 - [x] 旧导入内容清理前快照保存在 service/data/resync-archive-20260803/；新同步数据只写入 service/data/。✅
 - [x] 同步器使用受控多线程：4 个 worker、全局请求节奏、robots 检查、缓存、Retry-After、退避、去重和原子 checkpoint。✅
-- [x] 本轮从当前项目内空数据状态启动后已转为独立 session 续跑；22:07 观察到 checkpoint `1216/1405`、失败 `0`、数据库 `23,704` 条真实 `zztj-*` 正文。运行使用 4 worker、5 秒请求间隔和 robots 检查。✅
-- [ ] 同步仍未完成，当前 checkpoint `86.55%`，不能把数据库或 App 描述为全本。下一步：保持唯一后台进程运行，复用 `service/data/tongjian-progress.json`、`service/data/tongjian-cache/` 和 `service/data/dutongjian.db` 执行 `./scripts/resume_crawler.sh`；不使用 `--reset`。
-- [ ] 新的正文、目录、百科 Android assets 尚未由本轮全量同步导出；导出前必须通过 `service/app/validate_tongjian.py --strict` 的 `30,989/294/1,405` 完整性校验。
+- [x] 本轮公开 API 同步已完成；checkpoint `1405/1405`、失败 `0`、数据库 `30,989` 条真实 `zztj-*` 正文，继续使用 4 worker、5 秒全局节奏和 robots 检查。✅
+- [x] `validate_tongjian --strict` 已通过 `30,989/294/1,405`、零空纪年、零外键/关联错误；公开数据中 1 条记录没有译文，报告为 `translation_fallback=1`，客户端按原文回退，不伪造译文。✅
+- [x] 全量正文、目录和百科 Android assets 已导出并通过数量/分类校验；正文 `30,989`、目录 `294` 卷/`1,405` 年、百科 `61,696` 条，五类齐全。✅
 - [x] Android 图表代码已改为按纪年/纪·朝代覆盖全部分组，并把人物图谱改为全人物索引 + 中心人物下钻；Kotlin 编译、测试和 lint 已通过。✅
 - [x] 研读页新增正文/纪年/卷三项真实 `zztj-*` 覆盖率卡片，不把 OfflineSeed 计入数据覆盖。✅
 
 ### 当前同步速度判断
 
-本轮于 2026-08-03 14:57 左右从空 checkpoint 启动；22:07 观察到 `1216/1405` 个纪年、`23,704` 条真实正文、失败 `0`。当前阶段没有新的失败，仍继续使用 5 秒请求间隔、4 worker 和服务端 Retry-After；4 worker 不用于绕过限流。该结论只表示已观察窗口，不代表同步已完成。
+本轮于 2026-08-03 14:57 左右从空 checkpoint 启动，最终完成 `1405/1405` 个纪年、`30,989` 条真实正文，失败 `0`。同步全程使用 5 秒全局请求节奏、4 worker、robots 和服务端 Retry-After；worker 不用于绕过限流。当前没有运行中的同步进程。
 
 ## 当前任务清单
 
-### 本轮完成与后续同步清单（2026-08-03 22:07 Asia/Shanghai）
+### 本轮完成与后续同步清单（2026-08-03 22:49 Asia/Shanghai）
 
 已完成并已 push：
 
@@ -49,17 +49,19 @@ jq '{total_reigns, completed: (.completed_reign_ids | length), failed: (.failed_
 - [x] 增加 Release 签名与 gh release workflow 骨架；没有生产 keystore，因此未宣称真实签名发布完成。✅
 - [x] 增加 AI 结果 Room 持久化、迁移、保存/删除/重开和 JVM 测试；覆盖反事实/角色等任务的结果记录。✅
 - [x] 增加百科导出五类关联、非空字段、去重闸门，以及 `scripts/finalize_tongjian.sh` 全量收尾流程；持锁拒绝并发已验证。✅
+- [x] 完成公开 API 全量续爬并收敛到 `1405/1405`、失败 `0`、真实正文 `30,989`；复用项目内 database/cache/checkpoint，没有重置或重复抓取。✅
+- [x] 运行严格校验和全量收尾；生成正文、目录、百科 assets，并生成可推送的数据库/进度快照与独立缓存快照；两个归档均小于 GitHub 单文件限制并通过 SHA-256。✅
 
 正在进行：
 
-- [ ] 公开 API 全量同步：当前 `1216/1405`、真实正文 `23704`、失败 `0`，PID `9878`；恢复：保持唯一进程运行并复用原 checkpoint/cache。
+- [ ] 远程同步：代码、全量 Android assets、数据库/进度快照和独立 cache 快照已完成本地校验，下一步提交并 push；之后继续补齐可在本地实现的 AI 会话/定位能力。
 
 接下来按顺序执行：
 
-- [ ] 原进程结束后运行最新版 `./scripts/resume_crawler.sh`，复核已完成但无真实正文的纪年。
-- [ ] 运行 `validate_tongjian --strict`，确认 `30989/294/1405`、零空纪年、零字段/层级/关联错误。
-- [ ] 运行 `./scripts/finalize_tongjian.sh`，生成并核对 `offline_content.ndjson.gz`、`offline_catalog.json`、`offline_knowledge.json` 和最终压缩快照。
-- [ ] 用全量 assets 重跑 Android JVM test、lint、Debug/Inspection/Release 构建，核对资产数量和 SHA-256。
+- [x] 原进程结束后运行最新版 `./scripts/resume_crawler.sh`，复核已完成但无真实正文的纪年；最终无空纪年。✅
+- [x] 运行 `validate_tongjian --strict`，确认 `30989/294/1405`、零空纪年、零层级/关联错误；译文缺失单独计入 `translation_fallback=1`。✅
+- [x] 运行 `./scripts/finalize_tongjian.sh`，生成并核对 `offline_content.ndjson.gz`、`offline_catalog.json`、`offline_knowledge.json` 和分卷压缩快照。✅
+- [x] 用全量 assets 重跑 Android JVM test、lint、Debug/Inspection/Release 构建；三种 APK 均核对正文 `30,989`、目录 `294/1,405`、百科 `61,696` 和五类分类。✅
 - [ ] 更新当前数量、快照哈希和 APK 产物记录，提交并 push 全量资产与爬取快照。
 
 仍未完成或有外部阻塞：
@@ -84,26 +86,29 @@ jq '{total_reigns, completed: (.completed_reign_ids | length), failed: (.failed_
 - [x] TongjianSync 使用 ThreadPoolExecutor 并发获取未完成纪年，主线程顺序入库并逐纪年写 checkpoint。✅
 - [x] 单个纪年的网络、解析或入库异常会写入 failed_reign_ids/last_errors，不会中断其他已完成 future。✅
 - [x] scripts/resume_crawler.sh 固定使用 4 worker、5 秒最小请求间隔和 robots 检查；当前 PID 9878 持有同步锁运行，源代码已增加 1,405/294 规模门槛。✅
-- [ ] 继续观察恢复后的稳定吞吐和失败率；当前已观察到 `1216` 个纪年、失败 `0`，仍需保持到任务结束；若出现 429，只遵守 Retry-After，不盲目增加并发。
-- [ ] 完成 1,405 个纪年后执行全量正文、目录、关联字段校验并导出 Android assets。
+- [x] 继续观察恢复后的稳定吞吐和失败率；最终完成 `1405` 个纪年、失败 `0`，没有新增失败记录。✅
+- [x] 完成 1,405 个纪年后执行全量正文、目录、关联字段校验并导出 Android assets。✅
 
 ### 数据校验与覆盖看板
 
 - [x] 增加只读数据集校验器，检查真实正文数量、唯一 ID、必填字段、卷/纪年外键、空纪年、关联 JSON 和 checkpoint；路径：`service/app/validate_tongjian.py`；测试：`service/tests/test_validate_tongjian.py`。✅
 - [x] 研读页增加正文/纪年/卷覆盖率卡片，明确排除 OfflineSeed；路径：`android/app/src/main/java/com/dutongjian/app/ui/StudyCoverage.kt`、`StudyScreen.kt`；测试：`StudyCoverageTest`。✅
-- [ ] 同步结束后用校验器严格通过 `30,989` 条正文、`294` 卷、`1,405` 纪年、零空纪年和零字段/关联错误；下一步：爬虫结束后执行 `PYTHONPATH=service .venv/bin/python -m app.validate_tongjian --strict`。
+- [x] 同步结束后用校验器严格通过 `30,989` 条正文、`294` 卷、`1,405` 纪年、零空纪年和零层级/关联错误；译文缺失记录单独报告为 `translation_fallback=1`。✅
 
 ### 构建与验收
 
 - [x] Backend 测试 27 passed、compileall、shell 语法检查和 git diff --check。✅
 - [x] 本轮 Android `:app:assembleDebug` 和 `:app:testDebugUnitTest` 均 BUILD SUCCESSFUL；Debug APK 约 20M。✅
 - [x] Android testDebugUnitTest、compileDebugKotlin、lintDebug、Debug/Inspection/Release 构建全部通过；Debug APK 20M，Inspection APK 13M，未签名 Release APK 13M。✅
+- [x] 全量 assets 构建和 APK 内容验收：`testDebugUnitTest`、`lintDebug`、`assembleDebug`、`assembleInspection`、`assembleRelease` 均 `BUILD SUCCESSFUL`；Debug APK `104,086,521` bytes，Inspection APK `83,032,517` bytes，unsigned Release APK `83,020,229` bytes。三种 APK 直接解析得到正文 `30,989`、卷 `294`、年 `1,405`、百科 `61,696`。✅
+- [x] 资产 SHA-256：`offline_content.ndjson.gz`=`2956d83ebfbac0f45db25c77c531318220f5ce959287e943fba9961d62a189ba`，`offline_catalog.json`=`66dd0f1320e564d92950ad55e678b6c7030a3bf65dce90f5d9064a60bafe9b7c`，`offline_knowledge.json`=`fa1bbc67c05c0cc00c4dfbbcfe8322f45f28bd5ba73a5ea15d2b543f9b20ec45`。✅
+- [x] APK SHA-256：Debug=`a7156285163e7d8d934669b0955949c03ad04a58f2e9b88cf9d2a203df4a7636`，Inspection=`26d288e007493482631b1f91335394df7543b2f880c0aaffbdf76358f767fada`，unsigned Release=`08cdb263282394bc83c3e9148ac968127167d86f6fe7768ff747d42cf6b26c5e`。✅
 - [x] 设备/真机验收不纳入本轮交付；本轮以源码、JVM test、lint、APK 编译和发布产物为验收依据。✅
 - [x] 已记录 APK、数据规模、测试命令和实际警告；未进行模拟器或真机验收。✅
 
 ### 其他未完成能力
 
-- [ ] 全量百科资产：人物、地点、官职、专题、决策关联需在完整正文后导出；`export_android` 已强制检查五类分类、非空字段和去重，下一步：运行 `scripts/finalize_tongjian.sh` 并复核 `offline_knowledge.json`。
+- [x] 全量百科资产：人物 `31,552`、地点 `9,896`、官职 `13,475`、主题 `519`、决策 `6,254`，已由 `export_android` 检查非空、去重并写入 `offline_knowledge.json`。✅
 - [ ] 典章制度、经济史专题的全量结构化标注；当前只有 tags/关联字段和关键词筛选，下一步：依据公开字段建立可追溯的主题分类规则并补测试。
 - [ ] 全本图表性能、关系准确性和人物/时期覆盖验收；下一步：全量资产导入后执行图表聚合基准和 Android UI 检查。
 - [ ] “历史上的今天”完整历法匹配和自动刷新；当前 `今日金句` 只是按 day-of-year 轮换条目，缺少公开月日字段，下一步：补充可信历法映射数据后再实现。
@@ -194,6 +199,13 @@ android/app/src/main/assets/            校验后的 APK 资产
 
 - [x] 事项：按用户要求整理完成项、进行中任务、后续动作和外部阻塞；结果：已写入“本轮完成与后续同步清单”，并同步当前 `1216/1405`、`23,704` 条正文、失败 `0`。✅
 - [ ] 事项：继续公开 API 同步；结果：PID `9878`，checkpoint `1216/1405`，失败 `0`；下一步：保持原 cache/checkpoint，完成后运行最新版恢复、严格校验、全量收尾和 push。
+
+### 2026-08-03 22:49 Asia/Shanghai
+
+- [x] 事项：完成公开 API 全量同步和严格收尾；命令：`./scripts/resume_crawler.sh`、`PYTHONPATH=service .venv/bin/python -m app.validate_tongjian --strict`、`./scripts/finalize_tongjian.sh`；结果：`1405/1405`、失败 `0`、正文 `30,989`、卷 `294`、年 `1,405`、百科 `61,696`，译文回退审计 `1` 条。✅
+- [x] 事项：生成并校验全量 Android assets；结果：五类百科齐全，三种 APK 包内正文/目录/百科数量均与数据库一致；源码资产和 APK SHA-256 已记录在本文件。✅
+- [x] 事项：生成可推送爬取快照；结果：`tongjian-snapshot-latest.tar.gz` `55,739,826` bytes，SHA-256 `eea1d5798d8e1ccfb582475cf65ad488ba809e1830c943df69bdfc8fce4c4ac5`；`tongjian-cache-snapshot-latest.tar.gz` `53,912,115` bytes，SHA-256 `2334152b4e94120894338537f98e8e8e46215d9db4b377136b7695a352ae0718`；两个文件均通过 `sha256sum -c`。✅
+- [ ] 事项：提交和 push 全量代码、assets 与快照；下一步：stage 大文件并推送 `origin/main`，然后继续实现本地可完成的 AI 会话/原文定位能力。
 
 ## 记录协议
 

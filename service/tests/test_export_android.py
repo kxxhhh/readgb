@@ -83,6 +83,23 @@ def test_export_catalog_refuses_incomplete_hierarchy(tmp_path):
     assert not output.exists()
 
 
+def test_export_catalog_excludes_seed_hierarchy(tmp_path):
+    database = tmp_path / "catalog-with-seeds.db"
+    store = ContentStore(database)
+    store.upsert_volumes([Volume("real-volume", "zizhi", "卷一", "周纪", 1)])
+    store.upsert_years([ReadingYear("real-year", "real-volume", "二十三年", "前403年", 1)])
+    output = tmp_path / "offline_catalog.json"
+
+    assert export_catalog(database, output, expected_volumes=1, expected_years=1) == {
+        "sections": 4,
+        "volumes": 1,
+        "years": 1,
+    }
+    payload = json.loads(output.read_text(encoding="utf-8"))
+    assert [volume["id"] for volume in payload["volumes"]] == ["real-volume"]
+    assert [year["id"] for year in payload["years"]] == ["real-year"]
+
+
 def test_partial_export_only_includes_completed_checkpoint_years(tmp_path):
     database = tmp_path / "partial.db"
     store = ContentStore(database)

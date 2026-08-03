@@ -143,7 +143,7 @@ systemd unit 使用 scripts/resume_crawler.sh，不带 --reset，失败后自动
 ./scripts/finalize_tongjian.sh
 ~~~
 
-脚本会占用同步锁，严格要求 30,989 条真实正文、294 卷和 1,405 个纪年，检查五类百科关联，原子导出 Android assets，并生成 `service/data/tongjian-snapshot-latest.tar.gz` 及 SHA-256。阶段性导出必须显式使用 `--allow-partial --checkpoint`，并在 PROJECT_STATE.md 标明快照范围。
+脚本会占用同步锁，严格要求 30,989 条真实正文、294 卷和 1,405 个纪年，检查五类百科关联，原子导出 Android assets，并生成数据库/进度归档 `service/data/tongjian-snapshot-latest.tar.gz`、独立缓存归档 `service/data/tongjian-cache-snapshot-latest.tar.gz` 及 SHA-256 清单。两个归档分别低于 GitHub 单文件限制；阶段性导出必须显式使用 `--allow-partial --checkpoint`，并在 PROJECT_STATE.md 标明快照范围。
 
 ## 项目结构
 

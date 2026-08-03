@@ -40,17 +40,23 @@ PYTHONPATH=service "$python_bin" -m app.validate_tongjian \
     --checkpoint "$checkpoint" \
     --strict
 
+assets_stage=$(mktemp -d "$assets_dir/.finalize-assets.XXXXXX")
+cleanup_assets_stage() {
+    rm -rf "$assets_stage"
+}
+trap cleanup_assets_stage EXIT
+
 PYTHONPATH=service "$python_bin" -m app.export_android \
     --database "$database" \
     --checkpoint "$checkpoint" \
-    --output "$assets_dir/offline_content.ndjson.gz" \
-    --catalog-output "$assets_dir/offline_catalog.json" \
-    --knowledge-output "$assets_dir/offline_knowledge.json" \
+    --output "$assets_stage/offline_content.ndjson.gz" \
+    --catalog-output "$assets_stage/offline_catalog.json" \
+    --knowledge-output "$assets_stage/offline_knowledge.json" \
     --expected-count 30989 \
     --expected-volumes 294 \
     --expected-years 1405
 
-PYTHONPATH=service "$python_bin" - "$assets_dir" <<'PY'
+PYTHONPATH=service "$python_bin" - "$assets_stage" <<'PY'
 import gzip
 import json
 import sys
@@ -76,12 +82,23 @@ if not required.issubset(categories):
 print({"content": content_count, "volumes": len(catalog_payload["volumes"]), "years": len(catalog_payload["years"]), "knowledge": len(knowledge_payload), "categories": sorted(categories)})
 PY
 
+mv "$assets_stage/offline_content.ndjson.gz" "$assets_dir/offline_content.ndjson.gz"
+mv "$assets_stage/offline_catalog.json" "$assets_dir/offline_catalog.json"
+mv "$assets_stage/offline_knowledge.json" "$assets_dir/offline_knowledge.json"
+trap - EXIT
+rm -rf "$assets_stage"
+
 stage_dir=$(mktemp -d "$root_dir/../tongjian-final-snapshot.XXXXXX")
 trap 'rm -rf "$stage_dir"' EXIT
 sqlite3 "$database" ".backup '$stage_dir/dutongjian.db'"
 cp "$checkpoint" "$stage_dir/tongjian-progress.json"
 cp -a "$data_dir/tongjian-cache" "$stage_dir/tongjian-cache"
-tar -czf "$data_dir/tongjian-snapshot-latest.tar.gz" -C "$stage_dir" dutongjian.db tongjian-progress.json tongjian-cache
-sha256sum "$data_dir/tongjian-snapshot-latest.tar.gz" > "$data_dir/tongjian-snapshot-latest.sha256"
+tar -czf "$data_dir/tongjian-snapshot-latest.tar.gz" -C "$stage_dir" dutongjian.db tongjian-progress.json
+tar -czf "$data_dir/tongjian-cache-snapshot-latest.tar.gz" -C "$stage_dir" tongjian-cache
+sha256sum \
+    "$data_dir/tongjian-snapshot-latest.tar.gz" \
+    "$data_dir/tongjian-cache-snapshot-latest.tar.gz" \
+    > "$data_dir/tongjian-snapshot-latest.sha256"
 printf 'final snapshot: %s\n' "$data_dir/tongjian-snapshot-latest.tar.gz"
+printf 'cache snapshot: %s\n' "$data_dir/tongjian-cache-snapshot-latest.tar.gz"
 cat "$data_dir/tongjian-snapshot-latest.sha256"

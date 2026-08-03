@@ -60,7 +60,7 @@ ReadingRepositoryImpl 的顺序如下：
 4. 导入时按 ID 保留本地 isFavorite 和 lastOpenedAt。
 5. 目录从 offline_catalog.json 读取；百科从 offline_knowledge.json 读取；缺资产时才回退种子。
 
-截至 2026-08-03 22:07，新一轮同步 checkpoint 为 `1216/1405`，真实正文 `23,704` 条；因此 `offline_content.ndjson.gz`、`offline_catalog.json`、`offline_knowledge.json` 尚未按本轮全量数据重新生成。`classical_char_map.json` 和 `classical_glossary.json` 是独立的本地静态资源，当前已经在 assets 中。
+截至 2026-08-03 22:49，新一轮同步已完成 checkpoint `1405/1405`、真实正文 `30,989` 条；`offline_content.ndjson.gz`、`offline_catalog.json`、`offline_knowledge.json` 已由严格校验后的数据库生成并写入 assets。公开数据中 1 条记录没有译文，导出契约报告 `translation_fallback=1`，客户端回退显示原文。`classical_char_map.json` 和 `classical_glossary.json` 是独立的本地静态资源。
 
 ### 3.2 阅读详情页
 
@@ -212,7 +212,7 @@ unit 的 ExecStart 指向恢复脚本，Restart=on-failure，依赖 network-onli
 
 service/app/export_android.py 有三种边界：
 
-- 默认全量导出：严格要求 30,989 条真实 zztj-*、294 卷和 1,405 年，并校验正文、原文、译文、层级字段以及人物/地点/官职/主题/决策五类百科关联的非空与去重。
+- 默认全量导出：严格要求 30,989 条真实 zztj-*、294 卷和 1,405 年，并校验正文、原文、层级字段以及人物/地点/官职/主题/决策五类百科关联的非空与去重；译文缺失不伪造，单独由数据校验报告并由 Android 回退到原文。
 - --allow-partial --checkpoint：仅导出 checkpoint 已完成纪年的阶段性快照，适合开发检查，不代表全本。
 - 资产写入先写同目录 .tmp 再 replace，校验或进程失败不会替换旧目标。
 
@@ -222,7 +222,7 @@ service/app/export_android.py 有三种边界：
 ./scripts/finalize_tongjian.sh
 ~~~
 
-该脚本会占用同步锁，先执行 `validate_tongjian --strict`，再调用导出器并检查正文、目录和五类百科关联，最后用 SQLite backup 生成可推送快照。当前新抓取未达到全量门槛，因此不要运行全量收尾，也不要把阶段性数据伪装成完整资产。导出后必须重新运行 Android 测试、构建并更新状态文件中的数量、版本标识和校验结果。
+该脚本会占用同步锁，先执行 `validate_tongjian --strict`，再调用导出器并检查正文、目录和五类百科关联，最后用 SQLite backup 生成数据库/进度归档，并将原始 JSON cache 单独压缩为缓存归档；两个归档均可推送且通过 SHA-256 清单校验。导出后必须重新运行 Android 测试、构建并更新状态文件中的数量、版本标识和校验结果。
 
 ### 7.1 数据集覆盖报告
 
@@ -311,8 +311,8 @@ PROJECT_STATE.md 同时承担项目状态、任务清单和可恢复日志；DEV
 
 这些不是已实现声明，实际清单以 PROJECT_STATE.md 为准：
 
-- [ ] 数据门槛：完成 `1,405/1,405` 纪年并校验 `30,989` 条真实正文、唯一 ID、必填字段、卷/纪年外键、关联 JSON 和零空纪年；当前 `1216/1405`，下一步运行 `app.validate_tongjian --strict`。
-- [ ] 离线资产：严格通过数据门槛后生成并导入正文、目录、百科三个 Android assets，再从 APK 内容核对数量和 SHA-256。
+- [x] 数据门槛：已完成 `1,405/1,405` 纪年并校验 `30,989` 条真实正文、唯一 ID、必填字段、卷/纪年外键、关联 JSON 和零空纪年；译文缺失单独报告为 `translation_fallback=1`。✅
+- [x] 离线资产：已严格通过数据门槛后生成正文、目录、百科三个 Android assets；待全量构建完成后再从 APK 内容核对数量和 SHA-256。✅
 - [ ] 百科和专题：完成全量人物/地点/官职/专题/决策索引，以及典章制度、经济史的可追溯结构化标注。
 - [ ] 研读验收：全本规模下验证图表滚动、节点不重叠、文字不截断、关系准确性、人物/时期覆盖和搜索性能。
 - [ ] 用户看板：将已有的正文/纪年/卷覆盖率卡片与全量数据复核；“历史上的今天”仍需可信月日历法映射和自动刷新。

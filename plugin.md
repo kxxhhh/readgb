@@ -13,10 +13,10 @@
 ## P0：离线底座
 
 - [x] Room/SQLite 保存正文、收藏、最近阅读、笔记和本地状态；ItemDao 提供 FTS 搜索入口。✅
-- [ ] 完整 30,989 条正文、294 卷、1,405 纪年进入 APK。当前 checkpoint `1216/1405`、真实正文 `23,704`，下一步：严格校验通过后导出并从 APK 复核。
+- [x] 完整 30,989 条正文、294 卷、1,405 纪年进入 APK。三种 APK 均已从包内复核正文 `30,989`、目录 `294/1,405` 和百科 `61,696`。✅
 - [x] 正文保留 original、translation、notes、tags、volume_id、year_id 和 source_url；导入失败不覆盖已有 Room 数据。✅
 - [x] 本地字形映射表和古籍字词提示表放入 android/app/src/main/assets/，应用启动时加载。✅
-- [ ] 全量人物、地点、官职、专题、决策百科资产。`export_android` 已在全量导出时强制检查五类关联、非空字段和去重，下一步：同步完成后运行收尾脚本并从 APK 复核。
+- [x] 全量人物、地点、官职、专题、决策百科资产。`export_android` 已强制检查五类关联、非空字段和去重，已生成 `61,696` 条百科资产；仍需在 APK 包内复核。✅
 - [x] App 无网络时可以通过 OfflineSeed、Room 和本地资源启动，不把目标网站作为运行时依赖。✅
 
 ## P1：阅读器与声音
@@ -67,8 +67,8 @@
 
 ## 验收顺序
 
-1. 等待或恢复同步，确认 checkpoint 到 1,405/1,405。
-2. 校验真实正文数量、唯一 ID、原文/译文、卷/纪年层级和关联字段。
-3. 导出 offline_content.ndjson.gz、offline_catalog.json、offline_knowledge.json 到 Android assets。
+1. 确认 checkpoint 到 1,405/1,405；已完成。
+2. 校验真实正文数量、唯一 ID、原文、卷/纪年层级和关联字段；已完成，译文缺失单独记录 fallback。
+3. 导出 offline_content.ndjson.gz、offline_catalog.json、offline_knowledge.json 到 Android assets；已完成。
 4. 运行 Android JVM test、lint、Debug/Release build。
 5. 将实际数量、命令、结果和未完成项写回 PROJECT_STATE.md，再提交和推送。

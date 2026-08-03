@@ -72,7 +72,7 @@ def test_validate_dataset_accepts_exact_content_and_checkpoint(tmp_path):
                 volume_id="volume-1",
                 year_id="year-1",
                 original="原文",
-                translation="译文",
+                translation="",
                 notes="{}",
             )
         ]
@@ -84,6 +84,7 @@ def test_validate_dataset_accepts_exact_content_and_checkpoint(tmp_path):
 
     assert report["complete"] is True
     assert report["checkpoint"]["completed"] == 1
+    assert report["field_integrity"]["translation_fallback"] == 1
 
 
 def test_validate_dataset_reports_failed_checkpoint(tmp_path):
