@@ -176,12 +176,15 @@ class ReadingRepositoryImpl @Inject constructor(
         localContentMutex.withLock {
             if (localContentReady) return@withLock
             val existing = dao.observeAllOnce()
-            val missing = OfflineSeed.items.filterNot { it.id in existing }
-            if (missing.isNotEmpty()) {
-                dao.upsertAll(missing.map { it.toEntity() })
+            val hasBundledContent = hasBundledContentAsset()
+            if (!hasBundledContent) {
+                val missing = OfflineSeed.items.filterNot { it.id in existing }
+                if (missing.isNotEmpty()) {
+                    dao.upsertAll(missing.map { it.toEntity() })
+                }
             }
             val importedVersion = assetPreferences.getString(OFFLINE_ASSET_VERSION_KEY, null)
-            if (importedVersion != OFFLINE_ASSET_VERSION || dao.fullContentCount() < OFFLINE_CONTENT_RECORD_COUNT) {
+            if (hasBundledContent && (importedVersion != OFFLINE_ASSET_VERSION || dao.fullContentCount() < OFFLINE_CONTENT_RECORD_COUNT)) {
                 if (importBundledContent()) {
                     assetPreferences.edit().putString(OFFLINE_ASSET_VERSION_KEY, OFFLINE_ASSET_VERSION).apply()
                 }
@@ -199,21 +202,23 @@ class ReadingRepositoryImpl @Inject constructor(
     private suspend fun importBundledContent(): Boolean {
         try {
             withContext(Dispatchers.IO) {
+                val previous = dao.observeAllOnce()
+                val imported = ArrayList<ItemEntity>()
                 openBundledContentAsset().use { input ->
                     contentAssetReader(input).use { reader ->
-                        val batch = ArrayList<ItemEntity>(ASSET_BATCH_SIZE)
                         while (true) {
                             val line = reader.readLine() ?: break
                             if (line.isBlank()) continue
-                            batch += json.decodeFromString<ItemDto>(line).toEntity()
-                            if (batch.size == ASSET_BATCH_SIZE) {
-                                dao.upsertAll(batch.toList())
-                                batch.clear()
-                            }
+                            val dto = json.decodeFromString<ItemDto>(line)
+                            imported += dto.toEntity(previous[dto.id])
                         }
-                        if (batch.isNotEmpty()) dao.upsertAll(batch)
                     }
                 }
+                require(imported.isNotEmpty()) { "offline content asset is empty" }
+                // Replace the imported corpus only after the new asset has been
+                // fully parsed, while retaining local favorites and history.
+                dao.deleteImportedContent()
+                imported.chunked(ASSET_BATCH_SIZE).forEach { dao.upsertAll(it) }
             }
             return true
         } catch (error: IOException) {
@@ -228,6 +233,18 @@ class ReadingRepositoryImpl @Inject constructor(
         context.assets.open(CONTENT_ASSET)
     } catch (_: IOException) {
         context.assets.open(LEGACY_CONTENT_ASSET)
+    }
+
+    private fun hasBundledContentAsset(): Boolean = try {
+        context.assets.open(CONTENT_ASSET).use { }
+        true
+    } catch (_: IOException) {
+        try {
+            context.assets.open(LEGACY_CONTENT_ASSET).use { }
+            true
+        } catch (_: IOException) {
+            false
+        }
     }
 
     private suspend fun bundledCatalog(): OfflineCatalogAsset = catalogMutex.withLock {
@@ -363,8 +380,8 @@ private const val CONTENT_ASSET = "offline_content.ndjson"
 private const val LEGACY_CONTENT_ASSET = "offline_content.ndjson.gz"
 private const val OFFLINE_CATALOG_ASSET = "offline_catalog.json"
 private const val OFFLINE_KNOWLEDGE_ASSET = "offline_knowledge.json"
-private const val OFFLINE_CONTENT_RECORD_COUNT = 4_552
-private const val OFFLINE_ASSET_VERSION = "2026-08-02-541-raw-crawled-2"
+private const val OFFLINE_CONTENT_RECORD_COUNT = 30_989
+private const val OFFLINE_ASSET_VERSION = "2026-08-03-full-raw-crawled-1"
 private const val OFFLINE_ASSET_PREFERENCES = "offline_assets"
 private const val OFFLINE_ASSET_VERSION_KEY = "content_version"
 private const val ASSET_BATCH_SIZE = 500

@@ -17,6 +17,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dutongjian.app.ui.DutongjianApp
 import com.dutongjian.app.ui.ReadingViewModel
 import com.dutongjian.app.ui.theme.DutongjianTheme
+import com.dutongjian.app.domain.text.ClassicalGlossary
+import com.dutongjian.app.domain.text.ClassicalScriptMapper
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
@@ -26,6 +28,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        runCatching { assets.open("classical_char_map.json").use(ClassicalScriptMapper::load) }
+        runCatching { assets.open("classical_glossary.json").use(ClassicalGlossary::load) }
         setContent {
             val state by viewModel.state.collectAsStateWithLifecycle()
             var darkMode by rememberSaveable { mutableStateOf(false) }

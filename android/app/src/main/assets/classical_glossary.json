@@ -1,0 +1,16 @@
+[
+  {"term":"书法","explanation":"史家在正文中选择字词、褒贬和叙事次序的写法。","category":"史法"},
+  {"term":"社稷","explanation":"古代常借指国家政权。","category":"制度"},
+  {"term":"宗庙","explanation":"天子或诸侯祭祀祖先的礼制场所，也常借指国家。","category":"礼制"},
+  {"term":"太后","explanation":"皇帝的母亲，或前代皇帝的皇后。","category":"人物"},
+  {"term":"中尉","explanation":"秦汉以来掌管京师治安或军务的官职，时代不同职掌有别。","category":"官职"},
+  {"term":"丞相","explanation":"辅佐君主处理政务的高级官职。","category":"官职"},
+  {"term":"郡国","explanation":"郡与诸侯国的合称，常用于描述汉代地方行政格局。","category":"制度"},
+  {"term":"封爵","explanation":"以土地、爵位或名号赏赐功臣和宗室。","category":"制度"},
+  {"term":"改元","explanation":"皇帝更改年号，新的年号通常从当年或次年开始计算。","category":"历法"},
+  {"term":"赦天下","explanation":"皇帝发布大赦，免除部分罪责或减轻刑罚。","category":"制度"},
+  {"term":"军粮","explanation":"军队作战所需的粮秣供应，是战争持续的重要条件。","category":"兵制"},
+  {"term":"屯田","explanation":"军队或移民在指定地区耕种，以解决边地粮食和军需。","category":"经济"},
+  {"term":"盐铁","explanation":"古代国家财政和专卖制度的重要物资。","category":"经济"},
+  {"term":"谥号","explanation":"君主或大臣死后，依据生平功过给予的称号。","category":"礼制"}
+]

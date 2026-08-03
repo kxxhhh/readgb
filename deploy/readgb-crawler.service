@@ -1,0 +1,22 @@
+[Unit]
+Description=readgb public Tongjian crawler
+Wants=network-online.target
+After=network-online.target
+StartLimitIntervalSec=1h
+StartLimitBurst=5
+
+[Service]
+Type=simple
+WorkingDirectory=@ROOT_DIR@
+Environment=PYTHONPATH=@ROOT_DIR@/service
+Environment=PYTHONUNBUFFERED=1
+ExecStart=@ROOT_DIR@/scripts/resume_crawler.sh
+Restart=on-failure
+RestartSec=60
+KillSignal=SIGINT
+TimeoutStopSec=30
+Nice=10
+UMask=0027
+
+[Install]
+WantedBy=multi-user.target

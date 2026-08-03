@@ -1,401 +1,284 @@
-# 📖 读通鉴开发文档
+# 读通鉴开发文档
 
-[⬅️ 返回首页](./README.md)
+[返回 README](./README.md)
 
-本文档描述当前源码的真实架构、接口、运行方式、数据同步边界和贡献规则。内容以 guide.txt、源码、测试和 PROJECT_STATE.md 为准；若文档与代码冲突，以可运行代码和最新测试结果为准。
+本文档描述当前仓库真实存在的架构、数据边界、运行命令、恢复方式和提交规则。易变的任务进度、同步数量和最近测试结果只记录在 PROJECT_STATE.md；PROJECT_STATE_HISTORY.md 是重写前的只读归档，不作为当前事实来源。
 
-## 1. 架构设计
+## 1. 当前范围
 
-### 1.1 总体设计
-
-项目采用“维护者联网准备数据，Android 端离线消费”的单仓库结构：
+项目是“维护者联网准备数据，Android 离线消费”的单仓库：
 
 ~~~text
-公开 HTML / JSON API
-        │ 仅维护者环境
+公开 dutongjian.com JSON/HTML
+        │ 维护者同步进程，robots + 同源 + 限速 + 缓存 + checkpoint
         ▼
-RobotsAwareFetcher / TongjianApiClient
-        │ 同源、限速、重试、缓存
+service/app/tongjian_sync.py / sync.py / parsers.py
+        │ 结构化 Item、目录、关联字段
         ▼
-parsers.py / tongjian_sync.py
-        │ Item、KnowledgeEntry、目录层级
+service/data/dutongjian.db
+        │ 校验后导出
         ▼
-ContentStore(SQLite)
-        │ 完整性校验
+android/app/src/main/assets/
+        │ APK 安装后批量导入
         ▼
-export_android.py
-        │ offline_content.ndjson.gz
-        │ offline_catalog.json
+Room reading_items + FTS + 本地状态
         ▼
-Android APK assets
-        ▼
-ReadingRepositoryImpl
-        ├── Room reading_items
-        ├── OfflineSeed fallback
-        └── StateFlow
-        ▼
-ReadingViewModel
-        ▼
-Jetpack Compose UI
+Compose UI / TTS / 学习图表 / 笔记 / 可选 AI
 ~~~
 
-Android 依赖方向为 ui -> domain <- data：
+当前重抓任务已经删除旧的《资治通鉴》导入内容，新的同步直接写入项目内 service/data/。完整同步结束前不生成新的古籍正文资产；清理前的旧数据快照也保存在项目内 service/data/resync-archive-20260803/，没有把新内容放进 /tmp。
 
-- ui 只依赖领域模型和 ReadingRepository，不直接调用 Retrofit 或 Room。
-- domain 保存 ReadingItem、目录模型、百科模型和稳定 Repository contract。
-- data 负责 DTO、Room Entity、资产导入、网络适配和 Repository 实现。
-- di 负责 Hilt 依赖组装。
-- service 与 Android 运行时解耦；同步器不会在 App 生命周期中运行。
+Android 运行时不请求原网站：Retrofit 只连接本项目的 FastAPI；source_url 仅是来源元数据。没有原站登录、会员、支付、收藏同步或绕过权限的代码。
 
-### 1.2 模块划分
+## 2. 仓库结构和依赖方向
 
-| 模块 | 关键文件 | 职责 |
+| 层 | 关键路径 | 职责 |
 | --- | --- | --- |
-| Android UI | android/app/src/main/java/com/dutongjian/app/ui/ | Compose 页面、导航状态、详情、搜索、目录和加载状态 |
-| ViewModel | ui/ReadingViewModel.kt | ReadingUiState、搜索、分类、目录级联、收藏、历史、百科 |
-| Domain | domain/model/、domain/repository/ | 业务数据类型与 Repository 接口 |
-| Network | data/network/ | Retrofit endpoint、ApiEnvelope<T>、DTO；只服务本地联调 |
-| Local | data/local/ | ItemEntity、ItemDao、Room schema 和迁移 |
-| Repository | data/ReadingRepositoryImpl.kt | Room Flow、APK 资产、远程 fallback、本地种子 |
-| DI | di/AppModule.kt | Hilt、JSON、OkHttp、Retrofit、Room |
-| FastAPI | service/app/main.py | REST 路由、参数校验和统一响应 envelope |
-| Store | service/app/store.py | SQLite 表、种子、查询、upsert、HTTP cache |
-| Crawler | service/app/crawler.py | robots、同源、限速、重试、HTML cache |
-| Parser | service/app/parsers.py | 纯 HTML 结构化解析，不发网络请求 |
-| Sync | service/app/sync.py | 指定 HTML 页面同步 |
-| Tongjian Sync | service/app/tongjian_sync.py | 公开《资治通鉴》 API 的完整层级导入 |
-| Export | service/app/export_android.py | 校验并生成 Android offline assets |
+| Android UI | android/app/src/main/java/com/dutongjian/app/ui/ | Compose 首页、目录、详情、学习、设置、笔记和主题 |
+| Android ViewModel | ui/ReadingViewModel.kt | StateFlow、搜索、目录、收藏、历史、百科、AI/TTS 状态 |
+| Android domain | domain/model/、domain/repository/、domain/text/、domain/tts/ | 领域模型、Repository contract、字形/字词和 TTS contract |
+| Android data | data/、data/local/、data/network/、data/tts/ | Room、FTS、资产导入、Retrofit、TTS 和持久化状态 |
+| Android DI | di/AppModule.kt | Hilt、Room、Retrofit、OkHttp、JSON 组装 |
+| FastAPI | service/app/main.py | REST 路由和 {code,message,data} envelope |
+| SQLite Store | service/app/store.py | items、sections、volumes、years、knowledge_entries、HTTP cache |
+| HTML crawler | service/app/crawler.py | 同源、robots、限速、重试、HTML cache |
+| API sync | service/app/tongjian_sync.py | 公开《资治通鉴》目录和纪年 API 的断点同步 |
+| Export | service/app/export_android.py | 全量/阶段性资产校验与原子导出 |
+| Deploy | deploy/、scripts/ | systemd unit、安装和断点恢复 |
 
-### 1.3 离线运行策略
+Android 依赖方向为 ui -> domain <- data。UI 不直接访问 Room 或 Retrofit；Repository 负责远程结果、本地 Room、APK 资产和种子 fallback 的边界。
 
-1. ReadingUiState() 默认携带 OfflineSeed，所以无网络启动不会出现空状态。
-2. ReadingRepositoryImpl.observeItems() 确保种子存在，再观察 Room。
-3. 若 APK 内含打包后的 `offline_content.ndjson`，首次准备本地内容时按 500 条批量 upsert；Repository 同时兼容未被 Android 打包工具展开的 `offline_content.ndjson.gz`。
-4. 若 APK 内含 `offline_knowledge.json`，百科 fallback 会读取阶段性真实关联条目；资产缺失时才回退到 OfflineSeed。
-5. 若资产缺失或导入失败，保留种子和已有 Room 缓存，不阻塞应用启动。
-6. 目录 fallback 优先读取 offline_catalog.json；资产缺失时退回 OfflineSeed 的少量目录。
-7. Retrofit 默认地址是 http://10.0.2.2:8000/，只用于本地联调；连接失败后 Repository 返回本地数据。
-8. source_url 是内容来源字段，不代表 App 运行时会访问目标网站。
+## 3. 已实现的 Android 行为
 
-当前 Android 网络适配仍保留 INTERNET 权限和 cleartext 本地联调配置。产品离线契约依靠“本地数据优先 + 普通网络异常 fallback”保证；若未来要从权限层面完全移除网络能力，必须同步删除 Retrofit 路径、更新 Manifest 并增加断网设备测试。
+### 3.1 离线优先与导入
 
-### 1.4 服务端数据流
+ReadingRepositoryImpl 的顺序如下：
 
-FastAPI 路由是薄编排层：参数由 FastAPI Query 校验，数据读取交给 ContentStore，返回值由 envelope() 包装。同步器先获取目录，再逐个获取纪年，解析后 upsert SQLite，并在每个成功节点之后写 checkpoint。
+1. 如果没有打包正文资产，写入 OfflineSeed（只补缺失项）。
+2. 如果存在 offline_content.ndjson 或旧的 .gz 资产，先完整解析，再删除旧的 zztj-* 和 zizhi-tongjian-* 导入记录，最后按 500 条批量 upsert。
+3. 解析失败时不删除现有 Room 数据，并记录错误；不会用空或半解析资产覆盖本地内容。
+4. 导入时按 ID 保留本地 isFavorite 和 lastOpenedAt。
+5. 目录从 offline_catalog.json 读取；百科从 offline_knowledge.json 读取；缺资产时才回退种子。
 
-同步完成前不清除演示种子；只有 completed_reigns == total_reigns 时才清理 zizhi-tongjian-* 演示条目和旧的 zizhi-volume-* / zizhi-year-* 演示记录。真实导入条目使用 zztj-* 前缀，因此不会被这一步误删。
+当前新一轮同步未完成，所以 offline_content.ndjson.gz、offline_catalog.json、offline_knowledge.json 暂未重新生成。classical_char_map.json 和 classical_glossary.json 是独立的本地静态资源，当前已经在 assets 中。
 
-## 2. 核心 API 与接口
+### 3.2 阅读详情页
 
-### 2.1 统一响应格式
+详情页已经从纵向堆叠控制改成固定顶部信息、正文工作区和底部工具入口：
 
-成功：
+- 顶部显示返回、标题和收藏。
+- 正文头部显示卷/纪年/朝代、摘要、标签和段落数。
+- 原文、译文并读，以及原文/译文单独模式。
+- 字号、繁简/异体字展示、复制、分享和划线笔记。
+- TTS 当前句状态与自动滚动、15/30 分钟和读完当前篇停止。
+- 历史上下文、关联人物/地点/官职、字词提示、知识入口和 AI 工具通过可收起工具面板进入。
+
+底层 original、translation、notes 和原始关联 JSON 保持不改写；展示层转换只由 ClassicalScriptMapper 完成。
+
+### 3.3 学习页和关系图
+
+学习页不再使用固定六个示例节点：
+
+- 柱状图从当前 state.items 按朝代动态聚合，并支持点选朝代后下钻到真实文章。
+- 人物关系从文章 notes 中的公开人物关联动态计算共现，显示最多 16 个高频人物和最多 30 条关系线，并可点回文章。
+- 趋势图使用本地阅读统计中的最近 7 天数据。
+
+这能随真实资产规模扩展，但当前新数据库仍只完成少量纪年，图表数量会随同步和资产导入完成后才达到全本覆盖。Android 真机上的大数据量性能回归仍需补做。
+
+### 3.4 TTS、AI、Widget 和本地工具
+
+- LocalTtsEngine 使用 Android 系统中文 TTS；EdgeTTSEngine 是可选网络引擎，失败时显示错误，不伪装成本地合成。
+- TtsController 保存当前句、播放队列和睡眠计时器状态。
+- AiRepositoryImpl 支持用户配置 OpenAI 兼容接口或本机模型服务，Key 只存本机；没有配置时不发远程请求。
+- QuoteWidgetProvider 使用 RemoteViews 展示本地名句和入口。
+- ClassicalGlossary 和 ClassicalScriptMapper 在应用启动时从 assets 加载；没有资产时使用内置 fallback 映射。
+
+AI 的真实模型质量、Edge-TTS 网络连通性、Widget 桌面行为和 TTS 音频输出尚未在当前环境完成设备级验收，不能把源码接入描述成已完成的端到端验收。
+
+## 4. FastAPI 接口
+
+成功响应：
 
 ~~~json
-{
-  "code": 0,
-  "message": "success",
-  "data": {}
-}
+{"code": 0, "message": "success", "data": {}}
 ~~~
 
-资源不存在：
+错误响应仍使用同一结构，例如详情不存在时 code=404、HTTP 404。
 
-~~~json
-{
-  "code": 404,
-  "message": "item not found",
-  "data": null
-}
-~~~
-
-### 2.2 FastAPI REST API
-
-| Method | Path | 输入 | 返回 data |
-| --- | --- | --- | --- |
-| GET | /api/home | 无 | {items, categories, sections} |
-| GET | /api/search | q：1-80 字符；limit：1-50，默认 20 | {query, items} |
-| GET | /api/items | category?、year_id?、limit：1-50 | {category, year_id, items} |
-| GET | /api/detail/{item_id} | item_id | 单个 Item；不存在为 404 |
-| GET | /api/sections | 无 | {sections} |
-| GET | /api/sections/{section_id}/volumes | section_id | {section_id, volumes} |
-| GET | /api/volumes/{volume_id}/years | volume_id | {volume_id, years} |
-| GET | /api/years/{year_id}/items | year_id；limit：1-100，默认 50 | {year_id, items} |
-| GET | /api/knowledge | q?：1-80；category?；limit：1-50 | {category, query, items, categories} |
-| GET | /api/knowledge/{entry_id} | entry_id | 单个 KnowledgeEntry；不存在为 404 |
-
-服务环境变量：
-
-| 变量 | 默认值 | 说明 |
+| Method | Path | 作用 |
 | --- | --- | --- |
-| DUTONGJIAN_DB | data/dutongjian.db | SQLite 文件路径 |
-| CORS_ORIGINS | * | 逗号分隔的允许来源；当前路由只开放 GET |
+| GET | /api/home | 首页条目、分类和 section |
+| GET | /api/search?q=&limit= | 标题、正文、原文、译文和标签搜索 |
+| GET | /api/items?category=&year_id=&limit= | 分类/纪年列表 |
+| GET | /api/detail/{id} | 单条详情 |
+| GET | /api/sections | section 目录 |
+| GET | /api/sections/{section_id}/volumes | 卷目录 |
+| GET | /api/volumes/{volume_id}/years | 纪年目录 |
+| GET | /api/years/{year_id}/items | 纪年正文 |
+| GET | /api/knowledge?q=&category=&limit= | 百科列表和分类 |
+| GET | /api/knowledge/{entry_id} | 百科详情 |
 
-### 2.3 数据模型
+DUTONGJIAN_DB 控制 FastAPI 数据库路径，默认 data/dutongjian.db；CORS_ORIGINS 控制逗号分隔的允许来源。同步命令使用显式 --database service/data/dutongjian.db，不会依赖 Backend 的默认路径。
 
-Item / Android ItemDto 字段：
+### 数据模型
 
-| 字段 | 类型 | 含义 |
-| --- | --- | --- |
-| id | string | 稳定主键；真实通鉴正文使用 zztj-<tongjian_id> |
-| title | string | 正文段落标题 |
-| category | string | 例如 资治通鉴 |
-| dynasty | string | 纪或时代信息 |
-| summary | string | 展示摘要 |
-| content | string | 简体正文 fallback |
-| original | string | 来源繁体原文 |
-| translation | string | 白话译文 |
-| notes | string | 公开注释和关联对象 JSON |
-| tags | string[] | 主题、人物、地点、官职标签 |
-| volume_id / year_id | string? | 卷和纪年层级 |
-| source_url / updated_at | string | 来源和同步时间 |
+真实正文 Item 的稳定 ID 为 zztj-<公开 tongjian_id>，字段包括：
 
-目录模型：
+title、category、dynasty、summary、content、original、translation、notes、tags、section、volume_id、year_id、source_url、updated_at。
 
-- LibrarySection：id、title、description、source_url、sort_order。
-- Volume：id、section_id、title、dynasty、sort_order。
-- ReadingYear：id、volume_id、title、era、sort_order。
-- 读取顺序：sections -> volumes -> years -> items。
+notes 保存完整公开关联对象 JSON；tags 由主题、人物、地点和官职字段去重生成。同步器只派生标题和摘要，不丢弃原始 content、content_jianti_auto、content_fanyi 或关联对象。
 
-### 2.4 Python 核心模块
+## 5. 同步器和数据边界
 
-#### ContentStore
+### 5.1 已确认的公开入口
 
-ContentStore(path: str | Path = data/dutongjian.db) 初始化父目录、SQLite schema 和本地演示种子。
+同步器使用：
 
-| 方法 | 输入 | 返回值或副作用 |
-| --- | --- | --- |
-| list_items(category?, query?, limit=20, year_id?) | 筛选条件 | list[Item] |
-| get_item(item_id) | 内容 ID | Item 或 None |
-| sections() / volumes(section_id) / years(volume_id) | 目录 ID | 对应模型列表 |
-| knowledge(category?, query?, limit=20) | 百科过滤 | list[KnowledgeEntry] |
-| get_knowledge(entry_id) | 百科 ID | KnowledgeEntry 或 None |
-| upsert_items(items) | list[Item] | 写入 SQLite |
-| upsert_knowledge(entries) | list[KnowledgeEntry] | 写入 SQLite |
-| upsert_volumes(volumes) / upsert_years(years) | 目录模型列表 | 写入真实目录 |
-| count_items(category?) | 可选分类 | int |
-| get_cache(key) / put_cache(...) | cache key、正文、hash、TTL | HTTP cache 读写 |
+- https://www.dutongjian.com/api/table_of_contents
+- https://www.dutongjian.com/api/reign?reign_tongjian_id=<id>
 
-#### RobotsAwareFetcher 与 HTML 同步
+目录展开为 juan_list -> emperor_list -> reign_list，当前目标是 294 卷、1,405 个纪年节点和 30,989 条正文。站点和字段说明见 docs/site-analysis.md。
 
-- RobotsAwareFetcher(base_url, opener=urlopen, robots_checker=None, sleep=time.sleep, retries=3, min_interval=1.0, timeout=15.0)
-  - fetch(path: str) -> str | None：跨域或 robots 拒绝返回 None；失败重试后返回 None；成功返回 UTF-8 HTML 并缓存同 URL。
-- parse_main_catalog(html, base_url) -> list[CatalogNode]：纯函数，解析目录链接。
-- parse_reading_entries(html, base_url, section=资治通鉴, volume_id=None, year_id=None) -> list[Item]：纯函数，解析文章块、原文、译文、注释和标签。
-- parse_knowledge_index(html, base_url) -> list[KnowledgeEntry]：纯函数，解析百科卡片。
-- PublicContentSync.sync_reading(...)、sync_knowledge(...)：返回 SyncResult(path, records, fetched)。
+### 5.2 请求控制
 
-#### TongjianApiClient 与 TongjianSync
-
-TongjianApiClient 默认配置：
+TongjianApiClient 当前默认：
 
 ~~~python
-TongjianApiClient(
-    base_url="https://www.dutongjian.com",
-    cache_dir="data/tongjian-cache",
-    retries=3,
-    min_interval=5.0,
-    timeout=30.0,
-)
+min_interval=0.5
+workers=4
+retries=3
+timeout=30.0
+respect_robots=True  # CLI 默认
 ~~~
 
-- fetch_catalog() -> dict：缓存 /api/table_of_contents。
-- fetch_reign(reign_id: str) -> dict：缓存 /api/reign?reign_tongjian_id=...。
-- flatten_catalog(payload) -> list[ReignRef]：展开 juan_list -> emperor_list -> reign_list；缺 ID 或空目录抛出 ValueError。
-- parse_reign_items(payload, ref, source_url) -> list[Item]：保留 content、content_jianti_auto、content_fanyi，将完整公开关联对象写入 notes，并从主题/人物/地点/官职形成 tags。
-- TongjianSync.run() -> SyncProgress：导入目录，跳过 checkpoint 已完成的纪年，按成功节点写入 SQLite；全部完成才清理演示数据。
-- SyncProgress：total_reigns、completed_reigns、content_records。
+实现约束：
 
-重试策略：普通错误指数退避，HTTP 429 优先读取 Retry-After；磁盘 cache 命中不发请求；checkpoint 使用临时文件写入后 replace，避免中断产生半文件。
+- 先查项目内 JSON cache，cache 命中不发网络请求。
+- robots.txt 检查在非缓存请求前执行；无法读取时拒绝请求。
+- URL 必须由配置的同一 base URL 生成。
+- 请求启动使用全局节奏锁；worker 数量受控，不用于绕过站点限流。
+- HTTP 429 读取 Retry-After，其他错误指数退避，最大等待 30 秒。
+- 每个纪年成功入库后原子更新 checkpoint。
+- SQLite 主键和公开 ID 去重；原始 API 返回体写入项目内 cache。
 
-#### export_android.py
+--reset 只做首次清理：删除旧通鉴 item、资治通鉴卷/年层级、knowledge_entries、cache 和 checkpoint。服务恢复脚本和 systemd unit 都不带 --reset。
 
-- export_content(database, output, expected_count=30989) -> int：只导出数量严格匹配的 zztj-* 内容为 gzip NDJSON。
-- export_catalog(database, output, expected_volumes=294, expected_years=1405) -> dict[str, int]：只导出数量严格匹配的真实目录 JSON。
-- export_partial_content(database, output, checkpoint) -> int：只导出 checkpoint 中已完成纪年的真实 zztj-* 内容，并逐条校验正文、原文、译文和层级字段。
-- export_partial_catalog(database, output, checkpoint) -> dict[str, int]：只导出部分正文对应的卷/纪年目录，和同一次 CLI 调用中的内容快照保持一致。
-- export_partial_knowledge(database, output, checkpoint) -> dict[str, int]：从已完成正文的真实关系字段生成阶段性百科 JSON。
-- 任一完整性校验失败都会抛出 ValueError，目标文件不会被替换。
+### 5.3 项目内路径约定
 
-命令行默认执行严格全量导出；只有显式传入 `--allow-partial --checkpoint ...` 才允许生成阶段性 Android 资源。阶段性资源代表已完成内容快照，不代表 30,989 条全本已经完成。
-
-### 2.5 Android ReadingRepository
-
-| 方法 | 输入 | 返回值 / 副作用 |
+| 路径 | 用途 | 是否作为新内容源 |
 | --- | --- | --- |
-| observeItems() | 无 | Flow<List<ReadingItem>>，确保资产/种子后观察 Room |
-| refreshHome() | 无 | 成功写 Room；异常回退本地内容 |
-| search(query) | 搜索词 | Result<List<ReadingItem>>，异常时本地过滤 |
-| setFavorite(itemId, favorite) | ID、布尔值 | 更新 Room |
-| recordOpened(itemId) | ID | 写入时间戳 |
-| loadSections() | 无 | 远程成功或资产/种子目录 |
-| loadVolumes(sectionId) | 栏目 ID | 卷列表 |
-| loadYears(volumeId) | 卷 ID | 纪年列表 |
-| loadYearItems(yearId) | 纪年 ID | 正文列表并写 Room |
-| loadKnowledge(query?, category?) | 可选过滤 | 百科列表或种子回退 |
+| service/data/dutongjian.db | 当前同步数据库 | 是 |
+| service/data/tongjian-cache/ | 原始 API JSON cache | 是 |
+| service/data/tongjian-progress.json | 断点进度 | 是 |
+| service/data/resync-archive-20260803/ | 旧导入内容审计快照 | 否，仅恢复/比对 |
+| android/app/src/main/assets/ | 校验后进入 APK 的最终资产 | 是 |
 
-withOfflineFallback() 会重新抛出 CancellationException，只把普通异常转换为本地成功结果，避免取消协程被误报为业务错误。
+.tmp 后缀只用于目标文件同目录的原子替换；它不是 /tmp 文件夹，也不承载独立内容。
 
-## 3. 本地开发与调试
+## 6. 断点恢复和开机自启
 
-### 3.1 Backend
+每次开发先读取 PROJECT_STATE.md，检查进程和 checkpoint，再行动：
+
+~~~bash
+cd /mnt/workspace/readgb
+sed -n '1,240p' PROJECT_STATE.md
+git status --short
+ps -eo pid,etime,cmd | rg 'tongjian_sync|readgb-crawler' | rg -v 'rg '
+jq '{total_reigns, completed: (.completed_reign_ids | length), updated_at}' service/data/tongjian-progress.json
+~~~
+
+正常恢复：
+
+~~~bash
+./scripts/resume_crawler.sh
+~~~
+
+脚本使用 service/data/tongjian-sync.lock。已有同步进程持锁时，脚本退出并保留原进程，不会启动第二个任务。脚本拒绝 --reset，清理必须手动执行并先确认没有同步进程。
+
+安装开机服务：
+
+~~~bash
+./scripts/install_crawler_service.sh
+~~~
+
+unit 的 ExecStart 指向恢复脚本，Restart=on-failure，依赖 network-online.target，工作目录和所有数据路径固定为当前项目。容器没有 systemd PID 1 时，安装脚本仍安装 unit 和 enable 链接，但当前容器不会凭空获得宿主机的 systemd 生命周期。
+
+## 7. 导出与 Android 资产
+
+service/app/export_android.py 有三种边界：
+
+- 默认全量导出：严格要求 30,989 条真实 zztj-*、294 卷和 1,405 年，并校验正文、原文、译文和层级字段。
+- --allow-partial --checkpoint：仅导出 checkpoint 已完成纪年的阶段性快照，适合开发检查，不代表全本。
+- 资产写入先写同目录 .tmp 再 replace，校验或进程失败不会替换旧目标。
+
+全量导出命令：
+
+~~~bash
+PYTHONPATH=service python -m app.export_android \
+  --database service/data/dutongjian.db \
+  --output android/app/src/main/assets/offline_content.ndjson.gz \
+  --catalog-output android/app/src/main/assets/offline_catalog.json \
+  --knowledge-output android/app/src/main/assets/offline_knowledge.json
+~~~
+
+当前新抓取未达到全量门槛，因此不要运行全量导出，也不要把阶段性数据伪装成完整资产。导出后必须重新运行 Android 测试、构建并更新状态文件中的数量、版本标识和校验结果。
+
+## 8. 本地开发和测试
+
+Backend：
 
 ~~~bash
 python3 -m venv .venv
 . .venv/bin/activate
 python -m pip install -r service/requirements.txt
-python3 -m pytest -q service/tests
-python3 -m compileall -q service/app
+python -m pytest -q service/tests
+python -m compileall -q service/app
 uvicorn app.main:app --app-dir service --reload --log-level debug
 ~~~
 
-验证服务：
-
-~~~bash
-curl http://127.0.0.1:8000/api/home
-curl 'http://127.0.0.1:8000/api/search?q=周威烈王'
-curl http://127.0.0.1:8000/api/sections
-~~~
-
-环境变量：
-
-~~~bash
-export DUTONGJIAN_DB=/absolute/path/dutongjian.db
-export CORS_ORIGINS=http://localhost:3000,http://10.0.2.2:8000
-~~~
-
-### 3.2 Android
+Android：
 
 ~~~bash
 cd android
 ./gradlew testDebugUnitTest
+./gradlew :app:compileDebugKotlin
 ./gradlew lintDebug
-./gradlew assembleDebug
-~~~
-
-本地 API 地址由 apiBaseUrl Gradle property 注入：
-
-~~~bash
-./gradlew assembleDebug -PapiBaseUrl=http://10.0.2.2:8000/
-~~~
-
-默认值为 http://10.0.2.2:8000/，这只适合 Android Emulator 访问宿主机。真机需要局域网 IP。若没有 Backend，连接会超时并回退到本地内容；不应把该错误理解为离线数据不存在。
-
-Logcat：
-
-~~~bash
-adb logcat -c
-adb logcat | rg -i 'OkHttp|AndroidRuntime|dutongjian'
-~~~
-
-HttpLoggingInterceptor 当前为 BASIC，只用于本地联调。正常离线阅读不应出现目标站点请求。
-
-### 3.3 数据同步与断点恢复
-
-~~~bash
-PYTHONPATH=service python -m app.tongjian_sync \
-  --allow-public-api \
-  --database service/data/dutongjian.db \
-  --cache-dir service/data/tongjian-cache \
-  --checkpoint service/data/tongjian-progress.json \
-  --min-interval 5.0
-~~~
-
-检查进度：
-
-~~~bash
-jq '{total_reigns, completed: (.completed_reign_ids | length), updated_at}' \
-  service/data/tongjian-progress.json
-find service/data/tongjian-cache/reigns -type f -name '*.json' | wc -l
-~~~
-
-安全恢复原则：不要删除 checkpoint、cache 或未完成数据库；重新运行会读取同一目录并跳过已完成纪年。出现 429 时允许进程按 Retry-After 等待；不要改成并发请求绕过限流。
-
-### 3.4 测试策略
-
-- API 测试使用 httpx.ASGITransport，不依赖真实网络。
-- crawler 测试使用 fake opener，覆盖跨域/robots 拒绝、重试和 cache。
-- sync 测试使用 fake API，覆盖目录展开、完整字段保留、checkpoint 恢复和 429 退避。
-- Android JVM 测试覆盖搜索命中集合、短查询清除和 ReadingUiState() 离线初始内容。
-- 新增接口必须补 envelope、边界参数、404 和核心过滤测试。
-
-当前验证基线：
-
-- python3 -m pytest -q service/tests：20 passed。
-- python3 -m compileall -q service/app：通过。
-- ./gradlew testDebugUnitTest：通过。
-- Release APK：默认 unsigned，签名属于发布环境责任。
-
-## 4. 常见问题
-
-| 现象 | 处理 |
-| --- | --- |
-| 首页显示 failed to connect to 10.0.2.2:8000 | 这是本地联调 Backend 不可达；停止依赖网络的路径，App 应继续显示 APK/Room/种子内容。检查是否使用了最新构建。 |
-| Emulator 无法访问 127.0.0.1 | Emulator 中 localhost 指向自身，使用 10.0.2.2；真机使用开发机局域网 IP。 |
-| Retrofit base URL 报错 | apiBaseUrl 必须是合法 URL 且以 / 结尾，只填写本地服务。 |
-| 同步器没有发请求 | 可能是 cache 命中、跨域或 robots 拒绝；检查命令参数和进度文件。 |
-| 同步器遇到 429 | 降低请求频率，保留 checkpoint，等待 Retry-After；不要并发绕过限制。 |
-| 导出脚本拒绝生成 assets | 数据量或目录层级未达到预期；这是保护机制，先完成同步和校验。 |
-| Release APK 无法正式发布 | 当前产物 unsigned，需要 CI/发布环境注入签名配置。 |
-
-## 5. 贡献指南
-
-### 5.1 分支规范
-
-从 main 创建短生命周期分支：
-
-~~~text
-feature/<scope>-<description>
-fix/<scope>-<description>
-test/<scope>-<description>
-docs/<scope>-<description>
-chore/<scope>-<description>
-~~~
-
-一个分支只处理一个主题；不要提交 build/、.gradle/、SQLite 运行库、cache、checkpoint、APK、keystore 或 .env。
-
-### 5.2 Commit 规范
-
-仓库采用 Conventional Commits：
-
-~~~text
-<type>(<scope>): <简洁的英文祈使句摘要>
-~~~
-
-常用类型：
-
-- feat：新增能力，例如 feat(android): add offline catalog import。
-- fix：修复行为，例如 fix(service): respect retry-after header。
-- test：测试或回归契约。
-- docs：README、开发文档或状态记录。
-- chore：构建、依赖和工程维护。
-
-### 5.3 提交前检查
-
-~~~bash
-python3 -m pytest -q service/tests
-python3 -m compileall -q service/app
-cd android
-./gradlew testDebugUnitTest lintDebug assembleDebug
-~~~
-
-涉及内容同步时，还要确认：
-
-- 未扩大到未确认的私有、登录或付费路径。
-- 保留同源、robots、限速、重试和 checkpoint 约束。
-- 测试覆盖重复、失败、中断恢复和字段完整性。
-- PROJECT_STATE.md 记录真实数量、问题和下一步。
-
-## 6. 发布说明
-
-APK 构建：
-
-~~~bash
-cd android
 ./gradlew assembleDebug
 ./gradlew assembleRelease
 ~~~
 
-发布前必须检查 APK SHA-256、签名状态和构建日志。只有生成可用 APK 后，才按项目约定使用 gh release create 或 gh release upload 上传附件；不把 unsigned 产物误标为正式签名版本。
+CI：.github/workflows/ci.yml 使用 Python 3.12 和 JDK 21，执行 Backend 覆盖率测试、Android JVM test、lint、Debug/Release 构建，并缓存 pip/Gradle。CI 不触发真实站点同步。
 
-[⬅️ 返回首页](./README.md)
+提交前至少执行：
+
+~~~bash
+python3 -m pytest -q service/tests
+python3 -m compileall -q service/app
+git diff --check
+cd android && ./gradlew testDebugUnitTest lintDebug assembleDebug assembleRelease
+~~~
+
+当前环境没有把 Android 设备安装作为自动测试前提；没有设备时，Gradle 成功不等于真实安装、TTS 音频或 Widget 已验收。设备问题要记录设备型号、API level、APK 变体和完整 adb 日志。
+
+## 9. 文档和任务记录协议
+
+PROJECT_STATE.md 同时承担项目状态、任务清单和可恢复日志，不再另建并行的活动日志文件。每次开发必须：
+
+1. 开始前读取 PROJECT_STATE.md 和 git status --short。
+2. 先在当前任务清单中写明本轮目标、涉及路径和恢复方式。
+3. 做完一项就在任务行末添加 ✅；进行中或未完成项保持未勾选，并写明下一步/阻塞。
+4. 爬虫、构建、测试、部署或文档发生变化时，在变更日志追加时间、命令、结果和实际路径。
+5. 意外中断后先复用同一 checkpoint/cache；不删除项目内数据，不启动重复同步。
+6. 用户要求推送时，提交前执行测试和 git diff --check，提交后确认远端分支和 commit。
+
+重写前的长历史保存在 PROJECT_STATE_HISTORY.md，只用于追溯，不应把其中的旧数量、旧路径或旧构建结论复制回活动文档。
+
+## 10. 当前未完成项
+
+这些不是已实现声明，实际清单以 PROJECT_STATE.md 为准：
+
+- 完成 1,405/1,405 纪年同步并校验 30,989 条原始正文。
+- 生成并导入新的正文、目录、百科 Android assets。
+- 在全本数据规模下验证学习图表、关系图和搜索性能。
+- 在真实 Android 设备上复验安装、详情滚动、TTS、Widget、Edge-TTS 和 AI 配置。
+- 为 plugin.md 中仍未实现的 AI 沙盘、语法拆解、反事实分支和自动发布补齐真实实现或明确排期。

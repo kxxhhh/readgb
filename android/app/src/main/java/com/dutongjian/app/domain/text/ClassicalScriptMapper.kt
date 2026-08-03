@@ -1,10 +1,13 @@
 package com.dutongjian.app.domain.text
 
 import com.dutongjian.app.domain.model.TextScript
+import java.io.InputStream
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 
 /** Presentation-only mapping. Stored source text is never rewritten. */
 object ClassicalScriptMapper {
-    private val traditionalToSimplified = mapOf(
+    private var traditionalToSimplified = mapOf(
         '學' to '学', '國' to '国', '體' to '体', '書' to '书', '經' to '经',
         '觀' to '观', '變' to '变', '時' to '时', '歲' to '岁', '東' to '东',
         '邊' to '边', '軍' to '军', '將' to '将', '從' to '从', '後' to '后',
@@ -28,9 +31,9 @@ object ClassicalScriptMapper {
         '處' to '处', '擇' to '择', '據' to '据', '職' to '职', '級' to '级',
         '歷' to '历', '縣' to '县', '鄉' to '乡', '號' to '号', '歲' to '岁',
     )
-    private val simplifiedToTraditional = traditionalToSimplified.entries
+    private var simplifiedToTraditional = traditionalToSimplified.entries
         .associate { (traditional, simplified) -> simplified to traditional }
-    private val variant = mapOf(
+    private var variant = mapOf(
         '体' to '體', '国' to '國', '学' to '學', '书' to '書', '经' to '經',
         '礼' to '禮', '义' to '義', '见' to '見', '听' to '聽', '说' to '說',
         '读' to '讀', '为' to '爲', '后' to '後', '发' to '發', '马' to '馬',
@@ -39,9 +42,28 @@ object ClassicalScriptMapper {
         '铁' to '鐵', '盐' to '鹽', '粮' to '糧', '县' to '縣', '乡' to '鄉',
     )
 
+    fun load(input: InputStream) {
+        runCatching {
+            val asset = Json { ignoreUnknownKeys = true }.decodeFromString<ScriptMapAsset>(input.bufferedReader().use { it.readText() })
+            traditionalToSimplified = traditionalToSimplified + asset.traditionalToSimplified.mapKeys { it.key.first() }.mapValues { it.value.first() }
+            simplifiedToTraditional = simplifiedToTraditional + asset.simplifiedToTraditional.mapKeys { it.key.first() }.mapValues { it.value.first() }
+            variant = variant + asset.variant.mapKeys { it.key.first() }.mapValues { it.value.first() }
+        }
+    }
+
     fun transform(text: String, script: TextScript): String = when (script) {
         TextScript.SIMPLIFIED -> text.map { traditionalToSimplified[it] ?: it }.joinToString("")
         TextScript.TRADITIONAL -> text.map { simplifiedToTraditional[it] ?: it }.joinToString("")
         TextScript.VARIANT -> text.map { variant[it] ?: it }.joinToString("")
+    }
+
+    @Serializable
+    private data class ScriptMapAsset(
+        val traditional_to_simplified: Map<String, String> = emptyMap(),
+        val simplified_to_traditional: Map<String, String> = emptyMap(),
+        val variant: Map<String, String> = emptyMap(),
+    ) {
+        val traditionalToSimplified get() = traditional_to_simplified
+        val simplifiedToTraditional get() = simplified_to_traditional
     }
 }

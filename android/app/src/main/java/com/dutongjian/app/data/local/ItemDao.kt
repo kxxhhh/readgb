@@ -24,6 +24,9 @@ interface ItemDao {
     @Query("SELECT COUNT(*) FROM reading_items WHERE id LIKE 'zztj-%'")
     suspend fun fullContentCount(): Int
 
+    @Query("DELETE FROM reading_items WHERE id LIKE 'zztj-%' OR id LIKE 'zizhi-tongjian-%'")
+    suspend fun deleteImportedContent()
+
     @RawQuery
     suspend fun searchFts(query: SupportSQLiteQuery): List<ItemEntity>
 

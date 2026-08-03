@@ -300,6 +300,14 @@ class ContentStore:
             connection.execute("DELETE FROM years WHERE id LIKE 'zizhi-year-%'")
             connection.execute("DELETE FROM volumes WHERE id LIKE 'zizhi-volume-%'")
 
+    def clear_tongjian_content(self) -> None:
+        """Remove the imported corpus and its hierarchy before a clean resync."""
+        with self._lock, self._connect() as connection:
+            connection.execute("DELETE FROM items WHERE category = '资治通鉴' OR id LIKE 'zztj-%'")
+            connection.execute("DELETE FROM years WHERE volume_id IN (SELECT id FROM volumes WHERE section_id = 'zizhi')")
+            connection.execute("DELETE FROM volumes WHERE section_id = 'zizhi'")
+            connection.execute("DELETE FROM knowledge_entries")
+
     def knowledge(self, category: str | None = None, query: str | None = None, limit: int = 20) -> list[KnowledgeEntry]:
         sql = "SELECT * FROM knowledge_entries"
         values: list[Any] = []

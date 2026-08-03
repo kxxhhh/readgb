@@ -1,10 +1,13 @@
 """Rate-limited, resumable import of the public 资治通鉴 API."""
 
 import argparse
+import concurrent.futures
 import hashlib
 import json
 import re
+import shutil
 import sys
+import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -14,6 +17,7 @@ from typing import Any, Protocol
 from urllib.error import HTTPError
 from urllib.parse import urlencode, urljoin
 from urllib.request import Request, urlopen
+from urllib.robotparser import RobotFileParser
 
 from .models import Item, ReadingYear, Volume
 from .store import ContentStore
@@ -47,7 +51,7 @@ class PublicTongjianApi(Protocol):
 
 
 class TongjianApiClient:
-    """Small standard-library client with disk cache, retry, and one-request pacing."""
+    """Public API client with raw-response caching and one global request pace."""
 
     def __init__(
         self,
@@ -57,17 +61,25 @@ class TongjianApiClient:
         opener: Callable = urlopen,
         sleep: Callable[[float], None] = time.sleep,
         retries: int = 3,
-        min_interval: float = 5.0,
+        min_interval: float = 0.5,
         timeout: float = 30.0,
+        respect_robots: bool = False,
+        robots_checker: Callable[[str], bool] | None = None,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.cache_dir = Path(cache_dir)
         self.opener = opener
         self.sleep = sleep
         self.retries = retries
-        self.min_interval = max(2.0, min_interval)
+        self.min_interval = max(0.25, min_interval)
         self.timeout = timeout
+        self.respect_robots = respect_robots
+        self.robots_checker = robots_checker
         self._last_request = 0.0
+        self._next_request_at = 0.0
+        self._pace_lock = threading.Lock()
+        self._robots_lock = threading.Lock()
+        self._robots: RobotFileParser | None = None
 
     def fetch_catalog(self) -> dict[str, Any]:
         return self._fetch_json("/api/table_of_contents", self.cache_dir / "catalog.json")
@@ -81,12 +93,11 @@ class TongjianApiClient:
         if cache_path.exists():
             return json.loads(cache_path.read_text(encoding="utf-8"))
         url = urljoin(f"{self.base_url}/", path.lstrip("/"))
+        if not self._allowed(url):
+            raise RuntimeError(f"robots.txt disallows {url}")
         error: Exception | None = None
         for attempt in range(self.retries + 1):
-            elapsed = time.monotonic() - self._last_request
-            if elapsed < self.min_interval:
-                self.sleep(self.min_interval - elapsed)
-            self._last_request = time.monotonic()
+            self._pace()
             try:
                 request = Request(
                     url,
@@ -105,7 +116,7 @@ class TongjianApiClient:
             except HTTPError as caught:
                 error = caught
                 if caught.code == 429:
-                    self.sleep(_retry_after_seconds(caught))
+                    self._wait_after_rate_limit(_retry_after_seconds(caught))
                 elif attempt < self.retries:
                     self.sleep(min(30.0, 2**attempt))
                 if attempt == self.retries:
@@ -115,6 +126,43 @@ class TongjianApiClient:
                 if attempt < self.retries:
                     self.sleep(min(30.0, 2**attempt))
         raise RuntimeError(f"failed to fetch {url}: {error}") from error
+
+    def _pace(self) -> None:
+        # Network I/O can overlap, but request starts share both the normal
+        # interval and any server-provided rate-limit cooldown.
+        with self._pace_lock:
+            now = time.monotonic()
+            next_request = max(self._last_request + self.min_interval, self._next_request_at)
+            if next_request > now:
+                self.sleep(next_request - now)
+            self._last_request = time.monotonic()
+            if self._next_request_at <= self._last_request:
+                self._next_request_at = 0.0
+
+    def _wait_after_rate_limit(self, delay: float) -> None:
+        with self._pace_lock:
+            now = time.monotonic()
+            next_request = max(self._next_request_at, now + delay)
+            self._next_request_at = next_request
+        self.sleep(max(0.0, next_request - now))
+        with self._pace_lock:
+            if self._next_request_at <= time.monotonic():
+                self._next_request_at = 0.0
+
+    def _allowed(self, url: str) -> bool:
+        if not self.respect_robots:
+            return True
+        if self.robots_checker is not None:
+            return self.robots_checker(url)
+        with self._robots_lock:
+            if self._robots is None:
+                parser = RobotFileParser(urljoin(f"{self.base_url}/", "robots.txt"))
+                try:
+                    parser.read()
+                except OSError:
+                    return False
+                self._robots = parser
+            return self._robots.can_fetch("dutongjian-app/1.0", url)
 
 
 def flatten_catalog(payload: dict[str, Any]) -> list[ReignRef]:
@@ -198,11 +246,13 @@ class TongjianSync:
         *,
         checkpoint_path: str | Path = "data/tongjian-progress.json",
         on_progress: Callable[[SyncProgress, ReignRef], None] | None = None,
+        workers: int = 1,
     ) -> None:
         self.api = api
         self.store = store
         self.checkpoint_path = Path(checkpoint_path)
         self.on_progress = on_progress
+        self.workers = max(1, workers)
 
     def run(self) -> SyncProgress:
         catalog = self.api.fetch_catalog()
@@ -211,19 +261,33 @@ class TongjianSync:
         catalog_hash = hashlib.sha256(json.dumps(catalog, ensure_ascii=False, sort_keys=True).encode("utf-8")).hexdigest()
         checkpoint = self._load_checkpoint(catalog_hash)
         completed = set(checkpoint["completed_reign_ids"])
-        for ref in refs:
-            if ref.reign_id in completed:
-                continue
-            payload = self.api.fetch_reign(ref.reign_id)
-            query = urlencode({"reign_tongjian_id": ref.reign_id})
-            source_url = f"{self._base_url()}/api/reign?{query}"
-            items = parse_reign_items(payload, ref, source_url)
-            self.store.upsert_items(items)
-            completed.add(ref.reign_id)
-            progress = SyncProgress(len(refs), len(completed), self.store.count_items(category="资治通鉴"))
-            self._save_checkpoint(catalog_hash, refs, completed)
-            if self.on_progress:
-                self.on_progress(progress, ref)
+        failures: dict[str, str] = {}
+        pending = [ref for ref in refs if ref.reign_id not in completed]
+        with concurrent.futures.ThreadPoolExecutor(max_workers=self.workers) as executor:
+            futures = {executor.submit(self.api.fetch_reign, ref.reign_id): ref for ref in pending}
+            for future in concurrent.futures.as_completed(futures):
+                ref = futures[future]
+                try:
+                    payload = future.result()
+                    query = urlencode({"reign_tongjian_id": ref.reign_id})
+                    source_url = f"{self._base_url()}/api/reign?{query}"
+                    # Preserve the public source fields; only title/summary are derived.
+                    items = parse_reign_items(payload, ref, source_url)
+                    self.store.upsert_items(items)
+                except Exception as error:
+                    failures[ref.reign_id] = f"{type(error).__name__}: {error}"
+                    self._save_checkpoint(catalog_hash, refs, completed, failures)
+                    continue
+                completed.add(ref.reign_id)
+                failures.pop(ref.reign_id, None)
+                progress = SyncProgress(len(refs), len(completed), self.store.count_items(category="资治通鉴"))
+                self._save_checkpoint(catalog_hash, refs, completed, failures)
+                if self.on_progress:
+                    self.on_progress(progress, ref)
+        if failures:
+            failed = ", ".join(sorted(failures)[:5])
+            suffix = "..." if len(failures) > 5 else ""
+            raise RuntimeError(f"{len(failures)} reigns failed; checkpoint preserved for retry: {failed}{suffix}")
         if len(completed) == len(refs):
             self.store.remove_seed_items()
             self.store.remove_seed_catalog()
@@ -258,12 +322,21 @@ class TongjianSync:
             return {"catalog_hash": catalog_hash, "completed_reign_ids": []}
         return payload
 
-    def _save_checkpoint(self, catalog_hash: str, refs: list[ReignRef], completed: set[str]) -> None:
+    def _save_checkpoint(
+        self,
+        catalog_hash: str,
+        refs: list[ReignRef],
+        completed: set[str],
+        failures: dict[str, str] | None = None,
+    ) -> None:
+        failures = failures or {}
         payload = {
             "catalog_hash": catalog_hash,
             "total_reigns": len(refs),
             "completed_reign_ids": sorted(completed),
             "updated_at": datetime.now(timezone.utc).isoformat(),
+            "failed_reign_ids": sorted(failures),
+            "last_errors": {reign_id: failures[reign_id] for reign_id in sorted(failures)[-20:]},
         }
         _atomic_write_json(self.checkpoint_path, payload)
 
@@ -321,7 +394,10 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--database", default="data/dutongjian.db")
     parser.add_argument("--cache-dir", default="data/tongjian-cache")
     parser.add_argument("--checkpoint", default="data/tongjian-progress.json")
-    parser.add_argument("--min-interval", type=float, default=5.0)
+    parser.add_argument("--min-interval", type=float, default=0.5, help="minimum seconds between request starts")
+    parser.add_argument("--workers", type=int, default=4, help="bounded concurrent requests")
+    parser.add_argument("--reset", action="store_true", help="clear old corpus, cache, and checkpoint before syncing")
+    parser.add_argument("--respect-robots", action=argparse.BooleanOptionalAction, default=True)
     return parser
 
 
@@ -330,7 +406,20 @@ def main() -> int:
     if not args.allow_public_api:
         print("refusing public API sync without --allow-public-api", file=sys.stderr)
         return 2
-    client = TongjianApiClient(args.base_url, cache_dir=args.cache_dir, min_interval=args.min_interval)
+    cache_dir = Path(args.cache_dir)
+    checkpoint_path = Path(args.checkpoint)
+    store = ContentStore(args.database)
+    if args.reset:
+        store.clear_tongjian_content()
+        if cache_dir.exists():
+            shutil.rmtree(cache_dir)
+        checkpoint_path.unlink(missing_ok=True)
+    client = TongjianApiClient(
+        args.base_url,
+        cache_dir=cache_dir,
+        min_interval=args.min_interval,
+        respect_robots=args.respect_robots,
+    )
 
     def report(progress: SyncProgress, ref: ReignRef) -> None:
         print(
@@ -339,12 +428,17 @@ def main() -> int:
             flush=True,
         )
 
-    result = TongjianSync(
-        client,
-        ContentStore(args.database),
-        checkpoint_path=args.checkpoint,
-        on_progress=report,
-    ).run()
+    try:
+        result = TongjianSync(
+            client,
+            store,
+            checkpoint_path=checkpoint_path,
+            on_progress=report,
+            workers=args.workers,
+        ).run()
+    except RuntimeError as error:
+        print(f"sync incomplete: {error}", file=sys.stderr)
+        return 1
     print(result)
     return 0
 

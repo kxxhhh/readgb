@@ -1,310 +1,183 @@
-项目任务：重构 dutongjian.com 为 Android App + 数据服务（权限增强版）
+读通鉴工程执行规范（当前实际版）
+================================
 
-0. 目标
+更新时间：2026-08-03
+工作目录：/mnt/workspace/readgb
+目标网站：https://www.dutongjian.com/
 
-工作目录："/workspaces/-app"
-目标网站："https://www.dutongjian.com/"
+本文件是项目要求和当前实施边界。源码、测试和 PROJECT_STATE.md 优先于早期历史描述。PROJECT_STATE.md 同时承担任务清单、断点恢复记录和变更日志；每次开发必须先读它。
 
-交付：
+一、交付目标
+------------
 
-- Kotlin 原生 Android App（禁止 WebView 套壳）
-- 数据采集服务
-- REST API
-- 可编译 APK
-- 完整源码
-- README + 部署说明
-- 测试与构建验证
-- 具备完整开发、调试、构建、部署权限的工程化执行能力
+- Kotlin 原生 Android App，禁止 WebView 套壳。
+- Python/FastAPI 数据服务。
+- 公开内容同步器、SQLite 索引、校验和 Android assets 导出。
+- 可编译 Debug/Release APK。
+- README、DOCS、站点分析、功能要求和可恢复任务记录。
+- Backend 测试、Android JVM 测试、lint、APK 构建和 CI。
+- Linux 主机上的爬虫 systemd 开机续跑。
 
----
+当前实际限制：
+
+- 新一轮全本同步尚未完成，不能宣称 APK 已包含 30,989 条全本正文。
+- Android 真机、TTS 音频、Widget、Edge-TTS 和 AI 端到端验收不在当前无设备环境中完成。
+- 正式 Release 签名必须由发布环境提供 keystore 和环境变量。
+- 公开同步遵守 robots、同源、限速、重试和访问边界。
 
-1. 角色
+二、架构
+--------
 
-你是 Android + Kotlin + 后端 + 爬虫 + API + 构建工程专家，熟悉：
+Android：
 
-- Kotlin / Compose / Material 3
-- Retrofit / Room / Coroutines
-- FastAPI / Scrapy / Playwright
-- Gradle / CI/CD
-- Linux 开发环境与容器化部署
-- 自动化构建与错误修复流程
+- data：Retrofit、Room、FTS、资产导入、TTS、AI 设置和持久化。
+- domain：ReadingItem、目录、百科、Repository contract、字形映射和 TTS contract。
+- ui：Compose、MVVM、StateFlow、详情阅读、学习图表、笔记和设置。
+- di：Hilt 组装。
 
----
+Backend：
 
-2. 权限（增强执行权限）
+- app/main.py：REST API。
+- app/store.py：SQLite items、目录、百科和 HTTP cache。
+- app/crawler.py：HTML robots-aware fetcher。
+- app/parsers.py：无网络纯解析器。
+- app/tongjian_sync.py：公开《资治通鉴》 JSON API 断点同步。
+- app/export_android.py：正文、目录、百科资产校验和原子导出。
+- tests：API、crawler、parser、sync 回归。
 
-你可以在 "/workspaces/-app" 内执行以下操作：
+三、功能状态
+------------
 
-✅ 允许操作
+已完成并在源码或本地测试确认：
 
-- 创建 / 修改 / 删除任意项目代码
-- 安装依赖（pip / npm / gradle）
-- 运行 shell 命令（构建 / 测试 / 调试）
-- 启动本地服务（FastAPI / Node / Android build tools）
-- 读取日志并自动修复错误
-- 重构项目结构
-- 自动生成缺失模块
-- 循环构建直到成功
-- 优化性能与架构
+- Compose 原生 UI、MVVM、StateFlow、Repository、Room、Hilt。
+- 离线优先启动、Room 收藏/历史/笔记、本地 FTS 搜索入口。
+- 详情页原文/译文并读、单独阅读、字号、复制分享、划线笔记和工具面板。
+- 展示层繁简/异体字映射和本地字词提示。
+- 系统 TTS 控制器、句子状态、自动滚动和睡眠计时器代码。
+- 学习页动态朝代柱状图、阅读趋势、人物共现关系图和文章下钻代码。
+- FastAPI home/search/items/detail/目录/knowledge 接口。
+- robots、缓存、Retry-After、退避、去重、checkpoint、受控 worker 和失败记录。
+- 项目内 service/data 数据路径、清理前审计快照、断点恢复脚本和 systemd unit。
+- CI 的 Python test/coverage 和 Android test/lint/build 任务。
 
----
+未完成或必须实测：
 
-⚠️ 约束（必须遵守）
+- 完成 1,405 个纪年、校验 30,989 条正文。
+- 生成并导入新的正文、目录和百科 assets。
+- 全本数据下的图表覆盖、关系准确性和性能。
+- 设备上的安装、滚动、TTS、Widget、Edge-TTS、AI 和签名 APK 验收。
+- AI 语法拆解、反事实推演、人物角色对话和战役沙盘。
+- 自动 gh release 和 Codespace 签名发布闭环。
 
-- 不得破坏宿主系统环境
-- 不得绕过登录 / 验证码 / 付费墙
-- 不得进行高频攻击性爬取
-- 不得访问或泄露敏感信息
-- 必须遵守 robots.txt 与合理抓取频率
-- 所有数据必须来源真实网站或合法 API
+四、同步规范
+------------
 
----
+已确认公开接口：
 
-3. 执行流程（强制工程化流水线）
+- GET https://www.dutongjian.com/api/table_of_contents
+- GET https://www.dutongjian.com/api/reign?reign_tongjian_id=<公开纪年 ID>
 
-Phase 1：网站分析（必须完成）
+目标数据结构：
 
-- 分析 "dutongjian.com" 页面结构
-- 识别栏目 / 分类 / 内容类型
-- 梳理站点地图（Sitemap）
-- 标注关键数据入口页面
-- 判断是否存在 JSON/XHR/API 数据源
+- 294 卷。
+- 1,405 个纪年节点。
+- 30,989 条正文。
 
-输出：
+默认命令：
 
-- site map
-- 页面结构分析
-- 数据类型分类（文章 / 列表 / 详情等）
+    ./scripts/resume_crawler.sh
 
----
+该命令只续跑，不带 --reset。数据全部放在项目目录：
 
-Phase 2：API / 数据源分析
+    service/data/dutongjian.db
+    service/data/tongjian-cache/
+    service/data/tongjian-progress.json
+    service/data/resync-archive-20260803/
 
-- 抓取网络请求（XHR / Fetch / JSON）
-- 分析接口结构
-- 判断是否可直接复用 API
-- 若无 API，则进入爬虫模式
+新抓取内容不得放在 /tmp。同步器内部的 .tmp 仅是同目录原子写入中间文件。
 
-输出：
+首次重新清理时才使用：
 
-- API 列表（如存在）
-- 请求参数结构
-- 返回 JSON schema
-- 鉴权方式（如有）
+    PYTHONPATH=service python -m app.tongjian_sync \
+      --allow-public-api \
+      --reset \
+      --database service/data/dutongjian.db \
+      --cache-dir service/data/tongjian-cache \
+      --checkpoint service/data/tongjian-progress.json \
+      --workers 4 \
+      --min-interval 0.5 \
+      --respect-robots
 
----
+爬虫规则：
 
-Phase 3：数据服务层（FastAPI）
+- robots.txt 无法读取时拒绝网络请求。
+- 只访问配置 base URL 的公开路径。
+- cache 命中不发请求。
+- 请求启动受全局间隔控制，worker 数量有界。
+- HTTP 429 读取 Retry-After，并共享冷却窗口。
+- 每个纪年成功后更新 checkpoint。
+- 单个纪年失败不丢失已完成结果；failed_reign_ids 和 last_errors 写入 checkpoint，下一次恢复重试。
+- 不通过提高并发绕过站点限流。
 
-如无官方 API，则构建：
+五、恢复流程
+------------
 
-- FastAPI 服务
-- 爬虫模块（Scrapy / Playwright）
-- 数据缓存层（Redis / SQLite）
-- 去重机制
-- 限速与重试机制
-- robots.txt 合规检查
+意外停止或机器重启后：
 
-API 设计必须包含：
+    cd /mnt/workspace/readgb
+    sed -n '1,240p' PROJECT_STATE.md
+    git status --short
+    ps -eo pid,etime,cmd | rg 'tongjian_sync|readgb-crawler' | rg -v 'rg '
+    jq '{total_reigns, completed: (.completed_reign_ids | length), updated_at}' \
+      service/data/tongjian-progress.json
+    ./scripts/resume_crawler.sh
 
-- "/api/home"
-- "/api/search"
-- "/api/items"
-- "/api/detail/{id}"
+如果已有同步进程持有 service/data/tongjian-sync.lock，恢复脚本会退出，不启动重复进程。不要删除数据库、cache 或 checkpoint。只有确认需要从头清理时才使用 --reset。
 
-返回统一 JSON 格式：
+开机服务：
 
-{
-  "code": 0,
-  "message": "ok",
-  "data": {}
-}
+    ./scripts/install_crawler_service.sh
 
----
+systemd unit 使用 scripts/resume_crawler.sh，失败自动重启，不带 --reset。容器没有 systemd PID 1 时，安装脚本只负责留下 unit 和 enable 链接，宿主机启动后接管。
 
-Phase 4：Android App（原生实现）
+六、构建和测试
+--------------
 
-架构：
+Backend：
 
-data/
-domain/
-ui/
+    python3 -m pytest -q service/tests
+    python3 -m compileall -q service/app
 
-技术栈：
+Android：
 
-- Jetpack Compose
-- Material 3
-- Retrofit
-- Room
-- Kotlin Flow
-- Hilt（依赖注入）
-- Coil（图片加载）
+    cd android
+    ./gradlew testDebugUnitTest
+    ./gradlew lintDebug
+    ./gradlew assembleDebug
+    ./gradlew assembleRelease
 
-功能模块：
+CI：
 
-- 首页（推荐/列表）
-- 分类页
-- 搜索页
-- 详情页
-- 收藏（Room）
-- 历史记录
-- 离线缓存
+.github/workflows/ci.yml 使用 Python 3.12、JDK 21、SDK 35，执行 Python 覆盖率测试和 Android test/lint/Debug/Release build，并缓存 pip/Gradle。CI 不运行真实网站同步。
 
----
+七、提交和记录
+--------------
 
-Phase 5：构建与测试
+每次开发必须：
 
-必须保证：
+1. 先读 PROJECT_STATE.md，再执行 git status --short。
+2. 在 PROJECT_STATE.md 当前任务清单写目标、路径和恢复方式。
+3. 完成项行末加 ✅；未完成项保留未勾选并写明下一步。
+4. 测试、同步、部署、数据路径和构建变化追加到同一文件的变更日志。
+5. 提交前执行测试、git diff --check，并确认没有把数据库/cache/checkpoint/APK/keystore 加入 Git。
+6. 用户要求推送时，提交后确认远端分支和 commit。
 
-./gradlew clean
-./gradlew assembleDebug
-./gradlew test
-pytest
+八、安全边界
+------------
 
-自动处理：
-
-- 编译错误修复
-- 依赖冲突解决
-- API 连接调试
-- UI 崩溃修复
-
----
-
-4. 爬虫规范（严格）
-
-- 必须限速（rate limit）
-- 必须 retry + backoff
-- 必须 cache
-- 必须去重
-- 必须遵守 robots.txt
-- 禁止并发攻击式抓取
-- 禁止绕过访问限制
-
----
-
-5. API 设计规范
-
-FastAPI 必须提供：
-
-- "/api/home"
-- "/api/search?q="
-- "/api/items?category="
-- "/api/detail/{id}"
-
-统一返回：
-
-{
-  "code": 0,
-  "message": "success",
-  "data": {}
-}
-
----
-
-6. Android 架构规范
-
-分层：
-
-- data（网络 / DB）
-- domain（业务逻辑）
-- ui（Compose UI）
-
-必须支持：
-
-- MVVM
-- StateFlow
-- Repository pattern
-- Offline-first（可选）
-
----
-
-7. UI 要求
-
-- Material 3
-- Dark / Light Mode
-- Loading / Error / Empty 状态
-- 下拉刷新
-- 动画优化（避免卡顿）
-- 响应式布局
-
----
-
-8. 测试与构建
-内存分配给它8gb
-
-必须通过：
-
-./gradlew clean
-./gradlew assembleDebug
-./gradlew test
-pytest
-
-失败必须：
-
-- 自动读取错误日志
-- 定位 root cause
-- 修复代码
-- 重新构建
-- 循环直到成功
-
----
-
-9. CI/CD（GitHub Actions）
-
-必须包含：
-
-- build
-- test
-- lint
-- cache gradle / pip
-
----
-
-10. README 必须包含
-
-- 项目介绍
-- 架构说明
-- API 文档
-- 部署方式
-- Android 运行方式
-- 爬虫说明
-- 测试方式
-- CI 说明
-
----
-
-11. 最终交付目标
-
-必须交付：
-
-- ✅ 可运行 Android App
-- ✅ 可运行 FastAPI 服务
-- ✅ 可编译 APK
-- ✅ 全部测试通过
-- ✅ 完整源码结构
-- ✅ 可部署说明
-
----
-
-12. 执行规则（强制）
-
-- ❌ 不允许伪造 API
-- ❌ 不允许虚构数据源
-- ❌ 不允许跳过错误
-- ❌ 不允许不完整实现
-- ✅ 必须基于真实网站数据
-- ✅ 必须可运行、可构建、可验证
-
---
-
-13. 立即开始
-
-现在执行：
-
-1. 初始化项目环境
-2. 访问目标网站
-3. 输出 Phase 1（站点分析）
-4. 输出 Phase 2（API 分析）
-5. 进入 Phase 3（数据服务构建）
-6. 并行启动 Android 架构搭建
-7. 持续构建直到 APK 成功生成
+- 不登录、不绕过验证码、访问控制、robots 或付费墙。
+- 不进行高频或攻击式抓取。
+- 不泄露敏感信息。
+- 不把原站会员能力描述为本项目能力。
+- 不用未完成数据冒充全本。

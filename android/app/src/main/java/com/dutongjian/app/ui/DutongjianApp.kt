@@ -33,6 +33,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -61,9 +62,11 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedTextField
@@ -104,6 +107,7 @@ import com.dutongjian.app.domain.model.TextScript
 import com.dutongjian.app.domain.model.TtsEngineType
 import com.dutongjian.app.domain.model.Volume
 import com.dutongjian.app.domain.text.ClassicalScriptMapper
+import com.dutongjian.app.domain.text.ClassicalGlossary
 import com.dutongjian.app.domain.tts.TtsPlaybackState
 import kotlinx.coroutines.delay
 private enum class AppTab(val label: String) {
@@ -853,9 +857,10 @@ private fun DetailScreen(
     onSaveNote: (Note) -> Unit,
     onDeleteNote: (Note) -> Unit,
 ) {
-    var mode by rememberSaveable { mutableStateOf(ReadingMode.PARALLEL) }
+    var mode by rememberSaveable(item.id) { mutableStateOf(ReadingMode.PARALLEL) }
     var script by rememberSaveable(item.id) { mutableStateOf(TextScript.SIMPLIFIED) }
     var fontPercent by rememberSaveable(item.id) { androidx.compose.runtime.mutableIntStateOf(100) }
+    var showTools by rememberSaveable(item.id) { mutableStateOf(false) }
     var showSandbox by rememberSaveable { mutableStateOf(false) }
     var showDecisionCard by rememberSaveable { mutableStateOf(false) }
     var showOriginalEdition by rememberSaveable { mutableStateOf(false) }
@@ -884,12 +889,18 @@ private fun DetailScreen(
     val translation = item.translation.ifBlank { item.content }
     val displayOriginal = remember(original, script) { ClassicalScriptMapper.transform(original, script) }
     val displayTranslation = remember(translation, script) { ClassicalScriptMapper.transform(translation, script) }
-    val originalSegments = remember(displayOriginal) { sentenceSegments(displayOriginal) }
+    val originalSegments = remember(displayOriginal) {
+        sentenceSegments(displayOriginal).ifEmpty {
+            listOf(SentenceSegment(0, 0, displayOriginal.length, displayOriginal))
+        }
+    }
+    val translationSegments = remember(displayTranslation) { sentenceSegments(displayTranslation) }
     val historicalNotes = remember(item.notes, displayOriginal) { formatHistoricalNotes(item.notes) }
+    val glossaryEntries = remember(displayOriginal) { ClassicalGlossary.find(displayOriginal).take(8) }
     val detailListState = rememberLazyListState()
     LaunchedEffect(item.id, ttsState.currentItemId, ttsState.currentSentence, originalSegments.size) {
         if (ttsState.currentItemId == item.id && ttsState.currentSentence in originalSegments.indices) {
-            detailListState.animateScrollToItem(2 + ttsState.currentSentence)
+            detailListState.animateScrollToItem(3 + ttsState.currentSentence)
         }
     }
     val localContext = parseHistoricalContext(item.notes)
@@ -905,7 +916,12 @@ private fun DetailScreen(
         modifier = Modifier.windowInsetsPadding(WindowInsets.safeDrawing),
         topBar = {
             TopAppBar(
-                title = { Text(item.title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                title = {
+                    Column {
+                        Text("阅读", style = MaterialTheme.typography.titleMedium)
+                        Text(item.title, style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回") } },
                 actions = {
                     IconButton(onClick = onFavoriteToggle) {
@@ -913,6 +929,47 @@ private fun DetailScreen(
                     }
                 },
             )
+        },
+        bottomBar = {
+            Surface(tonalElevation = 4.dp) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .windowInsetsPadding(WindowInsets.navigationBars)
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    TextButton(onClick = {
+                        val clipboard = context.getSystemService(ClipboardManager::class.java)
+                        clipboard?.setPrimaryClip(ClipData.newPlainText(item.title, currentText))
+                    }) {
+                        Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(5.dp))
+                        Text("复制")
+                    }
+                    TextButton(onClick = {
+                        val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(Intent.EXTRA_SUBJECT, item.title)
+                            putExtra(Intent.EXTRA_TEXT, currentText)
+                        }
+                        context.startActivity(Intent.createChooser(shareIntent, "分享史料"))
+                    }) {
+                        Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(5.dp))
+                        Text("分享")
+                    }
+                    TextButton(onClick = { showNoteEditor = true }) {
+                        Text("划线 / 笔记")
+                    }
+                    TextButton(onClick = { showTools = true }) {
+                        Icon(Icons.Default.Settings, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(5.dp))
+                        Text("工具")
+                    }
+                }
+            }
         },
     ) { padding ->
         LazyColumn(
@@ -945,16 +1002,50 @@ private fun DetailScreen(
                         },
                     )
                 },
-            contentPadding = PaddingValues(horizontal = 24.dp, vertical = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(18.dp),
+            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             item {
-                Text("${item.category}  ·  ${item.dynasty}", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
-                Spacer(Modifier.height(8.dp))
-                Text(item.title, style = MaterialTheme.typography.headlineMedium, fontSize = (28f * fontScale).sp, fontWeight = FontWeight.Bold)
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("${item.category}  ·  ${item.dynasty}", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
+                    Text(item.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                    Text(item.summary, style = MaterialTheme.typography.bodyLarge, lineHeight = 25.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    if (item.tags.isNotEmpty()) {
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            items(item.tags.take(6), key = { it }) { tag ->
+                                Text("#$tag", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                            }
+                        }
+                    }
+                }
             }
             item {
-                Text("原文", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f),
+                    shape = RoundedCornerShape(12.dp),
+                ) {
+                    Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            items(ReadingMode.entries.toList(), key = { it.name }) { candidate ->
+                                FilterChip(selected = mode == candidate, onClick = { mode = candidate }, label = { Text(candidate.label) })
+                            }
+                        }
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("字形", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            TextScript.entries.forEach { candidate ->
+                                FilterChip(selected = script == candidate, onClick = { script = candidate }, label = { Text(candidate.label) })
+                            }
+                        }
+                    }
+                }
+            }
+            item {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("正文", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.weight(1f))
+                    Text("${originalSegments.size} 段", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
             items(originalSegments, key = { segment -> "${item.id}-sentence-${segment.index}" }) { segment ->
                 val segmentNotes = historicalNotes
@@ -969,178 +1060,92 @@ private fun DetailScreen(
                         )
                     }
                 val active = ttsState.currentItemId == item.id && ttsState.currentSentence == segment.index && ttsState.isPlaying
-                Surface(
-                    color = if (active) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface,
-                    shape = RoundedCornerShape(8.dp),
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .then(if (active) Modifier.padding(horizontal = 8.dp, vertical = 6.dp) else Modifier.padding(vertical = 6.dp)),
+                    verticalArrangement = Arrangement.spacedBy(7.dp),
                 ) {
-                    SelectionContainer {
-                        ReadingAnnotatedText(
-                            text = segment.text,
-                            places = places,
-                            historicalNotes = segmentNotes,
-                            savedNotes = segmentSavedNotes,
-                            fontSize = bodyFontSize,
+                    if (mode != ReadingMode.TRANSLATION) {
+                        SelectionContainer {
+                            ReadingAnnotatedText(
+                                text = segment.text,
+                                places = places,
+                                historicalNotes = segmentNotes,
+                                savedNotes = segmentSavedNotes,
+                                fontSize = bodyFontSize,
+                                lineHeight = bodyLineHeight,
+                                highlightedSavedNoteId = highlightedSavedNoteId,
+                                onPlaceClick = { place -> selectedPlace = place },
+                                onSavedNoteClick = { note -> notePendingDeletion = note },
+                                onHistoricalNoteClick = { note -> selectedHistoricalNote = note },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .then(if (active) Modifier.padding(8.dp) else Modifier),
+                            )
+                        }
+                    }
+                    if (mode != ReadingMode.ORIGINAL && displayTranslation.isNotBlank()) {
+                        Text("白话", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                        Text(
+                            translationSegments.getOrNull(segment.index)?.text ?: if (segment.index == 0) displayTranslation else "",
+                            fontSize = (bodyFontSize.value - 1f).coerceAtLeast(14f).sp,
                             lineHeight = bodyLineHeight,
-                            highlightedSavedNoteId = highlightedSavedNoteId,
-                            onPlaceClick = { place -> selectedPlace = place },
-                            onSavedNoteClick = { note -> notePendingDeletion = note },
-                            onHistoricalNoteClick = { note -> selectedHistoricalNote = note },
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 }
             }
-            item {
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(ReadingMode.entries.toList(), key = { it.name }) { candidate ->
-                        FilterChip(selected = mode == candidate, onClick = { mode = candidate }, label = { Text(candidate.label) })
-                    }
+            if (historicalNotes.isNotEmpty()) {
+                item {
+                    HorizontalDivider()
+                    Text("注释 · ${historicalNotes.size}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    HistoricalNotesList(historicalNotes) { selectedHistoricalNote = it }
                 }
             }
-            item {
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    item { Text("字形", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                    items(TextScript.entries.toList(), key = { it.name }) { candidate ->
-                        FilterChip(
-                            selected = script == candidate,
-                            onClick = { script = candidate },
-                            label = { Text(candidate.label) },
-                        )
-                    }
-                }
-            }
-            item {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("字号", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    IconButton(
-                        onClick = { fontPercent = (fontPercent - 10).coerceAtLeast(80) },
-                        enabled = fontPercent > 80,
-                    ) {
-                        Icon(Icons.Default.Remove, contentDescription = "减小字号")
-                    }
-                    Text("${fontPercent}%", style = MaterialTheme.typography.labelLarge)
-                    IconButton(
-                        onClick = { fontPercent = (fontPercent + 10).coerceAtMost(160) },
-                        enabled = fontPercent < 160,
-                    ) {
-                        Icon(Icons.Default.Add, contentDescription = "增大字号")
-                    }
-                }
-            }
-            item {
-                Slider(
-                    value = fontPercent.toFloat(),
-                    onValueChange = { fontPercent = it.toInt() },
-                    valueRange = 80f..160f,
-                    steps = 7,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-            item {
-                TtsControlRow(
-                    isPlaying = ttsState.currentItemId == item.id && ttsState.isPlaying,
-                    isPaused = ttsState.currentItemId == item.id && ttsState.isPaused,
-                    onSpeak = onSpeak,
-                    onPause = onPauseTts,
-                    onResume = onResumeTts,
-                    onStop = onStopTts,
-                )
-                if (ttsState.currentItemId == item.id && ttsState.isPlaying) {
-                    Text("第 ${ttsState.currentSentence + 1} / ${ttsState.sentenceCount} 句 · ${ttsState.progress}%", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                TtsSleepTimerRow(
-                    state = ttsState,
-                    onStartSleepTimer = onStartTtsSleepTimer,
-                    onStopAfterCurrentItem = onStopTtsAfterCurrentItem,
-                    onCancel = onCancelTtsSleepTimer,
-                )
-                ttsState.error?.takeIf { ttsState.currentItemId == item.id }?.let { error ->
-                    Text(error, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
-                }
-            }
-            item {
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    item {
-                        AssistChip(
-                            onClick = {
-                                val clipboard = context.getSystemService(ClipboardManager::class.java)
-                                clipboard?.setPrimaryClip(ClipData.newPlainText(item.title, currentText))
-                            },
-                            label = { Text("复制当前文本") },
-                            leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(16.dp)) },
-                        )
-                    }
-                    item {
-                        AssistChip(
-                            onClick = {
-                                val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                                    type = "text/plain"
-                                    putExtra(Intent.EXTRA_SUBJECT, item.title)
-                                    putExtra(Intent.EXTRA_TEXT, currentText)
-                                }
-                                context.startActivity(Intent.createChooser(shareIntent, "分享史料"))
-                            },
-                            label = { Text("分享") },
-                            leadingIcon = { Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(16.dp)) },
-                        )
-                    }
-                    item {
-                        AssistChip(
-                            onClick = { showNoteEditor = true },
-                            label = { Text("划线选中文本") },
-                        )
-                    }
-                    item {
-                        AssistChip(onClick = { showNoteEditor = true }, label = { Text("记笔记") })
-                    }
-                }
-            }
-            item {
-                Surface(color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f), shape = RoundedCornerShape(16.dp)) {
-                    Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        when (mode) {
-                            ReadingMode.PARALLEL -> {
-                                Text("白话", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-                                Text(displayTranslation, style = MaterialTheme.typography.bodyLarge, fontSize = bodyFontSize, lineHeight = bodyLineHeight)
-                            }
-                            ReadingMode.ORIGINAL -> Spacer(Modifier.height(1.dp))
-                            ReadingMode.TRANSLATION -> Text(displayTranslation, style = MaterialTheme.typography.bodyLarge, fontSize = bodyFontSize, lineHeight = bodyLineHeight)
+            if (glossaryEntries.isNotEmpty()) {
+                item {
+                    HorizontalDivider()
+                    Text("字词提示", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    glossaryEntries.forEach { entry ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top) {
+                            Text(entry.term, modifier = Modifier.width(56.dp), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(entry.explanation)
+                                Text(entry.category, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
                     }
-            }
-            item {
-                if (item.tags.isNotEmpty()) {
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(item.tags, key = { it }) { tag -> AssistChip(onClick = {}, label = { Text("#$tag") }) }
-                    }
                 }
             }
-            item {
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    item { AssistChip(onClick = { showSandbox = !showSandbox }, label = { Text(if (showSandbox) "收起沙盘" else "沙盘态势") }) }
-                    item { AssistChip(onClick = { showDecisionCard = !showDecisionCard }, label = { Text(if (showDecisionCard) "收起决策" else "决策卡") }) }
-                    item { AssistChip(onClick = { showOriginalEdition = !showOriginalEdition }, label = { Text(if (showOriginalEdition) "收起古本" else "古本原文") }) }
-                    item { AssistChip(onClick = { onAiGenerate(item, AiTask.SUMMARY) }, label = { Text("AI总结") }) }
-                    item { AssistChip(onClick = { onAiGenerate(item, AiTask.CLASSICAL_TRANSLATION) }, label = { Text("AI逐句对照") }) }
-                    item { AssistChip(onClick = { onAiGenerate(item, AiTask.WORD_GLOSSARY) }, label = { Text("AI词语对照") }) }
-                    item { AssistChip(onClick = { onAiGenerate(item, AiTask.ROLE_DIALOGUE) }, label = { Text("历史角色") }) }
-                    item { AssistChip(onClick = { onAiGenerate(item, AiTask.COUNTERFACTUAL) }, label = { Text("反事实") }) }
-                    item { AssistChip(onClick = { onAiGenerate(item, AiTask.GRAMMAR_ANALYSIS) }, label = { Text("语法拆解") }) }
+            if (showOriginalEdition) {
+                item {
+                    HorizontalDivider()
+                    Text("原始底本", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text("繁体原文保留自公开抓取字段，视图转换不会改写它。", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    SelectionContainer { Text(original, fontSize = bodyFontSize, lineHeight = bodyLineHeight) }
                 }
             }
             if (showSandbox) {
                 item {
-                    Surface(color = MaterialTheme.colorScheme.primaryContainer, shape = RoundedCornerShape(16.dp)) {
-                        Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text("沙盘态势", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                            Text("事件主线", style = MaterialTheme.typography.labelLarge)
-                            Text(item.summary, fontSize = (16f * fontScale).sp, lineHeight = (25f * fontScale).sp)
-                            ContextSection("关键人物", localContext.people)
-                            ContextSection("相关地点", localContext.places)
-                            ContextSection("官职与军政", localContext.officials)
+                    Text("沙盘态势", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text("事件主线", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                    Text(item.summary, fontSize = (16f * fontScale).sp, lineHeight = (25f * fontScale).sp)
+                    ContextSection("关键人物", localContext.people)
+                    ContextSection("相关地点", localContext.places)
+                    ContextSection("官职与军政", localContext.officials)
+                }
+            }
+            if (showDecisionCard) {
+                item {
+                    Text("决策卡", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text("选择一个策略，查看它对应的史料阅读角度。", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(decisionOptions.indices.toList()) { index ->
+                            FilterChip(selected = selectedDecision == index, onClick = { selectedDecision = index }, label = { Text(decisionOptions[index].title) })
                         }
                     }
+                    Text(decisionOptions[selectedDecision.coerceIn(decisionOptions.indices)].detail, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
             if (savedNotes.isNotEmpty()) {
@@ -1151,36 +1156,6 @@ private fun DetailScreen(
                             savedNotes.take(5).forEach { note ->
                                 Text("“${note.selectedText}”${note.memo.takeIf(String::isNotBlank)?.let { "：$it" }.orEmpty()}", color = MaterialTheme.colorScheme.onTertiaryContainer)
                             }
-                        }
-                    }
-                }
-            }
-            if (showDecisionCard) {
-                item {
-                    Surface(color = MaterialTheme.colorScheme.secondaryContainer, shape = RoundedCornerShape(16.dp)) {
-                        Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text("决策卡", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                            Text("选择一个策略，查看它对应的史料阅读角度。")
-                            decisionOptions.forEachIndexed { index, option ->
-                                FilterChip(
-                                    selected = selectedDecision == index,
-                                    onClick = { selectedDecision = index },
-                                    label = { Text(option.title) },
-                                )
-                            }
-                            Text(decisionOptions[selectedDecision.coerceIn(decisionOptions.indices)].detail, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                    }
-                }
-            }
-            if (showOriginalEdition) {
-                item {
-                    Surface(color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f), shape = RoundedCornerShape(16.dp)) {
-                        Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text("古本原文", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                            Text("繁体原文与当前条目的底本来源", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-                            Text(original, fontSize = bodyFontSize, lineHeight = bodyLineHeight)
-                            Text(item.sourceUrl, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }
@@ -1216,6 +1191,65 @@ private fun DetailScreen(
             }
             item {
                 Text("来源标记：${item.sourceUrl}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+    if (showTools) {
+        ModalBottomSheet(onDismissRequest = { showTools = false }) {
+            LazyColumn(
+                contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 28.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                item {
+                    Text("阅读工具", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                    Text("正文保持连续，辅助功能集中在这里。", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                item {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("字号", style = MaterialTheme.typography.labelLarge)
+                        Spacer(Modifier.weight(1f))
+                        IconButton(onClick = { fontPercent = (fontPercent - 10).coerceAtLeast(80) }, enabled = fontPercent > 80) { Icon(Icons.Default.Remove, contentDescription = "减小字号") }
+                        Text("${fontPercent}%", style = MaterialTheme.typography.labelLarge)
+                        IconButton(onClick = { fontPercent = (fontPercent + 10).coerceAtMost(160) }, enabled = fontPercent < 160) { Icon(Icons.Default.Add, contentDescription = "增大字号") }
+                    }
+                    Slider(value = fontPercent.toFloat(), onValueChange = { fontPercent = it.toInt() }, valueRange = 80f..160f, steps = 7)
+                }
+                item {
+                    HorizontalDivider()
+                    TtsControlRow(
+                        isPlaying = ttsState.currentItemId == item.id && ttsState.isPlaying,
+                        isPaused = ttsState.currentItemId == item.id && ttsState.isPaused,
+                        onSpeak = onSpeak,
+                        onPause = onPauseTts,
+                        onResume = onResumeTts,
+                        onStop = onStopTts,
+                    )
+                    if (ttsState.currentItemId == item.id && ttsState.isPlaying) {
+                        Text("第 ${ttsState.currentSentence + 1} / ${ttsState.sentenceCount} 句 · ${ttsState.progress}%", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    TtsSleepTimerRow(ttsState, onStartTtsSleepTimer, onStopTtsAfterCurrentItem, onCancelTtsSleepTimer)
+                    ttsState.error?.takeIf { ttsState.currentItemId == item.id }?.let { error -> Text(error, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error) }
+                }
+                item {
+                    HorizontalDivider()
+                    Text("深度工具", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        item { AssistChip(onClick = { showSandbox = !showSandbox; showTools = false }, label = { Text(if (showSandbox) "收起沙盘" else "沙盘态势") }) }
+                        item { AssistChip(onClick = { showDecisionCard = !showDecisionCard; showTools = false }, label = { Text(if (showDecisionCard) "收起决策" else "决策卡") }) }
+                        item { AssistChip(onClick = { showOriginalEdition = !showOriginalEdition; showTools = false }, label = { Text(if (showOriginalEdition) "收起底本" else "原始底本") }) }
+                    }
+                }
+                item {
+                    Text("AI 辅助", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        item { AssistChip(onClick = { onAiGenerate(item, AiTask.SUMMARY); showTools = false }, label = { Text("AI总结") }) }
+                        item { AssistChip(onClick = { onAiGenerate(item, AiTask.CLASSICAL_TRANSLATION); showTools = false }, label = { Text("逐句对照") }) }
+                        item { AssistChip(onClick = { onAiGenerate(item, AiTask.WORD_GLOSSARY); showTools = false }, label = { Text("词语对照") }) }
+                        item { AssistChip(onClick = { onAiGenerate(item, AiTask.GRAMMAR_ANALYSIS); showTools = false }, label = { Text("语法拆解") }) }
+                        item { AssistChip(onClick = { onAiGenerate(item, AiTask.ROLE_DIALOGUE); showTools = false }, label = { Text("历史角色") }) }
+                        item { AssistChip(onClick = { onAiGenerate(item, AiTask.COUNTERFACTUAL); showTools = false }, label = { Text("反事实") }) }
+                    }
+                }
             }
         }
     }
