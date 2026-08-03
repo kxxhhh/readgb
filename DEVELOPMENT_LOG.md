@@ -12,4 +12,14 @@ ps -eo pid,lstart,etime,pcpu,pmem,args | rg 'app.tongjian_sync|resume_crawler|re
 jq '{total_reigns, completed: (.completed_reign_ids | length), failed: (.failed_reign_ids // [] | length), updated_at}' service/data/tongjian-progress.json
 ~~~
 
-规则：任务完成行末加 ✅；未完成项保留 [ ] 并写下一步；机器意外关闭后复用原 checkpoint/cache，不启动重复爬虫。完整当前记录见 PROJECT_STATE.md。
+规则：任务清单使用 `- [ ]` / `- [x]`，完成项同一行末加 ✅，未完成项写下一步或阻塞原因；变更日志使用 `### YYYY-MM-DD HH:MM Asia/Shanghai`，每项记录事项、命令、实际结果/数量、路径和恢复方式；机器意外关闭后复用原 checkpoint/cache，不启动重复爬虫。完整当前记录见 PROJECT_STATE.md。
+
+格式模板：
+
+```text
+- [ ] 目标：...；路径：`...`；恢复：`...`；下一步：...
+- [x] 目标：...；结果：...；路径：`...`；恢复：...。✅
+
+### YYYY-MM-DD HH:MM Asia/Shanghai
+- [x] 事项：...；命令：`...`；结果：...；路径：`...`；恢复：...。✅
+```

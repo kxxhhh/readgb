@@ -26,14 +26,14 @@ jq '{total_reigns, completed: (.completed_reign_ids | length), failed: (.failed_
 - [x] 公开同步目标已确认：294 卷、1,405 个纪年节点、30,989 条正文；公开入口为 /api/table_of_contents 和 /api/reign。✅
 - [x] 旧导入内容清理前快照保存在 service/data/resync-archive-20260803/；新同步数据只写入 service/data/。✅
 - [x] 同步器使用受控多线程：4 个 worker、全局请求节奏、robots 检查、缓存、Retry-After、退避、去重和原子 checkpoint。✅
-- [x] 当前唯一同步进程快照：PID 143358，4 worker，5 秒请求间隔，checkpoint 74/1405，失败 2；数据库 232 条真实 zztj-* 正文、覆盖 74 个纪年。快照时间约为 2026-08-03 09:32。✅
-- [ ] 同步仍未完成，当前约 5.27%，不能把数据库或 App 描述为全本。下一步：保留当前进程，持续观察 checkpoint；2 个 HTTP 429 失败项已写入 checkpoint，后续复用 cache/checkpoint 重试。
+- [x] 当前同步进程已停止；最后 checkpoint 为 87/1405，失败 4；数据库 283 条真实 zztj-* 正文、覆盖 87 个纪年。停止前使用 4 worker、5 秒请求间隔。✅
+- [ ] 同步仍未完成，当前约 6.19%，不能把数据库或 App 描述为全本。下一步：确认没有进程后运行 `./scripts/resume_crawler.sh`，复用现有 cache/checkpoint；4 个 HTTP 429 失败项已写入 checkpoint。
 - [ ] 新的正文、目录、百科 Android assets 尚未由本轮全量同步导出；导出前必须通过 30,989/294/1,405 完整性校验。
-- [ ] Android 图表代码已改为按纪年/纪·朝代覆盖全部分组，并把人物图谱改为全人物索引 + 中心人物下钻；下一步是 Kotlin 编译、测试和设备/模拟器检查。
+- [x] Android 图表代码已改为按纪年/纪·朝代覆盖全部分组，并把人物图谱改为全人物索引 + 中心人物下钻；Kotlin 编译、测试和 lint 已通过。✅
 
 ### 当前同步速度判断
 
-2026-08-03 08:21 至 08:57 的旧缓存写入为 41 个纪年，跨度约 2,206 秒，平均约 55.2 秒/纪年；这段期间进程随后停止，不能作为稳定吞吐。恢复后从约 9/1405 推进到 74/1405；已有 cache 命中阶段约 25 秒推进到 34/1405，之后使用 5 秒请求间隔并受站点 Retry-After 影响，速度仍未稳定。当前有 2 个 HTTP 429 失败项，已写入 checkpoint；4 worker 不用于绕过限流。
+2026-08-03 08:21 至 08:57 的旧缓存写入为 41 个纪年，跨度约 2,206 秒，平均约 55.2 秒/纪年；这段期间进程随后停止，不能作为稳定吞吐。恢复后从约 9/1405 推进到 87/1405；已有 cache 命中阶段约 25 秒推进到 34/1405，之后使用 5 秒请求间隔并受站点 Retry-After 影响，速度仍未稳定。当前有 4 个 HTTP 429 失败项，已写入 checkpoint；4 worker 不用于绕过限流。
 
 ## 当前任务清单
 
@@ -87,11 +87,14 @@ android/app/src/main/assets/            校验后的 APK 资产
 ### 2026-08-03
 
 - [x] 核对真实同步状态：进程曾停止，checkpoint 为 9/1405，数据库为 47 条真实正文；缓存数量不作为已入库数量。✅
-- [x] 恢复唯一多线程同步进程；最新观察到 74/1405、232 条真实正文、失败 2；当前进程按 5 秒请求间隔运行。✅
+- [x] 恢复唯一多线程同步进程；停止前最新观察到 87/1405、283 条真实正文、失败 4；checkpoint 已保存。✅
 - [x] 将研读柱状图从少量朝代示例改为纪年/纪·朝代全量分组，并增加点选下钻。✅
 - [x] 将人物图谱从固定节点改为结构化人物全索引、中心人物关系网络和正文入口。✅
 - [x] 把“每轮先读状态、任务行末加 ✅、中断可恢复、日志与项目合并”的要求写入 README.md、DOCS.md、guide.txt 和本文件。✅
-- [x] 完成 Kotlin/Backend 构建和运行验证：Backend 21 passed；Android test/lint/Debug/Release BUILD SUCCESSFUL。✅
+- [x] 完成 Kotlin/Backend 构建和运行验证：Backend 22 passed；Android test/lint/Debug/Release BUILD SUCCESSFUL。✅
+- [x] 已确认 ModelScope 实例时长预警；数据库、cache、checkpoint、项目日志和代码均位于 `/mnt/workspace/readgb`，可在实例关闭后复用原路径恢复。按用户要求已停止软件模拟器，未把设备级研读页验收写成完成。✅
+- [x] 按要求停止全部本轮任务并保存：爬虫 PID 143358 已退出，没有虚拟机或其他项目任务运行；恢复时复用 `service/data/tongjian-progress.json`、`service/data/tongjian-cache/` 和 `service/data/dutongjian.db`，不使用 `--reset`。✅
+- [x] 核对本轮爬取产物全部位于项目内 `service/data/`：数据库、原始 JSON cache、checkpoint、失败记录和旧数据审计快照均已落盘；未发现项目外或 `/tmp` 的同类数据。运行时数据库/cache/checkpoint 依照 `.gitignore` 不纳入 Git，push 只提交源码和文档。✅
 - [x] 功能/文档提交 fca5c11 和状态提交 b35ed9a 已推送 origin/main。✅
 
 ## 记录协议
@@ -104,3 +107,20 @@ android/app/src/main/assets/            校验后的 APK 资产
 4. 爬虫、构建、测试、部署、数据路径或文档有变化时，在本文件“变更日志”追加时间、命令、结果和实际数量。
 5. 意外中断后先检查进程和 checkpoint，复用同一 cache/checkpoint；确认没有进程时才运行恢复脚本。
 6. 不把 PID、速度、数量、构建或测试结果写入 README 等稳定文档；这些事实只更新本文件。
+
+清单格式：
+
+```text
+- [ ] 目标：说明本轮任务；路径：`涉及文件`；恢复：`命令或 checkpoint`；下一步：说明原因。
+- [x] 目标：说明已完成任务；结果：实际命令、数量或验收结论。✅
+```
+
+变更日志格式：
+
+```text
+### YYYY-MM-DD HH:MM Asia/Shanghai
+- [x] 事项：实际动作；命令：`...`；结果：实际输出/数量；路径：`...`；恢复：`...`。✅
+- [ ] 事项：未完成动作；阻塞：实际原因；下一步：恢复动作。
+```
+
+完成项必须在任务行末追加 `✅`；未完成项必须保留 `[ ]` 并写下一步或阻塞原因。日志只记录已经观察到的事实，不能把阶段性数据或未执行的设备验收写成完成。

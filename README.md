@@ -191,6 +191,8 @@ CI 位于 .github/workflows/ci.yml，执行 Python 测试/覆盖率和 Android J
 
 每次开发开始前先读 PROJECT_STATE.md，再执行 git status --short；开始时把目标写入任务清单，完成项行末加 ✅，未完成项保留 [ ] 并写明下一步。同步、构建、测试、部署和数据路径变化追加到 PROJECT_STATE.md 的变更日志。意外中断后复用原 checkpoint/cache，不启动重复爬虫。
 
+记录格式固定为：任务清单使用 `- [ ]` 表示未完成、`- [x]` 表示已完成，已完成行末必须追加 `✅`；未完成行必须写下一步或阻塞原因。变更日志按 `### YYYY-MM-DD HH:MM Asia/Shanghai` 分段，每项写明事项、实际命令、结果/数量、产物路径和恢复方式。只记录已经观察到的事实，阶段性同步数据和未执行的设备验收必须保持未完成状态。
+
 详细架构、API、Room 导入规则和同步边界见 DOCS.md；站点字段见 docs/site-analysis.md；功能验收见 plugin.md。
 
 许可证：MIT，见 LICENSE。

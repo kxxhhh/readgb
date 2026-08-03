@@ -168,10 +168,23 @@ CI：
 
 1. 先读 PROJECT_STATE.md，再执行 git status --short；DEVELOPMENT_LOG.md 已与 PROJECT_STATE.md 合并，不维护第二份进度。
 2. 在 PROJECT_STATE.md 当前任务清单写目标、路径和恢复方式。
-3. 完成项行末加 ✅；未完成项保留未勾选并写明下一步。
-4. 测试、同步、部署、数据路径和构建变化追加到同一文件的变更日志。
-5. 提交前执行测试、git diff --check，并确认没有把数据库/cache/checkpoint/APK/keystore 加入 Git。
-6. 用户要求推送时，提交后确认远端分支和 commit。
+3. 清单行使用 `- [ ]` 或 `- [x]`；完成项在同一行末追加 ✅，未完成项必须写下一步或阻塞原因。
+4. 测试、同步、部署、数据路径和构建变化追加到同一文件的变更日志，不能只修改总结数字。
+5. 变更日志使用 `### YYYY-MM-DD HH:MM Asia/Shanghai` 标题，并记录事项、命令、结果/实际数量、路径和恢复方式。
+6. 只写已观察到的事实；阶段性 checkpoint、失败项和未实测的设备行为不得写成全量完成。
+7. 提交前执行测试、git diff --check，并确认没有把数据库/cache/checkpoint/APK/keystore 加入 Git。
+8. 用户要求推送时，提交后确认远端分支和 commit。
+
+清单示例：
+
+    - [ ] 目标：完成某项功能；路径：`文件路径`；恢复：`checkpoint 或命令`；下一步：说明阻塞。
+    - [x] 目标：完成某项功能；结果：实际测试和数量；路径：`产物路径`。✅
+
+日志示例：
+
+    ### 2026-08-03 09:40 Asia/Shanghai
+    - [x] 事项：恢复同步。命令：`./scripts/resume_crawler.sh`；结果：`82/1405`；路径：`service/data/tongjian-progress.json`；恢复：复用原 cache/checkpoint。✅
+    - [ ] 事项：设备验收。阻塞：没有可用设备；下一步：连接设备后运行安装检查。
 
 八、安全边界
 ------------
