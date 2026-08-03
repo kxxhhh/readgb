@@ -1,6 +1,6 @@
 # 读通鉴当前任务清单与恢复日志
 
-更新时间：2026-08-04 05:22（Asia/Shanghai）
+更新时间：2026-08-04 05:26（Asia/Shanghai）
 
 本文件是项目的单一状态源，同时承担项目清单、断点恢复记录和开发日志。PROJECT_STATE_HISTORY.md 只保留旧历史，不作为当前事实来源；DEVELOPMENT_LOG.md 是本文件的合并入口说明，不再单独维护第二套日志。
 
@@ -44,7 +44,7 @@ jq '{total_reigns, completed: (.completed_reign_ids | length), failed: (.failed_
 - [x] 扩展内容已完成断点同步：事件 `239/239`、史论主题 `912/912`、checkpoint 错误 `0`；最终导出正文 `48,126`、目录 `565/2,556`，其中读通鉴论正文 `2,961`。✅
 - [x] 全部抓取正文已清理公开接口段号前缀；数据库迁移和导出校验均确认 `48,126` 条正文的 `content/original` 不再以数字开头，注释偏移同步扣除前缀长度。✅
 - [x] 阅读页已删除“决策卡”及其本地生成逻辑；历史注释不再按不可靠的接口偏移量覆盖正文词语，改为独立“来源注释”列表。✅
-- [ ] `0.1.20` 最终完整数据 Release；Android 三种 APK 已完成签名构建和资产验收，下一步提交、push 和 GitHub Release 上传。⏳
+- [x] `0.1.20` 最终完整数据 Release；Android 三种 APK 已完成签名构建、commit/push 和 GitHub Release 上传，Release 正式发布且三项 APK 资产齐全。✅
 
 ### 当前同步速度判断
 
@@ -305,7 +305,7 @@ android/app/src/main/assets/            校验后的 APK 资产
 - [x] 事项：完成 `0.1.20` Android 构建；命令：`./gradlew --no-daemon :app:testDebugUnitTest :app:lintDebug :app:assembleDebug :app:assembleInspection :app:assembleRelease`；结果：`BUILD SUCCESSFUL`，耗时 `4m18s`，版本 `17/0.1.20`；仅有既有 `ClickableText` 弃用警告。✅
 - [x] 事项：验收三种 APK；结果：Release v2 签名通过，正式证书 SHA-256 `0bd6d2260b1da032d761c16e7d31fee2767c80362295353e3f7ea10ebd111c57`；Debug `117,444,390` bytes / `142fa2c86b95d69120e9aa60c1b92ae91da6bc5311bf82930297cc108dbbf9d2`，Inspection `95,548,775` bytes / `29b07b151e6251877e0aca08db7c5767a5a1dd64f3b56cf25b1dd06a156e5571`，Release `95,548,775` bytes / `f8a77487d723ff60530d77ad96b609af2b6b1d7ac34b81803db8cc8d858e1373`；三者均含正文 `48,126`、数字前缀 `0`、目录 `565/2,556`、百科 `61,696`。✅
 - [x] 事项：记录最终资产哈希；结果：`offline_content.ndjson.gz`=`440dbee3354986955a10220161c8a061a6a5be30fc4cb18eb3dccec7c542e091`，`offline_catalog.json`=`cf8d56bc563c72bd001343f1ced6acc93974f4e40f863bcd8d06c668162970b1`，`offline_knowledge.json`=`fa1bbc67c05c0cc00c4dfbbcfe8322f45f28bd5ba73a5ea15d2b543f9b20ec45`。✅
-- [ ] 事项：提交并发布 `0.1.20`；下一步：将全部源码、Android assets、checkpoint 和状态文档 commit/push，再创建 GitHub Release 并核验下载。⏳
+- [x] 事项：提交并发布 `0.1.20`；结果：commit `ddf4cba` 已 push `origin/main`；正式 Release 已创建并上传 `app-release.apk`、`app-debug.apk`、`app-inspection.apk`；地址：`https://github.com/kxxhhh/readgb/releases/tag/v0.1.20`。✅
 
 ## 记录协议
 
