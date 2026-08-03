@@ -72,7 +72,7 @@ jq '{total_reigns, completed: (.completed_reign_ids | length), failed: (.failed_
 
 ### 其他未完成能力
 
-- [ ] 全量百科资产：人物、地点、官职、专题、决策关联需在完整正文后导出并检查分类计数、非空字段和去重；下一步：运行完整 `export_android` 并复核 `offline_knowledge.json`。
+- [ ] 全量百科资产：人物、地点、官职、专题、决策关联需在完整正文后导出；`export_android` 已强制检查五类分类、非空字段和去重，下一步：运行 `scripts/finalize_tongjian.sh` 并复核 `offline_knowledge.json`。
 - [ ] 典章制度、经济史专题的全量结构化标注；当前只有 tags/关联字段和关键词筛选，下一步：依据公开字段建立可追溯的主题分类规则并补测试。
 - [ ] 全本图表性能、关系准确性和人物/时期覆盖验收；下一步：全量资产导入后执行图表聚合基准和 Android UI 检查。
 - [ ] “历史上的今天”完整历法匹配和自动刷新；当前 `今日金句` 只是按 day-of-year 轮换条目，缺少公开月日字段，下一步：补充可信历法映射数据后再实现。

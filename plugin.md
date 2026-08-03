@@ -16,7 +16,7 @@
 - [ ] 完整 30,989 条正文、294 卷、1,405 纪年进入 APK。当前 checkpoint `1069/1405`、真实正文 `17,900`，下一步：严格校验通过后导出并从 APK 复核。
 - [x] 正文保留 original、translation、notes、tags、volume_id、year_id 和 source_url；导入失败不覆盖已有 Room 数据。✅
 - [x] 本地字形映射表和古籍字词提示表放入 android/app/src/main/assets/，应用启动时加载。✅
-- [ ] 全量人物、地点、官职、专题、决策百科资产。关联 JSON 会在全量正文校验后生成 `offline_knowledge.json`，并需复核分类、非空字段和去重。
+- [ ] 全量人物、地点、官职、专题、决策百科资产。`export_android` 已在全量导出时强制检查五类关联、非空字段和去重，下一步：同步完成后运行收尾脚本并从 APK 复核。
 - [x] App 无网络时可以通过 OfflineSeed、Room 和本地资源启动，不把目标网站作为运行时依赖。✅
 
 ## P1：阅读器与声音

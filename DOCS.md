@@ -212,7 +212,7 @@ unit 的 ExecStart 指向恢复脚本，Restart=on-failure，依赖 network-onli
 
 service/app/export_android.py 有三种边界：
 
-- 默认全量导出：严格要求 30,989 条真实 zztj-*、294 卷和 1,405 年，并校验正文、原文、译文和层级字段。
+- 默认全量导出：严格要求 30,989 条真实 zztj-*、294 卷和 1,405 年，并校验正文、原文、译文、层级字段以及人物/地点/官职/主题/决策五类百科关联的非空与去重。
 - --allow-partial --checkpoint：仅导出 checkpoint 已完成纪年的阶段性快照，适合开发检查，不代表全本。
 - 资产写入先写同目录 .tmp 再 replace，校验或进程失败不会替换旧目标。
 
